@@ -10,6 +10,10 @@
 #ifndef RAFT_H_
 #define RAFT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "raft_types.h"
 
 typedef enum {
@@ -1225,5 +1229,9 @@ void raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb
 /** Attempt to process read queue.
  */
 void raft_process_read_queue(raft_server_t* me_);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* RAFT_H_ */
