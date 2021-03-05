@@ -835,6 +835,10 @@ int raft_get_request_timeout(raft_server_t* me);
  * @return index of last applied entry */
 raft_index_t raft_get_last_applied_idx(raft_server_t* me);
 
+/** Set the node's next index.
+ * @param[in] the node's next index */
+void raft_node_set_next_idx(raft_node_t* node, raft_index_t nextIdx);
+
 /**
  * @return the node's next index */
 raft_index_t raft_node_get_next_idx(raft_node_t* node);
