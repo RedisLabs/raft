@@ -224,6 +224,10 @@ raft_term_t raft_get_last_log_term(raft_server_t* me_)
             raft_entry_release(ety);
             return term;
         }
+        else if (current_idx == raft_get_snapshot_last_idx(me_))
+        {
+            return raft_get_snapshot_last_term(me_);
+        }
     }
     return 0;
 }
