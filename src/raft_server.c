@@ -1106,12 +1106,19 @@ raft_node_t* raft_add_non_voting_node(raft_server_t* me_, void* udata, raft_node
     return raft_add_non_voting_node_internal(me_, NULL, udata, id, is_self);
 }
 
-void raft_remove_node(raft_server_t* me_, raft_node_t* node)
+void raft_clear_node(raft_server_t* me_, raft_node_t* node)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
     if (me->cb.notify_membership_event)
         me->cb.notify_membership_event(me_, raft_get_udata(me_), node, NULL, RAFT_MEMBERSHIP_REMOVE);
+
+    raft_node_free(node);
+}
+
+void raft_remove_node(raft_server_t* me_, raft_node_t* node)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
 
     assert(node);
 
@@ -1125,10 +1132,9 @@ void raft_remove_node(raft_server_t* me_, raft_node_t* node)
         }
     }
     assert(found);
+    raft_clear_node(me_, node);
     memmove(&me->nodes[i], &me->nodes[i + 1], sizeof(*me->nodes) * (me->num_nodes - i - 1));
     me->num_nodes--;
-
-    raft_node_free(node);
 }
 
 int raft_get_nvotes_for_me(raft_server_t* me_)
@@ -1509,7 +1515,8 @@ int raft_begin_load_snapshot(
         if (raft_get_nodeid(me_) == raft_node_get_id(me->nodes[i]))
             my_node_by_idx = i;
         else {
-            raft_node_free(me->nodes[i]);
+            raft_clear_node(me_, me->nodes[i]);
+
             me->nodes[i] = NULL;
         }
     }
