@@ -144,8 +144,6 @@ void raft_node_free(raft_node_t* me_);
 
 void raft_clear_node(raft_server_t* me_, raft_node_t* node);
 
-void raft_node_set_match_idx(raft_node_t* node, raft_index_t matchIdx);
-
 raft_index_t raft_node_get_match_idx(raft_node_t* me_);
 
 void raft_node_vote_for_me(raft_node_t* me_, const int vote);

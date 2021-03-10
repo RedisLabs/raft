@@ -843,6 +843,10 @@ raft_index_t raft_get_last_applied_idx(raft_server_t* me);
  * @param[in] the node's next index */
 void raft_node_set_next_idx(raft_node_t* node, raft_index_t nextIdx);
 
+/** Set the node's match index.
+ * @param[in] the node's next match */
+void raft_node_set_match_idx(raft_node_t* node, raft_index_t matchIdx);
+
 /**
  * @return the node's next index */
 raft_index_t raft_node_get_next_idx(raft_node_t* node);
