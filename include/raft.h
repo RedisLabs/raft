@@ -998,6 +998,10 @@ int raft_entry_is_voting_cfg_change(raft_entry_t* ety);
  * @return 1 if this is a configuration change. */
 int raft_entry_is_cfg_change(raft_entry_t* ety);
 
+/**
+ * @return number of items within log in log compaction */
+raft_index_t raft_get_num_snapshottable_logs(raft_server_t *me_);
+
 /** Begin snapshotting.
  *
  * While snapshotting, raft will:
