@@ -467,7 +467,7 @@ int raft_recv_appendentries(
     /* NOTE: the log starts at 1 */
     if (0 < ae->prev_log_idx)
     {
-        raft_entry_t* ety = raft_get_entry_from_idx(me_, ae->prev_log_idx);
+        raft_entry_t* ety = NULL;
 
         /* Is a snapshot */
         if (ae->prev_log_idx == me->snapshot_last_idx)
@@ -484,7 +484,7 @@ int raft_recv_appendentries(
         }
         /* 2. Reply false if log doesn't contain an entry at prevLogIndex
            whose term matches prevLogTerm (§5.3) */
-        else if (!ety)
+        else if (!(ety = raft_get_entry_from_idx(me_, ae->prev_log_idx)))
         {
             __log(me_, node, "AE no log at prev_idx %d", ae->prev_log_idx);
             goto out;
