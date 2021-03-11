@@ -992,15 +992,17 @@ int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
     /* previous log is the log just before the new logs */
     if (1 < next_idx)
     {
-        raft_entry_t* prev_ety = raft_get_entry_from_idx(me_, next_idx - 1);
-        if (!prev_ety)
+        raft_index_t prev_idx = next_idx - 1;
+        raft_entry_t* prev_ety = NULL;
+
+        if (me->snapshot_last_idx == prev_idx || !(prev_ety = raft_get_entry_from_idx(me_, prev_idx)))
         {
             ae.prev_log_idx = me->snapshot_last_idx;
             ae.prev_log_term = me->snapshot_last_term;
         }
         else
         {
-            ae.prev_log_idx = next_idx - 1;
+            ae.prev_log_idx = prev_idx;
             ae.prev_log_term = prev_ety->term;
             raft_entry_release(prev_ety);
         }
