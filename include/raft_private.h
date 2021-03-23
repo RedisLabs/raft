@@ -107,8 +107,6 @@ typedef struct {
     raft_read_request_t *read_queue_tail;
 } raft_server_private_t;
 
-int raft_election_start(raft_server_t* me);
-
 int raft_become_candidate(raft_server_t* me);
 
 void raft_randomize_election_timeout(raft_server_t* me_);
