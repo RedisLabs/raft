@@ -107,8 +107,6 @@ typedef struct {
     raft_read_request_t *read_queue_tail;
 } raft_server_private_t;
 
-int raft_election_start(raft_server_t* me);
-
 int raft_become_candidate(raft_server_t* me);
 
 void raft_randomize_election_timeout(raft_server_t* me_);
@@ -142,9 +140,7 @@ raft_node_t* raft_node_new(void* udata, raft_node_id_t id);
 
 void raft_node_free(raft_node_t* me_);
 
-void raft_node_set_next_idx(raft_node_t* node, raft_index_t nextIdx);
-
-void raft_node_set_match_idx(raft_node_t* node, raft_index_t matchIdx);
+void raft_clear_node(raft_server_t* me_, raft_node_t* node);
 
 raft_index_t raft_node_get_match_idx(raft_node_t* me_);
 

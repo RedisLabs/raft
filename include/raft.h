@@ -10,6 +10,10 @@
 #ifndef RAFT_H_
 #define RAFT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "raft_types.h"
 
 typedef enum {
@@ -835,6 +839,14 @@ int raft_get_request_timeout(raft_server_t* me);
  * @return index of last applied entry */
 raft_index_t raft_get_last_applied_idx(raft_server_t* me);
 
+/** Set the node's next index.
+ * @param[in] the node's next index */
+void raft_node_set_next_idx(raft_node_t* node, raft_index_t nextIdx);
+
+/** Set the node's match index.
+ * @param[in] the node's next match */
+void raft_node_set_match_idx(raft_node_t* node, raft_index_t matchIdx);
+
 /**
  * @return the node's next index */
 raft_index_t raft_node_get_next_idx(raft_node_t* node);
@@ -915,6 +927,8 @@ int raft_set_current_term(raft_server_t* me, const raft_term_t term);
  * @param[in] commit_idx The new commit index. */
 void raft_set_commit_idx(raft_server_t* me, raft_index_t commit_idx);
 
+int raft_election_start(raft_server_t* me);
+
 /** Add an entry to the server's log.
  * This should be used to reload persistent state, ie. the commit log.
  * @param[in] ety The entry to be appended
@@ -985,6 +999,10 @@ int raft_entry_is_voting_cfg_change(raft_entry_t* ety);
  * @param[in] ety The entry to query.
  * @return 1 if this is a configuration change. */
 int raft_entry_is_cfg_change(raft_entry_t* ety);
+
+/**
+ * @return number of items within log in log compaction */
+raft_index_t raft_get_num_snapshottable_logs(raft_server_t *me_);
 
 /** Begin snapshotting.
  *
@@ -1221,5 +1239,9 @@ void raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb
 /** Attempt to process read queue.
  */
 void raft_process_read_queue(raft_server_t* me_);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* RAFT_H_ */
