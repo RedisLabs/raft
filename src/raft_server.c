@@ -388,7 +388,8 @@ int raft_recv_appendentries_response(raft_server_t* me_,
         raft_entry_t* ety = raft_get_entry_from_idx(me_, point);
         if (raft_get_commit_idx(me_) < point && ety->term == me->current_term)
         {
-            int i, votes = 1;
+            int i, votes = raft_node_is_voting(me_) ? 1 : 0;
+
             for (i = 0; i < me->num_nodes; i++)
             {
                 raft_node_t* node = me->nodes[i];
@@ -811,7 +812,7 @@ int raft_recv_entry(raft_server_t* me_,
     }
 
     /* if we're the only node, we can consider the entry committed */
-    if (1 == raft_get_num_voting_nodes(me_))
+    if (1 == raft_get_num_voting_nodes(me_) && raft_node_is_voting(me_))
         raft_set_commit_idx(me_, raft_get_current_idx(me_));
 
     r->id = ety->id;
