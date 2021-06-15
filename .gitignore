@@ -3,6 +3,8 @@
 *~
 libraft.a
 libraft.so
+libcraft.so
+libcraft.a
 CLinkedListQueue/
 .env/
 .hypothesis/
