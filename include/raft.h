@@ -75,6 +75,12 @@ typedef enum {
      */
     RAFT_LOGTYPE_REMOVE_NODE,
     /**
+     * Directed leadership change
+     * leader node instructs followers to accept another "target" node's RequestVote RPCs and on commit to "target"
+     * will initiate an election
+     */
+     RAFT_LOGTYPE_TRANSFER_LEADER,
+    /**
      * Users can piggyback the entry mechanism by specifying log types that
      * are higher than RAFT_LOGTYPE_NUM.
      */
@@ -1217,6 +1223,8 @@ extern const raft_log_impl_t raft_log_internal_impl;
 void raft_handle_append_cfg_change(raft_server_t* me_, raft_entry_t* ety, raft_index_t idx);
 
 void raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb, void *cb_arg);
+
+void raft_handle_leader_transfer(raft_server_t* me_, raft_entry_t* ety, raft_index_t idx);
 
 /** Attempt to process read queue.
  */

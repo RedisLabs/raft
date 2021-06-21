@@ -163,6 +163,8 @@ int raft_election_start(raft_server_t* me_)
 int raft_become_leader(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
+    me->transfer_leader = 0;
+
     int i;
 
     __log(me_, NULL, "becoming leader term:%d", raft_get_current_term(me_));
@@ -201,6 +203,7 @@ int raft_become_leader(raft_server_t* me_)
 int raft_become_candidate(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
+    me->transfer_leader = 0;
     int i;
 
     __log(me_, NULL, "becoming candidate");
@@ -236,6 +239,7 @@ int raft_become_candidate(raft_server_t* me_)
 void raft_become_follower(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
+    me->transfer_leader = 0;
 
     __log(me_, NULL, "becoming follower");
     if (me->cb.notify_state_event)
@@ -265,12 +269,16 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
     {
         if (me->request_timeout <= me->timeout_elapsed)
             raft_send_appendentries_all(me_);
-    }
-    else if (me->election_timeout_rand <= me->timeout_elapsed &&
+    } else if (
+            /* we've timed out since last message (leader or follower) */
+            (me->election_timeout_rand <= me->timeout_elapsed ||
+            /* this is a follower and we requested it to timeout to invoke leadership transfer */
+            (me->timeout && RAFT_STATE_FOLLOWER == me->state)) &&
         /* Don't become the leader when building snapshots or bad things will
          * happen when we get a client request */
         !raft_snapshot_is_in_progress(me_))
     {
+        me->timeout = 0;
         if (1 < raft_get_num_voting_nodes(me_) &&
             raft_node_is_voting(raft_get_my_node(me_)))
         {
@@ -630,12 +638,13 @@ int raft_recv_requestvote(raft_server_t* me_,
     if (!node)
         node = raft_get_node(me_, vr->candidate_id);
 
-    /* Reject request if we have a leader */
-    if (me->current_leader && me->current_leader != node &&
-            (me->timeout_elapsed < me->election_timeout)) {
+    /* Reject request if we have a leader, except if we have allowed it via transfer leader log entry */
+    if (vr->candidate_id != me->transfer_leader && me->current_leader && me->current_leader != node && (me->timeout_elapsed < me->election_timeout)) {
         r->vote_granted = 0;
         goto done;
     }
+
+    me->transfer_leader = 0;
 
     if (raft_get_current_term(me_) < vr->term)
     {
@@ -753,9 +762,10 @@ int raft_recv_requestvote_response(raft_server_t* me_,
             break;
 
         case RAFT_REQUESTVOTE_ERR_UNKNOWN_NODE:
-            if (raft_node_is_voting(raft_get_my_node(me_)) &&
-                me->connected == RAFT_NODE_STATUS_DISCONNECTING)
+            if (raft_node_is_voting(raft_get_my_node(me_)) && me->connected == RAFT_NODE_STATUS_DISCONNECTING) {
+                __log(me_, node, "we have been removed from cluster, shutting down");
                 return RAFT_ERR_SHUTDOWN;
+            }
             break;
 
         default:
@@ -849,6 +859,8 @@ int raft_append_entry(raft_server_t* me_, raft_entry_t* ety)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
+    me->transfer_leader = 0;
+
     int e = me->log_impl->append(me->log, ety);
     if (e < 0)
         return e;
@@ -858,6 +870,10 @@ int raft_append_entry(raft_server_t* me_, raft_entry_t* ety)
 
     if (raft_entry_is_cfg_change(ety)) {
         raft_handle_append_cfg_change(me_, ety, raft_get_current_idx(me_));
+    }
+
+    if (ety->type == RAFT_LOGTYPE_TRANSFER_LEADER) {
+        raft_handle_leader_transfer(me_, ety, raft_get_current_idx(me_));
     }
 
     return 0;
@@ -899,6 +915,9 @@ int raft_apply_entry(raft_server_t* me_)
      */
     if (log_idx >= me->voting_cfg_change_log_idx)
         me->voting_cfg_change_log_idx = -1;
+
+    if (ety->type == RAFT_LOGTYPE_TRANSFER_LEADER && me->cb.log_get_node_id(me_, raft_get_udata(me_), ety, log_idx) == raft_get_nodeid(me_))
+        me->timeout = 1;
 
     if (!raft_entry_is_cfg_change(ety))
         goto exit;
@@ -1214,6 +1233,21 @@ int raft_entry_is_cfg_change(raft_entry_t* ety)
         RAFT_LOGTYPE_ADD_NONVOTING_NODE == ety->type ||
         RAFT_LOGTYPE_DEMOTE_NODE == ety->type ||
         RAFT_LOGTYPE_REMOVE_NODE == ety->type);
+}
+
+void raft_handle_leader_transfer(raft_server_t* me_, raft_entry_t* ety, raft_index_t idx)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+
+    if (ety->type != RAFT_LOGTYPE_TRANSFER_LEADER)
+        return;
+
+    if (!me->cb.log_get_node_id)
+        return;
+
+    raft_node_id_t node_id = me->cb.log_get_node_id(me_, raft_get_udata(me_), ety, idx);
+
+    me->transfer_leader = node_id;
 }
 
 void raft_handle_append_cfg_change(raft_server_t* me_, raft_entry_t* ety, raft_index_t idx)
