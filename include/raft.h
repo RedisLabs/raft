@@ -1230,4 +1230,10 @@ void raft_handle_leader_transfer(raft_server_t* me_, raft_entry_t* ety, raft_ind
  */
 void raft_process_read_queue(raft_server_t* me_);
 
+raft_node_id_t raft_get_transfer_leader(raft_server_t *me_);
+void raft_set_transfer_leader(raft_server_t *me_, raft_node_id_t id);
+void raft_reset_transfer_leader(raft_server_t *me_);
+int raft_get_timeout_now(raft_server_t *me_);
+void raft_set_timeout_now(raft_server_t *me_);
+void raft_reset_timeout_now(raft_server_t *me_);
 #endif /* RAFT_H_ */

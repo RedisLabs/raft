@@ -271,3 +271,35 @@ void raft_set_snapshot_metadata(raft_server_t *me_, raft_term_t term, raft_index
     me->snapshot_last_term = term;
     me->snapshot_last_idx = idx;
 }
+
+raft_node_id_t raft_get_transfer_leader(raft_server_t *me_)
+{
+    return ((raft_server_private_t*)me_)->transfer_leader;
+}
+
+void raft_set_transfer_leader(raft_server_t *me_, raft_node_id_t id)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    me->transfer_leader = id;
+}
+
+void raft_reset_transfer_leader(raft_server_t *me_)
+{
+    ((raft_server_private_t*)me_)->transfer_leader = 0;
+}
+
+int raft_get_timeout_now(raft_server_t *me_)
+{
+    return ((raft_server_private_t*)me_)->timeout;
+}
+
+void raft_set_timeout_now(raft_server_t *me_)
+{
+    ((raft_server_private_t*)me_)->timeout = 1;
+}
+
+void raft_reset_timeout_now(raft_server_t *me_)
+{
+    ((raft_server_private_t*)me_)->timeout = 0;
+}
+
