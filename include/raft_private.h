@@ -105,6 +105,9 @@ typedef struct {
     raft_msg_id_t msg_id;
     raft_read_request_t *read_queue_head;
     raft_read_request_t *read_queue_tail;
+
+    int timeout;
+    raft_node_id_t transfer_leader;
 } raft_server_private_t;
 
 int raft_election_start(raft_server_t* me);
