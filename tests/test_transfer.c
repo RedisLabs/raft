@@ -52,7 +52,8 @@ void TestRaft_transfer_leader_tag_node(CuTest *tc)
             .log_get_node_id = log_get_node_id_test,
     };
 
-    void *r = raft_new();
+    /* Setup Cluster */
+    raft_server_t *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
     raft_add_node(r, NULL, 1, 1);
@@ -62,19 +63,23 @@ void TestRaft_transfer_leader_tag_node(CuTest *tc)
     raft_set_current_term(r, 1);
     raft_set_commit_idx(r, 0);
 
+    /* log entry */
     msg_entry_t *ety = __MAKE_ENTRY(1, 1, NULL);
     ety->type = RAFT_LOGTYPE_TRANSFER_LEADER;
 
     raft_node_id_t target = 1;
     memcpy(ety->data, &target, sizeof(target));
 
+    /* Test #1: appending to log, sets the transfer_leader to value */
     raft_append_entry(r, ety);
     CuAssertTrue(tc, 1 == raft_get_transfer_leader(r));
 
+    /* Test #2: commiting to log on node, sets timeout_now to 'true' */
     raft_set_commit_idx(r, 1);
     raft_apply_all(r);
     CuAssertTrue(tc, 1 == raft_get_timeout_now(r));
 
+    /* Test #3: appending another entry to log, reset transfer_leader value */
     ety = __MAKE_ENTRY(1, 1, NULL);
     raft_append_entry(r, ety);
     CuAssertTrue(tc, 0 == raft_get_transfer_leader(r));
@@ -89,7 +94,8 @@ void TestRaft_server_recv_requestvote_with_transfer_node(CuTest * tc)
 {
     raft_cbs_t funcs = { 0 };
 
-    void *r = raft_new();
+    /* Setup cluster */
+    raft_server_t *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
     raft_add_node(r, NULL, 1, 1);
@@ -98,6 +104,7 @@ void TestRaft_server_recv_requestvote_with_transfer_node(CuTest * tc)
     raft_set_current_term(r, 1);
     raft_set_election_timeout(r, 1000);
 
+    /* manually set transfer_leader value, as if got set by a log message */
     raft_set_transfer_leader(r, 2);
 
     msg_appendentries_t ae = { 0 };
@@ -107,6 +114,7 @@ void TestRaft_server_recv_requestvote_with_transfer_node(CuTest * tc)
     raft_recv_appendentries(r, raft_get_node(r, 2), &ae, &aer);
     CuAssertTrue(tc, 1 == aer.success);
 
+    /* setup requestvote struct */
     msg_requestvote_t rv = {
             .term = 2,
             .candidate_id = 3,
@@ -114,14 +122,21 @@ void TestRaft_server_recv_requestvote_with_transfer_node(CuTest * tc)
             .last_log_term = 1
     };
     msg_requestvote_response_t rvr;
+
+    /* test #1: try to request a vote as not the 'targeted' transfer_leader node */
     raft_recv_requestvote(r, raft_get_node(r, 3), &rv, &rvr);
     CuAssertTrue(tc, 1 != rvr.vote_granted);
 
+    /* test #2: try to request a vote as the 'targeted' transfer_leader node */
     rv.candidate_id = 2;
     raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
     CuAssertTrue(tc, 1 == rvr.vote_granted);
 }
 
+/*
+ * tests:
+ * 1) if we set timeout_now, then periodic function should always declare election, even when not timed out yet
+ */
 void TestRaft_targeted_node_becomes_candidate_when_before_real_timeout_occurs(CuTest * tc)
 {
     raft_cbs_t funcs = {
@@ -130,7 +145,7 @@ void TestRaft_targeted_node_becomes_candidate_when_before_real_timeout_occurs(Cu
             .send_requestvote = __raft_send_requestvote,
     };
 
-    void *r = raft_new();
+    raft_server_t *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
     raft_set_timeout_now(r);
@@ -141,7 +156,7 @@ void TestRaft_targeted_node_becomes_candidate_when_before_real_timeout_occurs(Cu
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
 
-    /*  max election timeout have passed */
+    /* i.e. not a timeout, only 1 out of 1000 */
     raft_periodic(r, 1);
 
     /* is a candidate now */
