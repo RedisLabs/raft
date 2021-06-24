@@ -11,24 +11,7 @@
 #include "raft_private.h"
 #include "mock_send_functions.h"
 
-static int __raft_persist_term(
-    raft_server_t* raft,
-    void *udata,
-    raft_term_t term,
-    int vote
-    )
-{
-    return 0;
-}
-
-static int __raft_persist_vote(
-    raft_server_t* raft,
-    void *udata,
-    int vote
-    )
-{
-    return 0;
-}
+#include "helpers.h"
 
 void TestRaft_scenario_leader_appears(CuTest * tc)
 {

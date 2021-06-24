@@ -13,31 +13,6 @@
 
 #include "helpers.h"
 
-static int __raft_persist_term(raft_server_t* raft, void *udata, raft_term_t term, int vote)
-{
-    return 0;
-}
-
-static int __raft_send_appendentries(raft_server_t* raft, void* udata, raft_node_t* node, msg_appendentries_t* msg)
-{
-    return 0;
-}
-
-static raft_node_id_t log_get_node_id_test(raft_server_t *r, void *data, raft_entry_t *entry, raft_index_t entry_idx)
-{
-    return (raft_node_id_t) *(entry->data);
-}
-
-static int __raft_persist_vote(raft_server_t* raft, void *udata, int vote)
-{
-    return 0;
-}
-
-static int __raft_send_requestvote(raft_server_t* raft, void* udata, raft_node_t* node, msg_requestvote_t* msg)
-{
-    return 0;
-}
-
 /*
  * tests:
  * 1) appending a TRANSFER_LEADER log entry to a node sets the transfer_leader value correctly
@@ -49,7 +24,7 @@ void TestRaft_transfer_leader_tag_node(CuTest *tc)
     raft_cbs_t funcs = {
             .persist_term = __raft_persist_term,
             .send_appendentries = __raft_send_appendentries,
-            .log_get_node_id = log_get_node_id_test,
+            .log_get_node_id = __raft_log_get_node_id,
     };
 
     /* Setup Cluster */
@@ -64,11 +39,8 @@ void TestRaft_transfer_leader_tag_node(CuTest *tc)
     raft_set_commit_idx(r, 0);
 
     /* log entry */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, NULL);
+    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "1");
     ety->type = RAFT_LOGTYPE_TRANSFER_LEADER;
-
-    raft_node_id_t target = 1;
-    memcpy(ety->data, &target, sizeof(target));
 
     /* Test #1: appending to log, sets the transfer_leader to value */
     raft_append_entry(r, ety);

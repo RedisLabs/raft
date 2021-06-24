@@ -11,50 +11,6 @@
 #include "raft.h"
 #include "helpers.h"
 
-static int __logentry_get_node_id(
-    raft_server_t* raft,
-    void *udata,
-    raft_entry_t *ety,
-    raft_index_t ety_idx
-    )
-{
-    return 0;
-}
-
-static int __log_offer(
-    raft_server_t* raft,
-    void *user_data,
-    raft_entry_t *entry,
-    raft_index_t entry_idx
-    )
-{
-    CuAssertIntEquals((CuTest*)raft, 1, entry_idx);
-    return 0;
-}
-
-static int __log_pop(
-    raft_server_t* raft,
-    void *user_data,
-    raft_entry_t *entry,
-    raft_index_t entry_idx
-    )
-{
-    raft_entry_t* copy = malloc(sizeof(*entry));
-    memcpy(copy, entry, sizeof(*entry));
-    llqueue_offer(user_data, copy);
-    return 0;
-}
-
-static int __log_pop_failing(
-    raft_server_t* raft,
-    void *user_data,
-    raft_entry_t *entry,
-    raft_index_t entry_idx
-    )
-{
-    return -1;
-}
-
 static const raft_log_impl_t *impl = &raft_log_internal_impl;
 
 static void __LOGIMPL_APPEND_ENTRY(void *l, int id, raft_term_t term, const char *data)
