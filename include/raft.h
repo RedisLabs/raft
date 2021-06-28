@@ -145,6 +145,9 @@ typedef struct
 
     /** term of candidate's last log entry */
     raft_term_t last_log_term;
+
+    /** tell nodes that they should allow a vote, even with a healthy leader */
+    int transfer_leader;
 } msg_requestvote_t;
 
 /** Vote request response message.
@@ -398,6 +401,17 @@ typedef void (
     raft_state_e state
     );
 
+/** Callback for sending TimeoutNow RPC messages
+ * @param[in] raft The Raft server making this callback
+ * @param[in] node The node's ID that we are sending this message to
+ * @return 0 on success
+ */
+typedef int (
+*func_send_timeoutnow_f
+)   (
+        raft_server_t* raft,
+        raft_node_t* node
+    );
 
 typedef struct
 {
@@ -441,6 +455,9 @@ typedef struct
     /** Callback for catching debugging log messages
      * This callback is optional */
     func_log_f log;
+
+    /** Callback for sending TimeoutNow RPC messages to nodes */
+    func_send_timeoutnow_f send_timeoutnow;
 } raft_cbs_t;
 
 /** A generic notification callback used to allow Raft to notify caller
@@ -1238,5 +1255,19 @@ void raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb
 /** Attempt to process read queue.
  */
 void raft_process_read_queue(raft_server_t* me_);
+
+void raft_set_transfer_leader(raft_server_t* me_, raft_node_id_t node_id);
+
+void raft_reset_transfer_leader(raft_server_t* me_);
+
+int raft_get_transfer_leader(raft_server_t* me_);
+
+void raft_set_transfer_leader_timeout(raft_server_t me_, int timeout);
+
+void raft_set_timeout_now(raft_server_t* me_);
+
+int raft_is_timeout_now(raft_server_t* me_);
+
+void raft_reset_timeout_now(raft_server_t* me_);
 
 #endif /* RAFT_H_ */

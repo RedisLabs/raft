@@ -67,6 +67,7 @@ typedef struct {
     int election_timeout;
     int election_timeout_rand;
     int request_timeout;
+    int transfer_leader_timeout;
 
     /* timer interval to check if we still have quorum */
     long quorum_timeout;
@@ -115,6 +116,11 @@ typedef struct {
     raft_msg_id_t max_seen_msg_id;
     raft_read_request_t *read_queue_head;
     raft_read_request_t *read_queue_tail;
+
+    raft_node_id_t transfer_leader_node;
+    int transfer_leader_time;
+
+    int timeout_now;
 } raft_server_private_t;
 
 int raft_election_start(raft_server_t* me);
