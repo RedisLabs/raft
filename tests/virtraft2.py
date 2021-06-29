@@ -59,7 +59,6 @@ import coloredlogs
 import docopt
 import logging
 import random
-import re
 import sys
 import terminaltables
 
@@ -155,6 +154,7 @@ SnapshotMember = collections.namedtuple('SnapshotMember', ['id', 'voting'])
 
 
 def raft_send_requestvote(raft, udata, node, msg):
+#    logger.error("raft_send_requestvote")
     server = ffi.from_handle(udata)
     dst_server = ffi.from_handle(lib.raft_node_get_udata(node))
     server.network.enqueue_msg(msg, server, dst_server)
@@ -402,12 +402,14 @@ class Network(object):
             lib.raft_recv_appendentries_response(msg.sendee.raft, node, msg.data)
 
         elif msg_type == 'msg_requestvote_t *':
+#            logger.error(f"raft_recv_requestvote: {msg.data}")
             response = ffi.new('msg_requestvote_response_t*')
             node = lib.raft_get_node(msg.sendee.raft, msg.sendor.id)
             lib.raft_recv_requestvote(msg.sendee.raft, node, msg.data, response)
             self.enqueue_msg(response, msg.sendee, msg.sendor)
 
         elif msg_type == 'msg_requestvote_response_t *':
+#           logger.error(f"raft_recv_requestvote_response: {msg.data}")
             node = lib.raft_get_node(msg.sendee.raft, msg.sendor.id)
             e = lib.raft_recv_requestvote_response(msg.sendee.raft, node, msg.data)
             if lib.RAFT_ERR_SHUTDOWN == e:
@@ -430,6 +432,23 @@ class Network(object):
                     raise server.abort_exception
                 self._check_current_idx_validity(server)
             self._check_election_safety()
+
+    def run_election(self, server):
+        logger.debug("first poll")
+        self.poll_messages()
+        logger.debug("periodic func: timeout")
+        server.periodic(1000)
+        logger.debug("second poll")
+        server.periodic(200)
+        self.poll_messages()
+        logger.debug("third poll")
+        server.periodic(200)
+        self.poll_messages()
+        logger.debug("fourth poll")
+        server.periodic(200)
+        self.poll_messages()
+        logger.debug("finished election")
+
 
     def _check_current_idx_validity(self, server):
         """
@@ -512,6 +531,13 @@ class Network(object):
     def active_servers(self):
         return [s for s in self.servers if not getattr(s, 'removed', False)]
 
+    @property
+    def connected_servers(self):
+        return [s for s in self.servers if s.connection_status == NODE_CONNECTED]
+
+    def running_servers(self):
+        return [s for s in self.servers if s.connection_status != NODE_CONNECTING or s.connection_status != NODE_DISCONNECTED]
+
     def add_member(self):
         if net.num_of_servers <= len(self.active_servers):
             return
@@ -550,6 +576,7 @@ class Network(object):
         assert added_node
 
     def remove_member(self):
+        is_leader = False;
         if not self.leader:
             logger.error('no leader')
             return
@@ -565,8 +592,13 @@ class Network(object):
             return
 
         if leader == server:
-            # logger.error('can not remove leader')
-            return
+            if (len(self.connected_servers) - 1) > (len(self.running_servers())/2) or len(self.connected_servers) <= 2:
+                return
+            logger.debug(f"removing leader: num connected nodes = {len(self.connected_servers)}")
+            is_leader = True
+            for x in range(50):
+                for server in self.active_servers:
+                    server.periodic(0)
 
         if server.connection_status in [NODE_CONNECTING, NODE_DISCONNECTING]:
             # logger.error('can not remove server that is changing connection status')
@@ -593,6 +625,30 @@ class Network(object):
         assert NODE_CONNECTED == server.connection_status
         server.set_connection_status(NODE_DISCONNECTING)
 
+        if is_leader:
+            got_leader = False
+            for x in range(50):
+                logger.debug(f"running elections {x}: num connected nodes = {len(self.connected_servers)}")
+                for s in self.connected_servers:
+                    logger.debug(f"election: {lib.raft_get_nodeid(s.raft)}, current_state := {state2str(lib.raft_get_state(s.raft))}")
+                    self.run_election(s)
+                    logger.debug(f"post election state := {state2str(lib.raft_get_state(s.raft))}")
+
+                    leader_node = lib.raft_get_current_leader_node(server.raft)
+                    if not leader_node:
+                        logger.debug("didn't get a leader node")
+                    else:
+                        got_leader = True
+                        logger.debug("stopping elections")
+                        break
+                if got_leader:
+                    break
+
+            if not got_leader:
+                self.diagnotistic_info()
+            assert got_leader
+            logger.debug("got a leader node")
+
     def diagnotistic_info(self):
         print()
 
@@ -612,12 +668,9 @@ class Network(object):
 
         print()
 
-        def abbreviate(k):
-            return re.sub(r'([a-z])[a-z]*_', r'\1', k)
-
         # Servers
         keys = sorted(net.servers[0].debug_statistics().keys())
-        data = [list(map(abbreviate, keys))] + [
+        data = [list(keys)] + [
             [s.debug_statistics()[key] for key in keys]
             for s in net.servers
             ]
