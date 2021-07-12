@@ -1077,22 +1077,26 @@ class RaftServer(object):
         if ety.type == lib.RAFT_LOGTYPE_NO_OP:
             return 0
 
-        change = ffi.from_handle(lib.raft_entry_getdata(ety))
-        if ety.type == lib.RAFT_LOGTYPE_DEMOTE_NODE:
-            pass
+        if ety.type == lib.RAFT_LOGTYPE_DEMOTE_NODE or \
+                ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE or \
+                ety.type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE or \
+                ety.type == lib.RAFT_LOGTYPE_ADD_NODE:
 
-        elif ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
-            if change.node_id == lib.raft_get_nodeid(self.raft):
-                self.set_connection_status(NODE_CONNECTED)
+            change = ffi.from_handle(lib.raft_entry_getdata(ety))
+            server = self.network.id2server(change.node_id)
 
-        elif ety.type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE:
-            if change.node_id == lib.raft_get_nodeid(self.raft):
+            if ety.type == lib.RAFT_LOGTYPE_DEMOTE_NODE:
+                server.set_connection_status(NODE_CONNECTED)
+
+            elif ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
+                pass
+
+            elif ety.type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE:
                 logger.error("POP disconnect {} {}".format(self, ety_idx))
-                self.set_connection_status(NODE_DISCONNECTED)
+                server.set_connection_status(NODE_DISCONNECTED)
 
-        elif ety.type == lib.RAFT_LOGTYPE_ADD_NODE:
-            if change.node_id == lib.raft_get_nodeid(self.raft):
-                self.set_connection_status(NODE_CONNECTING)
+            elif ety.type == lib.RAFT_LOGTYPE_ADD_NODE:
+                server.set_connection_status(NODE_CONNECTING)
 
         return 0
 
