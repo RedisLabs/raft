@@ -185,6 +185,7 @@ def raft_applylog(raft, udata, ety, idx):
     except:
         logger.error(f"raft_applylog: failure on {lib.raft_get_nodeid(raft)}")
         logger.error(traceback.format_exc())
+        # we really should want to exit here, but can't figure out how to
         return lib.RAFT_ERR_SHUTDOWN
 
 
