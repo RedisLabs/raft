@@ -776,14 +776,24 @@ class RaftServer(object):
         """
         for server in self.network.active_servers:
             if server is self:
+                # no point in comparing ourselves against ourselves
                 continue
+
             their_commit_idx = lib.raft_get_commit_idx(server.raft)
+            their_snapshot_last_idx = lib.raft_get_snapshot_last_idx(server.raft)
+
             if lib.raft_get_commit_idx(self.raft) <= their_commit_idx and idx <= their_commit_idx:
                 their_log = lib.raft_get_entry_from_idx(server.raft, idx)
 
                 if their_log == ffi.NULL:
-                    assert idx < lib.raft_get_snapshot_last_idx(self.raft)
+                    # if there's no log entry to retrieve, it must be because it was snapshotted away
+                    # therefore make sure that this entry idx is <= what was snapshotted
+                    assert idx <= lib.raft_get_snapshot_last_idx(server.raft), f"idx = {idx}, their_commit_idx = {their_commit_idx}, snapshot_last_idx = {their_snapshot_last_idx}"
+                    # as in snapshot and not in log, can't compare, so just go to next server
+                    continue
 
+                # we only compare RAFT_LOGTYPE_NORMAL for now, probably have to improve this, to also compare log.data
+                # and other LOGTYPES for complete equality
                 if their_log.type in [lib.RAFT_LOGTYPE_NORMAL]:
                     try:
                         assert their_log.term == our_log.term
