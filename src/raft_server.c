@@ -963,7 +963,7 @@ int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
 
     msg_appendentries_t ae = {};
     ae.term = me->current_term;
-    ae.leader_commit = raft_get_commit_idx(me_);
+    ae.leader_commit = raft_get_ae_commit_idx(me_);
     ae.prev_log_idx = 0;
     ae.prev_log_term = 0;
     ae.msg_id = me->msg_id;

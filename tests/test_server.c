@@ -569,7 +569,6 @@ void TestRaft_server_recv_entry_fails_if_there_is_already_a_voting_change(CuTest
     raft_entry_t *ety2 = __MAKE_ENTRY(2, 1, "entry");
     ety2->type = RAFT_LOGTYPE_ADD_NODE;
     CuAssertTrue(tc, RAFT_ERR_ONE_VOTING_CHANGE_ONLY == raft_recv_entry(r, ety2, &cr));
-    CuAssertTrue(tc, 1 == raft_get_commit_idx(r));
 }
 
 void TestRaft_server_cfg_sets_num_nodes(CuTest * tc)
@@ -909,7 +908,7 @@ void TestRaft_server_recv_requestvote_depends_on_candidate_id(
 }
 
 /* If votedFor is null or candidateId, and candidate's log is at
- * least as up-to-date as local log, grant vote (§5.2, §5.4) */
+ * least as up-to-date as local log, grant vote (�5.2, �5.4) */
 void TestRaft_server_recv_requestvote_dont_grant_vote_if_we_didnt_vote_for_this_candidate(
     CuTest * tc
     )
@@ -2544,7 +2543,7 @@ void TestRaft_leader_retries_appendentries_with_decremented_NextIdx_log_inconsis
 /*
  * If there exists an N such that N > commitidx, a majority
  * of matchidx[i] = N, and log[N].term == currentTerm:
- * set commitidx = N (§5.2, §5.4).  */
+<* set commitidx = N (§5.2, §5.4).  */
 void TestRaft_leader_append_entry_to_log_increases_idxno(CuTest * tc)
 {
     raft_cbs_t funcs = {
