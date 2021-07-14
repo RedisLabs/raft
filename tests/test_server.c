@@ -2703,6 +2703,7 @@ void TestRaft_leader_recv_appendentries_response_set_has_sufficient_logs_for_nod
     aer.current_idx = 2;
 
     raft_node_set_voting(node, 0);
+    raft_node_set_addition_committed(node, 1);
     raft_recv_appendentries_response(r, node, &aer);
     CuAssertIntEquals(tc, 1, has_sufficient_logs_flag);
 
@@ -3608,6 +3609,7 @@ void TestRaft_leader_recv_appendentries_response_set_has_sufficient_logs_after_v
     };
 
     /* node 3 responds so it has sufficient logs and will be promoted */
+    raft_node_set_addition_committed(raft_get_node(r, 3), 1);
     raft_recv_appendentries_response(r, raft_get_node(r, 3), &aer);
     CuAssertIntEquals(tc, 1, has_sufficient_logs_flag);
 
@@ -3616,6 +3618,7 @@ void TestRaft_leader_recv_appendentries_response_set_has_sufficient_logs_after_v
     raft_recv_entry(r, ety, &etyr);
 
     /* we now get a response from node 2, but it's still behind */
+    raft_node_set_addition_committed(raft_get_node(r, 2), 1);
     raft_recv_appendentries_response(r, raft_get_node(r, 2), &aer);
     CuAssertIntEquals(tc, 1, has_sufficient_logs_flag);
 
