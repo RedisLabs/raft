@@ -47,38 +47,38 @@ typedef enum {
      * Regular log type.
      * This is solely for application data intended for the FSM.
      */
-    RAFT_LOGTYPE_NORMAL,
+    RAFT_LOGTYPE_NORMAL = 1,
     /**
      * Membership change.
      * Non-voting nodes can't cast votes or start elections.
      * Nodes in this non-voting state are used to catch up with the cluster,
      * when trying to the join the cluster.
      */
-    RAFT_LOGTYPE_ADD_NONVOTING_NODE,
+    RAFT_LOGTYPE_ADD_NONVOTING_NODE = 2,
     /**
      * Membership change.
      * Add a voting node.
      */
-    RAFT_LOGTYPE_ADD_NODE,
+    RAFT_LOGTYPE_ADD_NODE = 3,
     /**
      * Membership change.
      * Nodes become demoted when we want to remove them from the cluster.
      * Demoted nodes can't take part in voting or start elections.
      * Demoted nodes become inactive, as per raft_node_is_active.
      */
-    RAFT_LOGTYPE_DEMOTE_NODE,
+    RAFT_LOGTYPE_DEMOTE_NODE = 4,
     /**
      * Membership change.
      * The node is removed from the cluster.
      * This happens after the node has been demoted.
      * Removing nodes is a 2 step process: first demote, then remove.
      */
-    RAFT_LOGTYPE_REMOVE_NODE,
+    RAFT_LOGTYPE_REMOVE_NODE = 5,
     /**
      * Users can piggyback the entry mechanism by specifying log types that
      * are higher than RAFT_LOGTYPE_NUM.
      */
-    RAFT_LOGTYPE_NO_OP,
+    RAFT_LOGTYPE_NO_OP = 6,
     /**
      * A no-op entry appended automatically when a leader begins a new term,
      * in order to determine the current commit index.
