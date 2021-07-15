@@ -784,8 +784,23 @@ int raft_recv_entry(raft_server_t* me_,
             return RAFT_ERR_SNAPSHOT_IN_PROGRESS;
     }
 
-    if (!raft_is_leader(me_))
+    /* don't accept raft entries
+     * - if we aren't a leader,
+     * - we are a "non voting" leader and we dont know of any other nodes (so we can add ourself to ourself)
+     * -- if we know of other knows, being "von voting" means we are a demoted leader
+     */
+    if (!raft_is_leader(me_) || (!raft_node_is_voting(me->node) && raft_get_num_nodes(me_) > 1))
+    {
         return RAFT_ERR_NOT_LEADER;
+    }
+
+    // don't allow demoting a cluster's only voting node.  This isn't perfect a would prevent demoting a non voting node
+    if (ety->type == RAFT_LOGTYPE_DEMOTE_NODE) {
+        int num_voters = raft_get_num_voting_nodes(me_);
+        if ( num_voters == 1) {
+            return RAFT_ERR_ONE_VOTING_CHANGE_ONLY;
+        }
+    }
 
     __log(me_, NULL, "received entry t:%d id: %d idx: %d",
           me->current_term, ety->id, raft_get_current_idx(me_) + 1);
