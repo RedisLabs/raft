@@ -3084,6 +3084,8 @@ void TestRaft_leader_recv_entry_resets_election_timeout(
     void *r = raft_new();
     raft_set_election_timeout(r, 1000);
     raft_set_state(r, RAFT_STATE_LEADER);
+    raft_add_node(r, NULL, 1, 1);
+//    raft_node_set_voting(raft_get_node(r, 1), 1);
 
     raft_periodic(r, 900);
 
