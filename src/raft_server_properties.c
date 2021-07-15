@@ -119,6 +119,12 @@ void raft_set_commit_idx(raft_server_t* me_, raft_index_t idx)
     me->commit_idx = idx;
 }
 
+void raft_save_commit_idx(raft_server_t *me_)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    me->demoted_commit_idx = me->commit_idx;
+}
+
 void raft_set_last_applied_idx(raft_server_t* me_, raft_index_t idx)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
@@ -133,6 +139,23 @@ raft_index_t raft_get_last_applied_idx(raft_server_t* me_)
 raft_index_t raft_get_commit_idx(raft_server_t* me_)
 {
     return ((raft_server_private_t*)me_)->commit_idx;
+}
+
+raft_index_t raft_get_demoted_commit_idx(raft_server_t* me_)
+{
+    return ((raft_server_private_t*)me_)->demoted_commit_idx;
+}
+
+raft_index_t raft_get_ae_commit_idx(raft_server_t* me_)
+{
+    raft_node_t *node = raft_get_my_node(me_);
+    assert(node != NULL);
+
+    if (raft_node_is_voting(node)) {
+        return raft_get_commit_idx(me_);
+    } else {
+        return raft_get_demoted_commit_idx(me_);
+    }
 }
 
 void raft_set_state(raft_server_t* me_, int state)

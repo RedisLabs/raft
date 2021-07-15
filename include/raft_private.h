@@ -52,6 +52,9 @@ typedef struct {
     /* idx of highest log entry known to be committed */
     raft_index_t commit_idx;
 
+    /* idx of highest log entry before node was demoted */
+    raft_index_t demoted_commit_idx;
+
     /* idx of highest log entry applied to state machine */
     raft_index_t last_applied_idx;
 

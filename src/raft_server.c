@@ -1256,11 +1256,17 @@ void raft_handle_append_cfg_change(raft_server_t* me_, raft_entry_t* ety, raft_i
         case RAFT_LOGTYPE_DEMOTE_NODE:
             if (node)
                 raft_node_set_voting(node, 0);
+
+            if (is_self) {
+                raft_save_commit_idx(me_);
+            }
+
             break;
 
         case RAFT_LOGTYPE_REMOVE_NODE:
             if (node)
                 raft_node_set_active(node, 0);
+
             break;
 
         default:
