@@ -915,6 +915,9 @@ int raft_set_current_term(raft_server_t* me, const raft_term_t term);
  * @param[in] commit_idx The new commit index. */
 void raft_set_commit_idx(raft_server_t* me, raft_index_t commit_idx);
 
+/** saves the commit idx, for when node is demoted */
+void raft_save_commit_idx(raft_server_t *me_);
+
 /** Add an entry to the server's log.
  * This should be used to reload persistent state, ie. the commit log.
  * @param[in] ety The entry to be appended
