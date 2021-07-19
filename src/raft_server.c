@@ -605,10 +605,12 @@ static int __should_grant_vote(raft_server_private_t* me, msg_requestvote_t* vr)
     if (ety) {
         ety_term = ety->term;
         raft_entry_release(ety);
-    } else if (!ety && me->snapshot_last_idx == current_idx)
+    } else if (me->snapshot_last_idx == current_idx) {
         ety_term = me->snapshot_last_term;
-    else
+    } else {
+        /* no ety to comapre against and snapshot isn't correct, so not in a position to vote */
         return 0;
+    }
 
     if (ety_term < vr->last_log_term)
         return 1;
