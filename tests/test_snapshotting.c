@@ -221,7 +221,7 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
 
     /* I am the leader */
     raft_set_state(r, RAFT_STATE_LEADER);
-    raft_set_current_term(r, 1);
+    raft_set_current_term(r, 2);
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* entry message */
@@ -230,14 +230,14 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
     /* receive entry */
     raft_recv_entry(r, ety, &cr);
 
-    ety = __MAKE_ENTRY(2, 1, "entry");
+    ety = __MAKE_ENTRY(2, 2, "entry");
     raft_recv_entry(r, ety, &cr);
-    ety = __MAKE_ENTRY(3, 1, "entry");
+    ety = __MAKE_ENTRY(3, 2, "entry");
     raft_recv_entry(r, ety, &cr);
-    raft_set_commit_idx(r, 2);
+    raft_set_commit_idx(r, 3);
     CuAssertIntEquals(tc, 3, raft_get_log_count(r));
-    CuAssertIntEquals(tc, 2, raft_get_num_snapshottable_logs(r));
-
+    CuAssertIntEquals(tc, 3, raft_get_num_snapshottable_logs(r));
+    CuAssertIntEquals(tc, 2, raft_get_last_log_term(r));
     CuAssertIntEquals(tc, 0, raft_begin_snapshot(r, 0));
 
     int i = raft_get_first_entry_idx(r);
@@ -247,10 +247,11 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
     CuAssertIntEquals(tc, 0, raft_begin_snapshot(r, 0));
     CuAssertIntEquals(tc, 0, raft_end_snapshot(r));
     CuAssertIntEquals(tc, 0, raft_get_num_snapshottable_logs(r));
-    CuAssertIntEquals(tc, 1, raft_get_log_count(r));
-    CuAssertIntEquals(tc, 2, raft_get_commit_idx(r));
-    CuAssertIntEquals(tc, 2, raft_get_last_applied_idx(r));
+    CuAssertIntEquals(tc, 0, raft_get_log_count(r));
+    CuAssertIntEquals(tc, 3, raft_get_commit_idx(r));
+    CuAssertIntEquals(tc, 3, raft_get_last_applied_idx(r));
     CuAssertIntEquals(tc, 0, raft_periodic(r, 1000));
+    CuAssertIntEquals(tc, 2, raft_get_last_log_term(r));
 }
 
 void TestRaft_leader_snapshot_end_succeeds_if_log_compacted2(CuTest * tc)
