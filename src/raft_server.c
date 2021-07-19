@@ -326,7 +326,7 @@ int raft_recv_appendentries_response(raft_server_t* me_,
        and convert to follower (§5.3) */
     if (me->current_term < r->term)
     {
-        __log(me_, node, "received appendentries response with a greater term %d > %d", r->term, me->current_term);
+        __log(me_, node, "received appendentries response with a greater term %ld > %ld", r->term, me->current_term);
         int e = raft_set_current_term(me_, r->term);
         if (0 != e)
             return e;
