@@ -135,6 +135,11 @@ raft_index_t raft_get_commit_idx(raft_server_t* me_)
     return ((raft_server_private_t*)me_)->commit_idx;
 }
 
+raft_index_t raft_get_ae_commit_idx(raft_server_t* me_)
+{
+    return raft_get_commit_idx(me_);
+}
+
 void raft_set_state(raft_server_t* me_, int state)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
