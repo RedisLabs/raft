@@ -634,7 +634,7 @@ int raft_recv_requestvote(raft_server_t* me_,
     raft_server_private_t* me = (raft_server_private_t*)me_;
     int e = 0;
 
-    __log(me_, node, "recv_requestvote: cl: %d te: %d et: %d ct: %d vt: %d, iv: %d, av: %d llt: %d, vlt: %d",
+    __log(me_, node, "recv_requestvote: cl: %d te: %d et: %d ct: %ld vt: %ld, iv: %d, av: %d llt: %ld, vlt: %ld",
           raft_node_get_id(me->current_leader),
           me->timeout_elapsed, me->election_timeout,
           raft_get_current_term(me_), vr->term,
