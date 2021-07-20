@@ -3096,6 +3096,50 @@ void TestRaft_leader_recv_entry_resets_election_timeout(
     CuAssertTrue(tc, 0 == raft_get_timeout_elapsed(r));
 }
 
+void TestRaft_nonvoting_leader_rejects_recv_entry_in_existing_cluster(CuTest *tc)
+{
+    void *r = raft_new();
+
+    raft_set_election_timeout(r, 1000);
+    raft_set_state(r, RAFT_STATE_LEADER);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    raft_periodic(r, 900);
+
+    raft_node_set_voting(raft_get_node(r, 1), 0);
+    CuAssertTrue(tc, raft_node_is_voting(raft_get_node(r, 1)) == 0);
+    CuAssertIntEquals(tc, 2, raft_get_num_nodes(r));
+
+    /* receive entry */
+    msg_entry_t *mety = __MAKE_ENTRY(1, 1, "entry");
+    msg_entry_response_t cr;
+
+    CuAssertIntEquals(tc, RAFT_ERR_NOT_LEADER, raft_recv_entry(r, mety, &cr));
+}
+
+void TestRaft_nonvoting_leader_accepts_recv_entry_in_nonexisting_cluster(CuTest *tc)
+{
+    void *r = raft_new();
+
+    raft_set_election_timeout(r, 1000);
+    raft_set_state(r, RAFT_STATE_LEADER);
+    raft_add_node(r, NULL, 1, 1);
+
+    raft_periodic(r, 900);
+
+    raft_node_set_voting(raft_get_node(r, 1), 0);
+    CuAssertTrue(tc, raft_node_is_voting(raft_get_node(r, 1)) == 0);
+    CuAssertIntEquals(tc, 1, raft_get_num_nodes(r));
+
+    /* receive entry */
+    msg_entry_t *mety = __MAKE_ENTRY(1, 1, "entry");
+    msg_entry_response_t cr;
+
+    CuAssertTrue(tc, 0 == raft_recv_entry(r, mety, &cr));
+}
+
+
 void TestRaft_leader_recv_entry_is_committed_returns_0_if_not_committed(CuTest * tc)
 {
     raft_cbs_t funcs = {
