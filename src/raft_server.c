@@ -398,13 +398,13 @@ int raft_recv_appendentries_response(raft_server_t* me_,
                     raft_node_is_voting(node) &&
                     point <= raft_node_get_match_idx(node))
                 {
-                    __log(me_, node, "got appendentry response vote for %ld\n", point);
+                    __log(me_, node, "got appendentry response vote for %ld", point);
                     votes++;
                 }
             }
 
             if (raft_get_num_voting_nodes(me_) / 2 < votes) {
-                __log(me_, NULL, "got the votes(%d) to update commid_idx to %ld\n", votes, point);
+                __log(me_, NULL, "got the votes(%d) to update commid_idx to %ld", votes, point);
                 raft_set_commit_idx(me_, point);
             }
         }
@@ -612,7 +612,7 @@ static int __should_grant_vote(raft_server_t* me_, msg_requestvote_t* vr)
     if (ety) {
         ety_term = ety->term;
         raft_entry_release(ety);
-    } else if (!ety && raft_get_snapshot_last_idx(me_) == current_idx)
+    } else if (raft_get_snapshot_last_idx(me_) == current_idx)
         ety_term = raft_get_snapshot_last_term(me_);
     else
         return 0;
