@@ -243,7 +243,6 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
 
     int i = raft_get_first_entry_idx(r);
     for (; i < raft_get_commit_idx(r); i++) {
-        printf("raft_poll_entry(1): %d\n", i);
         CuAssertIntEquals(tc, 0, raft_poll_entry(r));
     }
 
