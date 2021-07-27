@@ -68,13 +68,6 @@ typedef enum {
      */
     RAFT_LOGTYPE_DEMOTE_NODE,
     /**
-     * Membership change.
-     * The node is removed from the cluster.
-     * This happens after the node has been demoted.
-     * Removing nodes is a 2 step process: first demote, then remove.
-     */
-    RAFT_LOGTYPE_REMOVE_NODE,
-    /**
      * Users can piggyback the entry mechanism by specifying log types that
      * are higher than RAFT_LOGTYPE_NUM.
      */

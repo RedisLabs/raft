@@ -910,12 +910,10 @@ int raft_apply_entry(raft_server_t* me_)
             raft_node_set_addition_committed(node, 1);
             break;
         case RAFT_LOGTYPE_DEMOTE_NODE:
-            if (node)
+            if (node) {
                 raft_node_set_voting_committed(node, 0);
-            break;
-        case RAFT_LOGTYPE_REMOVE_NODE:
-            if (node)
                 raft_remove_node(me_, node);
+            }
             break;
         default:
             break;
@@ -1209,8 +1207,7 @@ int raft_entry_is_cfg_change(raft_entry_t* ety)
     return (
         RAFT_LOGTYPE_ADD_NODE == ety->type ||
         RAFT_LOGTYPE_ADD_NONVOTING_NODE == ety->type ||
-        RAFT_LOGTYPE_DEMOTE_NODE == ety->type ||
-        RAFT_LOGTYPE_REMOVE_NODE == ety->type);
+        RAFT_LOGTYPE_DEMOTE_NODE == ety->type);
 }
 
 void raft_handle_append_cfg_change(raft_server_t* me_, raft_entry_t* ety, raft_index_t idx)
@@ -1255,11 +1252,6 @@ void raft_handle_append_cfg_change(raft_server_t* me_, raft_entry_t* ety, raft_i
                 raft_node_set_voting(node, 0);
             break;
 
-        case RAFT_LOGTYPE_REMOVE_NODE:
-            if (node)
-                raft_node_set_active(node, 0);
-            break;
-
         default:
             assert(0);
     }
@@ -1283,13 +1275,6 @@ void raft_handle_remove_cfg_change(raft_server_t* me_, raft_entry_t* ety, const 
             {
             raft_node_t* node = raft_get_node(me_, node_id);
             raft_node_set_voting(node, 1);
-            }
-            break;
-
-        case RAFT_LOGTYPE_REMOVE_NODE:
-            {
-            raft_node_t* node = raft_get_node(me_, node_id);
-            raft_node_set_active(node, 1);
             }
             break;
 

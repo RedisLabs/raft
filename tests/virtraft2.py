@@ -85,8 +85,6 @@ def logtype2str(log_type):
         return 'normal'
     elif log_type == lib.RAFT_LOGTYPE_DEMOTE_NODE:
         return 'demote'
-    elif log_type == lib.RAFT_LOGTYPE_REMOVE_NODE:
-        return 'remove'
     elif log_type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE:
         return 'add_nonvoting'
     elif log_type == lib.RAFT_LOGTYPE_ADD_NODE:
@@ -862,23 +860,6 @@ class RaftServer(object):
             # if we are being demoted, commit suicide on demotion being applied
             if change.node_id == lib.raft_get_nodeid(self.raft):
                 logger.info("{} shutting down because of demotion".format(self))
-                return lib.RAFT_ERR_SHUTDOWN
-
-            # the leader issues a removal of the node after its demotion is applied
-            elif lib.raft_is_leader(self.raft):
-                logger.info(f"submitting a remove node entry for {change.node_id} on node {self.id}")
-                new_ety = self.network.add_entry(
-                    lib.RAFT_LOGTYPE_REMOVE_NODE,
-                    change)
-                assert(lib.raft_entry_is_cfg_change(new_ety))
-                e = self.recv_entry(new_ety)
-                assert e == 0
-            else:
-                logger.info(f"not doing anything for demote of {change.node_id} on {self.id} as {lib.raft_get_current_leader(self.raft)} is current leader")
-
-        elif ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
-            if change.node_id == lib.raft_get_nodeid(self.raft):
-                logger.info("{} shutting down because of removal".format(self))
                 return lib.RAFT_ERR_SHUTDOWN
 
         elif ety.type == lib.RAFT_LOGTYPE_ADD_NODE:
