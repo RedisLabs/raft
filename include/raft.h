@@ -62,9 +62,11 @@ typedef enum {
     RAFT_LOGTYPE_ADD_NODE,
     /**
      * Membership change.
-     * Nodes become demoted when we want to remove them from the cluster.
+     * Nodes become demoted when we want to remove them from the cluster
+     * Nodes become demoted upon appending of the log message
      * Demoted nodes can't take part in voting or start elections.
      * Demoted nodes become inactive, as per raft_node_is_active.
+     * Demoted nodes are removed from cluster when the log message is committed and applied
      */
     RAFT_LOGTYPE_DEMOTE_NODE,
     /**
