@@ -68,7 +68,7 @@ typedef enum {
      * Demoted nodes become inactive, as per raft_node_is_active.
      * Demoted nodes are removed from cluster when the log message is committed and applied
      */
-    RAFT_LOGTYPE_DEMOTE_NODE,
+    RAFT_LOGTYPE_REMOVE_NODE,
     /**
      * Users can piggyback the entry mechanism by specifying log types that
      * are higher than RAFT_LOGTYPE_NUM.

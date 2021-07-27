@@ -83,8 +83,8 @@ class ServerDoesNotExist(Exception):
 def logtype2str(log_type):
     if log_type == lib.RAFT_LOGTYPE_NORMAL:
         return 'normal'
-    elif log_type == lib.RAFT_LOGTYPE_DEMOTE_NODE:
-        return 'demote'
+    elif log_type == lib.RAFT_LOGTYPE_REMOVE_NODE:
+        return 'remove'
     elif log_type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE:
         return 'add_nonvoting'
     elif log_type == lib.RAFT_LOGTYPE_ADD_NODE:
@@ -597,7 +597,7 @@ class Network(object):
             return
 
         # Create a new configuration entry to be processed by the leader
-        ety = self.add_entry(lib.RAFT_LOGTYPE_DEMOTE_NODE,
+        ety = self.add_entry(lib.RAFT_LOGTYPE_REMOVE_NODE,
                              ChangeRaftEntry(server.id))
         assert server.connection_status == NODE_CONNECTED
         assert(lib.raft_entry_is_cfg_change(ety))
@@ -856,10 +856,9 @@ class RaftServer(object):
         if ety.type == lib.RAFT_LOGTYPE_NORMAL:
             self.fsm_dict[change.key] = change.val
 
-        elif ety.type == lib.RAFT_LOGTYPE_DEMOTE_NODE:
-            # if we are being demoted, commit suicide on demotion being applied
+        elif ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
             if change.node_id == lib.raft_get_nodeid(self.raft):
-                logger.info("{} shutting down because of demotion".format(self))
+                logger.info("{} shutting down because of removal".format(self))
                 return lib.RAFT_ERR_SHUTDOWN
 
         elif ety.type == lib.RAFT_LOGTYPE_ADD_NODE:
@@ -1061,10 +1060,9 @@ class RaftServer(object):
         if ety.type == lib.RAFT_LOGTYPE_NO_OP:
             return 0
 
-        if (ety.type == lib.RAFT_LOGTYPE_DEMOTE_NODE or
-                ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE or
-                ety.type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE or
-                ety.type == lib.RAFT_LOGTYPE_ADD_NODE):
+        change = ffi.from_handle(lib.raft_entry_getdata(ety))
+        if ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
+            pass
 
             change = ffi.from_handle(lib.raft_entry_getdata(ety))
             server = self.network.id2server(change.node_id)
