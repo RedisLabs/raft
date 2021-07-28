@@ -26,7 +26,6 @@ else
 SHAREDFLAGS = -shared
 SHAREDEXT = so
 endif
-VIRTRAFT_OPTS = $(or $(TEST),)
 
 OBJECTS = src/raft_server.o src/raft_server_properties.o src/raft_node.o src/raft_log.o
 
