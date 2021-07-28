@@ -508,6 +508,8 @@ class Network(object):
         server.set_connection_status(NODE_CONNECTING)
         lib.raft_add_non_voting_node(server.raft, server.udata, server.id, 1)
         lib.raft_become_leader(server.raft)
+        e = lib.raft_set_current_term(server.raft, 1)
+        assert e == 0
 
         # Configuration change entry to bootstrap other nodes
         ety = self.add_entry(lib.RAFT_LOGTYPE_ADD_NODE,
