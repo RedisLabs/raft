@@ -223,9 +223,7 @@ int raft_become_candidate(raft_server_t* me_)
     {
         raft_node_t* node = me->nodes[i];
 
-        if (me->node != node &&
-            raft_node_is_active(node) &&
-            raft_node_is_voting(node))
+        if (me->node != node && raft_node_is_voting(node))
         {
             raft_send_requestvote(me_, node);
         }
@@ -394,7 +392,6 @@ int raft_recv_appendentries_response(raft_server_t* me_,
             {
                 raft_node_t* node = me->nodes[i];
                 if (me->node != node &&
-                    raft_node_is_active(node) &&
                     raft_node_is_voting(node) &&
                     point <= raft_node_get_match_idx(node))
                 {
@@ -1134,7 +1131,6 @@ int raft_get_nvotes_for_me(raft_server_t* me_)
     for (i = 0, votes = 0; i < me->num_nodes; i++)
     {
         if (me->node != me->nodes[i] &&
-            raft_node_is_active(me->nodes[i]) &&
             raft_node_is_voting(me->nodes[i]) &&
             raft_node_has_vote_for_me(me->nodes[i]))
         {
@@ -1249,7 +1245,6 @@ void raft_handle_append_cfg_change(raft_server_t* me_, raft_entry_t* ety, raft_i
 
         case RAFT_LOGTYPE_REMOVE_NODE:
             if (node) {
-                raft_node_set_voting(node, 0);
                 raft_node_set_active(node, 0);
             }
 
@@ -1278,7 +1273,6 @@ void raft_handle_remove_cfg_change(raft_server_t* me_, raft_entry_t* ety, const 
             {
             raft_node_t* node = raft_get_node(me_, node_id);
             raft_node_set_active(node, 1);
-            raft_node_set_voting(node, 1);
             }
             break;
 
@@ -1591,7 +1585,7 @@ raft_msg_id_t quorum_msg_id(raft_server_t* me_)
     for (i = 0; i < me->num_nodes; i++) {
         raft_node_t* node = me->nodes[i];
 
-        if (!raft_node_is_active(node) || !raft_node_is_voting(node))
+        if (!raft_node_is_voting(node))
             continue;
 
         if (me->node == node) {
