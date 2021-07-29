@@ -908,7 +908,6 @@ int raft_apply_entry(raft_server_t* me_)
             break;
         case RAFT_LOGTYPE_REMOVE_NODE:
             if (node) {
-                raft_node_set_voting_committed(node, 0);
                 raft_remove_node(me_, node);
             }
             break;
