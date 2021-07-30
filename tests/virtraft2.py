@@ -1060,9 +1060,9 @@ class RaftServer(object):
         if ety.type == lib.RAFT_LOGTYPE_NO_OP:
             return 0
 
-        change = ffi.from_handle(lib.raft_entry_getdata(ety))
-        if ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
-            pass
+        if (ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE or
+                ety.type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE or
+                ety.type == lib.RAFT_LOGTYPE_ADD_NODE):
 
             change = ffi.from_handle(lib.raft_entry_getdata(ety))
             server = self.network.id2server(change.node_id)
