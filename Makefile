@@ -6,7 +6,6 @@ BIN_DIR = bin
 LIB = -I libs
 INC = -I include
 GCOV_CCFLAGS = -fprofile-arcs -ftest-coverage
-
 SHELL  = /bin/bash
 CFLAGS += -Iinclude -Werror -Werror=return-type -Werror=uninitialized -Wcast-align \
 	  -Wno-pointer-sign -fno-omit-frame-pointer -fno-common -fsigned-char \
@@ -39,6 +38,8 @@ TEST_HELPERS = $(TEST_DIR)/CuTest.o \
 TESTS = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_TARGETS = $(patsubst $(TEST_DIR)/%.c,$(BIN_DIR)/%,$(TESTS))
 
+tests: CFLAGS += $(GCOV_CCFLAGS)
+
 all: static shared
 
 .PHONY: shared
@@ -54,11 +55,11 @@ tests:$(TEST_HELPERS) $(TEST_TARGETS)
 	gcov src/raft_server.c src/raft_node.c src/raft_log.c src/raft_server_properties.c
 
 $(TEST_TARGETS):$(BIN_DIR)/%: $(OBJECTS)
-	$(CC) $(CFLAGS) $(GCOV_CCFLAGS) $(TEST_DIR)/$*.c $(LIB) $(INC) $^ -o $@ $(TEST_HELPERS)
+	$(CC) $(CFLAGS) $(TEST_DIR)/$*.c $(LIB) $(INC) $^ -o $@ $(TEST_HELPERS)
 	./$@
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) $(GCOV_CCFLAGS) $(INC) -c -o $@ $<
+	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
 
 .PHONY: test_helper
 test_helper: $(TEST_HELPERS)
