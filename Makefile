@@ -5,11 +5,12 @@ BUILD_DIR = src
 BIN_DIR = bin
 LIB = -I libs
 INC = -I include
-GCOV_CCFLAGS = -fprofile-arcs -ftest-coverage
+GCOV_CFLAGS = -fprofile-arcs -ftest-coverage
 SHELL  = /bin/bash
 CFLAGS += -Iinclude -Werror -Werror=return-type -Werror=uninitialized -Wcast-align \
 	  -Wno-pointer-sign -fno-omit-frame-pointer -fno-common -fsigned-char \
 	  -Wunused-variable -g -O2 -fPIC
+TEST_CFLAGS = $(CFLAGS) $(GCOV_CFLAGS)
 
 UNAME := $(shell uname)
 
@@ -27,18 +28,21 @@ SHAREDFLAGS = -shared
 SHAREDEXT = so
 endif
 
-OBJECTS = src/raft_server.o \
-	src/raft_server_properties.o \
-	src/raft_node.o src/raft_log.o
+OBJECTS = \
+	$(BUILD_DIR)/raft_server.o \
+	$(BUILD_DIR)/raft_server_properties.o \
+	$(BUILD_DIR)/raft_node.o \
+	$(BUILD_DIR)/raft_log.o
 
-TEST_HELPERS = $(TEST_DIR)/CuTest.o \
+TEST_OBJECTS = $(patsubst $(BUILD_DIR)/%.o,$(BUILD_DIR)/test-%.o,$(OBJECTS))
+
+TEST_HELPERS = \
+	$(TEST_DIR)/CuTest.o \
 	$(TEST_DIR)/linked_list_queue.o \
 	$(TEST_DIR)/mock_send_functions.o
 
 TESTS = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_TARGETS = $(patsubst $(TEST_DIR)/%.c,$(BIN_DIR)/%,$(TESTS))
-
-tests: CFLAGS += $(GCOV_CCFLAGS)
 
 all: static shared
 
@@ -51,19 +55,25 @@ static: $(OBJECTS)
 	ar -r libraft.a $(OBJECTS)
 
 .PHONY: tests
-tests:$(TEST_HELPERS) $(TEST_TARGETS)
-	gcov src/raft_server.c src/raft_node.c src/raft_log.c src/raft_server_properties.c
+tests: $(TEST_TARGETS)
+	gcov $(TEST_OBJECTS)
 
-$(TEST_TARGETS):$(BIN_DIR)/%: $(OBJECTS)
-	$(CC) $(CFLAGS) $(TEST_DIR)/$*.c $(LIB) $(INC) $^ -o $@ $(TEST_HELPERS)
+$(TEST_TARGETS): $(BIN_DIR)/%: $(TEST_OBJECTS) $(TEST_HELPERS)
+	$(CC) $(TEST_CFLAGS) $(TEST_DIR)/$*.c $(LIB) $(INC) $^ -o $@
 	./$@
+
+$(BUILD_DIR)/test-%.o: $(SRC_DIR)/%.c
+	$(CC) $(TEST_CFLAGS) $(INC) -c -o $@ $<
+
+$(TEST_DIR)/%.o: $(TEST_DIR)/%.c
+	$(CC) $(TEST_CFLAGS) $(INC) -c -o $@ $<
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
 
 .PHONY: test_helper
 test_helper: $(TEST_HELPERS)
-	$(CC) $(CFLAGS) -o $@
+	$(CC) $(TEST_CFLAGS)  -o $@
 
 .PHONY: test_fuzzer
 test_fuzzer:
