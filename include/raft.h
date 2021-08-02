@@ -807,11 +807,6 @@ raft_index_t raft_get_current_idx(raft_server_t* me);
 raft_index_t raft_get_commit_idx(raft_server_t* me_);
 
 /**
- * @return commit index to be used in appendentry.  aware if voter or not
- */
-raft_index_t raft_get_ae_commit_idx(raft_server_t* me_);
-
-/**
  * @return 1 if follower; 0 otherwise */
 int raft_is_follower(raft_server_t* me);
 
