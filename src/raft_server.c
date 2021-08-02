@@ -105,9 +105,10 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     me->election_timeout = 1000;
 
     raft_update_quorum_meta((raft_server_t*)me, me->msg_id);
-    me->transfer_leader_timeout = 3000;
-    raft_randomize_election_timeout((raft_server_t*)me);
 
+    raft_randomize_election_timeout((raft_server_t*)me);
+    me->transfer_leader_timeout = me->election_timeout;
+    
     me->log_impl = log_impl;
     me->log = me->log_impl->init(me, log_arg);
     if (!me->log) {
