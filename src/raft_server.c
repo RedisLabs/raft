@@ -798,15 +798,8 @@ int raft_recv_entry(raft_server_t* me_,
             raft_send_appendentries(me_, node);
     }
 
-    /* if we're the only node, we can consider the entry committed, if a voting change isn't in progress */
-    /* Possible Problem:
-     * - if a voting change is in progress, can't update commit to this, as that would effectively commit the voting change, which can fail and be reverted
-     * - however, if it succeeds, then no appendentry_response will ever be received to cause this to be updated
-     * Possible fix
-     * - either ignore it and expect some future log entry will effectively commit it (ugly, also problematic as a caller might end up blocked waiting for commit)
-     * - keep a separate commit_idx value for these entries, so that when cfg_change is comitted, commit_idx can be updated as well
-     */
-    if (1 == raft_get_num_voting_nodes(me_) && raft_node_is_voting(me->node) && !raft_voting_change_is_in_progress(me_)) {
+    /* if we are the only voter (1 voter and we are that voter), commit now, as no appendentries_response will occur */
+    if (1 == raft_get_num_voting_nodes(me_) && raft_node_is_voting(me->node)) {
         raft_set_commit_idx(me_, raft_get_current_idx(me_));
     }
 
