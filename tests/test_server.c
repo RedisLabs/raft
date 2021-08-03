@@ -569,6 +569,7 @@ void TestRaft_server_recv_entry_fails_if_there_is_already_a_voting_change(CuTest
     raft_entry_t *ety2 = __MAKE_ENTRY(2, 1, "entry");
     ety2->type = RAFT_LOGTYPE_ADD_NODE;
     CuAssertTrue(tc, RAFT_ERR_ONE_VOTING_CHANGE_ONLY == raft_recv_entry(r, ety2, &cr));
+    CuAssertTrue(tc, 1 == raft_get_commit_idx(r));
 }
 
 void TestRaft_server_cfg_sets_num_nodes(CuTest * tc)
