@@ -299,6 +299,10 @@ int raft_set_transfer_leader(raft_server_t* me_, raft_node_id_t node_id)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
 
+    if (me->transfer_leader_node != 0) {
+        return RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS;
+    }
+
     raft_node_t * target = raft_get_node(me_, node_id);
     if (target == NULL) {
         return RAFT_ERR_INVALID_NDOEID;
@@ -307,10 +311,10 @@ int raft_set_transfer_leader(raft_server_t* me_, raft_node_id_t node_id)
     if (me->cb.send_timeoutnow && raft_get_transfer_leader(me_) == node_id
         && raft_get_current_idx(me_) == raft_node_get_match_idx(target)) {
         me->cb.send_timeoutnow(me_, target);
-    } else {
-        me->transfer_leader_node = node_id;
-        me->transfer_leader_time = me->transfer_leader_timeout;
     }
+
+    me->transfer_leader_node = node_id;
+    me->transfer_leader_time = me->transfer_leader_timeout;
 
     return 0;
 }
