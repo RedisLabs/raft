@@ -1217,4 +1217,8 @@ void raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb
  */
 void raft_process_read_queue(raft_server_t* me_);
 
+/** determine if we are a single node voting cluster, which means this server is the only voter
+ */
+int raft_is_single_node_voting_cluster(raft_server_t *me_);
+
 #endif /* RAFT_H_ */
