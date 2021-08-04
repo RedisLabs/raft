@@ -185,9 +185,9 @@ int raft_become_leader(raft_server_t* me_)
     noop->term = raft_get_current_term(me_);
     noop->type = RAFT_LOGTYPE_NO_OP;
     int e = raft_recv_entry(me_, noop, &response);
+    raft_entry_release(noop);
     if (0 != e)
         return e;
-    raft_entry_release(noop);
 
     me->timeout_elapsed = 0;
     if (me->cb.notify_state_event)

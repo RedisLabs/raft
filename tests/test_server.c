@@ -2303,6 +2303,30 @@ void TestRaft_leader_when_becomes_leader_all_nodes_have_nextidx_equal_to_lastlog
     }
 }
 
+void single_node_commits_noop_cb(void* arg, int can_read)
+{
+    (void) can_read; *((char**) arg) = "success";
+}
+
+void TestRaft_single_node_commits_noop(CuTest * tc)
+{
+    static char* str = "test";
+
+    void *r = raft_new();
+    raft_add_node(r, NULL, 1, 1);
+    raft_set_current_term(r, 2);
+    raft_set_commit_idx(r, 0);
+
+    raft_periodic(r, 500);
+
+    raft_queue_read_request(r, single_node_commits_noop_cb, &str);
+
+    raft_periodic(r, 500);
+
+    CuAssertIntEquals(tc, 1, raft_get_commit_idx(r));
+    CuAssertStrEquals(tc, "success", str); raft_free(r);
+}
+
 /* 5.2 */
 void TestRaft_leader_when_it_becomes_a_leader_sends_empty_appendentries(
     CuTest * tc)
@@ -3905,6 +3929,7 @@ int main(void)
     SUITE_ADD_TEST(suite, TestRaft_leader_becomes_leader_is_leader);
     SUITE_ADD_TEST(suite, TestRaft_leader_becomes_leader_does_not_clear_voted_for);
     SUITE_ADD_TEST(suite, TestRaft_leader_when_becomes_leader_all_nodes_have_nextidx_equal_to_lastlog_idx);
+    SUITE_ADD_TEST(suite, TestRaft_single_node_commits_noop);
     SUITE_ADD_TEST(suite, TestRaft_leader_when_it_becomes_a_leader_sends_empty_appendentries);
     SUITE_ADD_TEST(suite, TestRaft_leader_responds_to_entry_msg_when_entry_is_committed);
     SUITE_ADD_TEST(suite, TestRaft_non_leader_recv_entry_msg_fails);
