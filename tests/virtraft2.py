@@ -515,7 +515,8 @@ class Network(object):
         e = server.recv_entry(ety)
         assert e == 0
 
-        lib.raft_set_commit_idx(server.raft, 1)
+        idx = lib.raft_get_current_idx(server.raft)
+        lib.raft_set_commit_idx(server.raft, idx)
         e = lib.raft_apply_all(server.raft)
         assert e == 0
 
