@@ -163,27 +163,14 @@ int raft_election_start(raft_server_t* me_)
 int raft_become_leader(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
-    int i;
 
     __log(me_, NULL, "becoming leader term:%d", raft_get_current_term(me_));
-    if (me->cb.notify_state_event)
-        me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_LEADER);
-
     raft_index_t next_idx = raft_get_current_idx(me_) + 1;
 
-    if (raft_get_current_term(me_) > 1) {
-        raft_entry_t *noop = raft_entry_new(0);
-        noop->term = raft_get_current_term(me_);
-        noop->type = RAFT_LOGTYPE_NO_OP;
-        int e = raft_append_entry(me_, noop);
-        if (0 != e)
-            return e;
-        raft_entry_release(noop);
-    }
-
     raft_set_state(me_, RAFT_STATE_LEADER);
-    me->timeout_elapsed = 0;
-    for (i = 0; i < me->num_nodes; i++)
+    msg_entry_response_t response;
+
+    for (int i = 0; i < me->num_nodes; i++)
     {
         raft_node_t* node = me->nodes[i];
 
@@ -192,8 +179,19 @@ int raft_become_leader(raft_server_t* me_)
 
         raft_node_set_next_idx(node, next_idx);
         raft_node_set_match_idx(node, 0);
-        raft_send_appendentries(me_, node);
     }
+
+    raft_entry_t *noop = raft_entry_new(0);
+    noop->term = raft_get_current_term(me_);
+    noop->type = RAFT_LOGTYPE_NO_OP;
+    int e = raft_recv_entry(me_, noop, &response);
+    if (0 != e)
+        return e;
+    raft_entry_release(noop);
+
+    me->timeout_elapsed = 0;
+    if (me->cb.notify_state_event)
+        me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_LEADER);
 
     return 0;
 }
