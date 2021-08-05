@@ -129,7 +129,12 @@ void raft_node_set_voting(raft_node_t* me_, int voting)
 int raft_node_is_voting(raft_node_t* me_)
 {
     raft_node_private_t* me = (raft_node_private_t*)me_;
-    return (me->flags & RAFT_NODE_VOTING && !(me->flags & RAFT_NODE_INACTIVE));
+    return me->flags & RAFT_NODE_VOTING;
+}
+
+int raft_node_is_active_voter(raft_node_t* me_)
+{
+    return raft_node_is_active(me_) && raft_node_is_voting(me_);
 }
 
 int raft_node_has_sufficient_logs(raft_node_t* me_)

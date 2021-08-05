@@ -223,7 +223,7 @@ int raft_become_candidate(raft_server_t* me_)
     {
         raft_node_t* node = me->nodes[i];
 
-        if (me->node != node && raft_node_is_voting(node))
+        if (me->node != node && raft_node_is_active_voter(node)) //only send requests to nodes (not us) that are active voters
         {
             raft_send_requestvote(me_, node);
         }
@@ -274,8 +274,7 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
          * happen when we get a client request */
         !raft_snapshot_is_in_progress(me_))
     {
-        if (1 < raft_get_num_voting_nodes(me_) &&
-            raft_node_is_voting(raft_get_my_node(me_)))
+        if (1 < raft_get_num_voting_nodes(me_) && raft_node_is_active_voter(raft_get_my_node(me_))) // don't start election if not an active voter
         {
             int e = raft_election_start(me_);
             if (0 != e)
@@ -361,13 +360,13 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     }
 
 
-    if (!raft_node_is_voting(node) &&
-        !raft_voting_change_is_in_progress(me_) &&
-        raft_get_current_idx(me_) <= r->current_idx + 1 &&
-        !raft_node_is_voting_committed(node) &&
-        raft_node_is_addition_committed(node) &&
-        me->cb.node_has_sufficient_logs &&
-        0 == raft_node_has_sufficient_logs(node)
+    if (!raft_node_is_voting(node) && // only purposeful to call this if we aren't a voter
+       raft_node_is_active(node) && // only purposeful to call this if active, i.e. not already removed
+        !raft_voting_change_is_in_progress(me_) && // this would be a voting change, only one can be active a time
+        raft_get_current_idx(me_) <= r->current_idx + 1 && //i.e. we've caught up? (duplicative?)
+        !raft_node_is_voting_committed(node) && // unsure this is necessary?  i.e. we never remove voter flag anymore
+        raft_node_is_addition_committed(node) && // ensures that the non voting log entry was comitted
+        me->cb.node_has_sufficient_logs && 0 == raft_node_has_sufficient_logs(node) // i.e. we've caught up? (duplicative?)
         )
     {
         int e = me->cb.node_has_sufficient_logs(me_, me->udata, node);
@@ -392,13 +391,13 @@ int raft_recv_appendentries_response(raft_server_t* me_,
         raft_entry_t* ety = raft_get_entry_from_idx(me_, point);
         if (raft_get_commit_idx(me_) < point && ety->term == me->current_term)
         {
-            int votes = raft_node_is_voting(me->node) ? 1 : 0;
+            int votes = raft_node_is_active_voter(me->node) ? 1 : 0; // if we aren't an active voter, we don't get a vote
             for (int i = 0; i < me->num_nodes; i++)
             {
                 raft_node_t* node = me->nodes[i];
-                if (me->node != node &&
-                    raft_node_is_voting(node) &&
-                    point <= raft_node_get_match_idx(node))
+                if (me->node != node &&  // skip self
+                    raft_node_is_active_voter(node) && // must be active and voter
+                    point <= raft_node_get_match_idx(node)) // their index is greater than this entry, so can vote
                 {
                     votes++;
                 }
@@ -583,7 +582,8 @@ int raft_already_voted(raft_server_t* me_)
 
 static int __should_grant_vote(raft_server_t* me_, msg_requestvote_t* vr)
 {
-    if (!raft_node_is_voting(raft_get_my_node(me_)))
+    /* per discussions, this might be invalid, as need to grant vote to nodes we dont know about? */
+    if (!raft_node_is_active_voter(raft_get_my_node(me_)))
         return 0;
 
     if (vr->term < raft_get_current_term(me_))
@@ -745,7 +745,7 @@ int raft_recv_requestvote_response(raft_server_t* me_,
         case RAFT_REQUESTVOTE_ERR_NOT_GRANTED:
             break;
 
-        case RAFT_REQUESTVOTE_ERR_UNKNOWN_NODE:
+        case RAFT_REQUESTVOTE_ERR_UNKNOWN_NODE: // this might need to be removed per Ozan's discussion
             if (raft_node_is_voting(raft_get_my_node(me_)) &&
                 me->connected == RAFT_NODE_STATUS_DISCONNECTING)
                 return RAFT_ERR_SHUTDOWN;
@@ -1136,7 +1136,7 @@ int raft_get_nvotes_for_me(raft_server_t* me_)
     for (i = 0, votes = 0; i < me->num_nodes; i++)
     {
         if (me->node != me->nodes[i] &&
-            raft_node_is_voting(me->nodes[i]) &&
+            raft_node_is_active_voter(me->nodes[i]) && // this should be fine, shouldn't have requested a vote if don't believe node can count to majority
             raft_node_has_vote_for_me(me->nodes[i]))
         {
             votes += 1;
@@ -1523,7 +1523,7 @@ int raft_end_load_snapshot(raft_server_t *me_)
         raft_node_t* node = me->nodes[i];
         raft_node_set_voting_committed(node, raft_node_is_voting(node));
         raft_node_set_addition_committed(node, 1);
-        if (raft_node_is_voting(node))
+        if (raft_node_is_voting(node)) // if the node is a voter, it reached has_sufficient_logs at some point
             raft_node_set_has_sufficient_logs(node);
     }
 
@@ -1590,7 +1590,7 @@ raft_msg_id_t quorum_msg_id(raft_server_t* me_)
     for (i = 0; i < me->num_nodes; i++) {
         raft_node_t* node = me->nodes[i];
 
-        if (!raft_node_is_voting(node))
+        if (!raft_node_is_active_voter(node)) // if not an active voter, doesn't get to vote
             continue;
 
         if (me->node == node) {

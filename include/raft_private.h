@@ -166,6 +166,8 @@ raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me_);
 
 int raft_node_is_active(raft_node_t* me_);
 
+int raft_node_is_active_voter(raft_node_t* me_);
+
 void raft_node_set_voting_committed(raft_node_t* me_, int voting);
 
 void raft_node_set_addition_committed(raft_node_t* me_, int committed);
