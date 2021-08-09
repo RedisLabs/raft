@@ -274,7 +274,7 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
          * happen when we get a client request */
         !raft_snapshot_is_in_progress(me_))
     {
-        if (1 < raft_get_num_voting_nodes(me_) && raft_node_is_active_voter(raft_get_my_node(me_))) // don't start election if not an active voter
+        if (1 < raft_get_num_voting_nodes(me_) && raft_node_is_voter(raft_get_my_node(me_))) // don't start election if not a voter (but can be inactive)
         {
             int e = raft_election_start(me_);
             if (0 != e)
