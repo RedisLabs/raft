@@ -67,7 +67,6 @@ typedef struct {
     int election_timeout;
     int election_timeout_rand;
     int request_timeout;
-    int transfer_leader_timeout;
 
     /* timer interval to check if we still have quorum */
     long quorum_timeout;

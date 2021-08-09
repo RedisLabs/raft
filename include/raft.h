@@ -1258,13 +1258,11 @@ void raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb
  */
 void raft_process_read_queue(raft_server_t* me_);
 
-int raft_set_transfer_leader(raft_server_t* me_, raft_node_id_t node_id);
+int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, int timeout);
 
 void raft_reset_transfer_leader(raft_server_t* me_);
 
 int raft_get_transfer_leader(raft_server_t* me_);
-
-void raft_set_transfer_leader_timeout(raft_server_t me_, int timeout);
 
 void raft_set_timeout_now(raft_server_t* me_);
 

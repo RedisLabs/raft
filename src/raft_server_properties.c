@@ -314,7 +314,7 @@ int raft_set_transfer_leader(raft_server_t* me_, raft_node_id_t node_id)
     }
 
     me->transfer_leader_node = node_id;
-    me->transfer_leader_time = me->transfer_leader_timeout;
+    me->transfer_leader_time = me->election_timeout;
 
     return 0;
 }
@@ -332,13 +332,6 @@ int raft_get_transfer_leader(raft_server_t* me_)
     raft_server_private_t* me = (raft_server_private_t*) me_;
 
     return me->transfer_leader_node;
-}
-
-void raft_set_transfer_leader_timeout(raft_server_t me_, int timeout)
-{
-    raft_server_private_t* me = (raft_server_private_t*) me_;
-
-    me->transfer_leader_timeout = timeout;
 }
 
 void raft_set_timeout_now(raft_server_t* me_)

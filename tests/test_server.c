@@ -4110,14 +4110,14 @@ void TestRaft_callback_timeoutnow_at_set_if_up_to_date(CuTest *tc)
     __RAFT_APPEND_ENTRIES_SEQ_ID(r, 2, 1, 1, "aaaa");
 
     /* shouldn't trigger callback as match_idx isn't uptodate */
-    raft_set_transfer_leader(r, 2);
+    raft_transfer_leader(r, 2, 0);
     CuAssertTrue(tc, 0 == timeoutnow_sent);
 
     raft_reset_transfer_leader(r);
 
     /* should trigger callback */
     raft_node_set_match_idx(raft_get_node(r, 2), 2);
-    raft_set_transfer_leader(r, 2);
+    raft_transfer_leader(r, 2, 0);
     CuAssertTrue(tc, 1 == timeoutnow_sent);
 }
 
@@ -4143,7 +4143,7 @@ void TestRaft_callback_timeoutnow_at_send_appendentries_response_if_up_to_date(C
     __RAFT_APPEND_ENTRIES_SEQ_ID(r, 2, 1, 1, "aaaa");
 
     /* shouldn't trigger callback as match_idx isn't uptodate */
-    raft_set_transfer_leader(r, 2);
+    raft_transfer_leader(r, 2, 0);
     CuAssertTrue(tc, 0 == timeoutnow_sent);
 
     msg_appendentries_response_t aer;

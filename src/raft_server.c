@@ -107,8 +107,6 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     raft_update_quorum_meta((raft_server_t*)me, me->msg_id);
 
     raft_randomize_election_timeout((raft_server_t*)me);
-    me->transfer_leader_timeout = me->election_timeout;
-    
     me->log_impl = log_impl;
     me->log = me->log_impl->init(me, log_arg);
     if (!me->log) {
@@ -384,6 +382,8 @@ int raft_become_leader(raft_server_t* me_)
     if (me->cb.notify_state_event)
         me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_LEADER);
 
+    raft_reset_transfer_leader(me_);
+
     raft_index_t next_idx = raft_get_current_idx(me_) + 1;
 
     if (raft_get_current_term(me_) > 1) {
@@ -458,6 +458,8 @@ int raft_become_candidate(raft_server_t* me_)
     if (me->cb.notify_state_event)
         me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_CANDIDATE);
 
+    raft_reset_transfer_leader(me_);
+
     int e = raft_set_current_term(me_, raft_get_current_term(me_) + 1);
     if (0 != e)
         return e;
@@ -491,6 +493,8 @@ void raft_become_follower(raft_server_t* me_)
 
     if (me->cb.notify_state_event)
         me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_FOLLOWER);
+
+    raft_reset_transfer_leader(me_);
 
     raft_set_state(me_, RAFT_STATE_FOLLOWER);
     raft_randomize_election_timeout(me_);
@@ -594,9 +598,9 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
         if (me->transfer_leader_node) {
             me->transfer_leader_time -= msec_since_last_period;
             if (me->transfer_leader_time < 0) {
-                raft_reset_transfer_leader(me_);
                 if (me->cb.notify_state_event)
                     me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_LEADER);
+                raft_reset_transfer_leader(me_);
             }
         }
     }
@@ -1815,4 +1819,32 @@ void raft_process_read_queue(raft_server_t* me_)
             me->read_queue_head->read_idx <= last_applied_idx) {
         pop_read_queue(me, me->read_queue_head->read_term == me->current_term);
     }
+}
+
+int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, int timeout)
+{
+    raft_server_private_t* me = (raft_server_private_t*) me_;
+
+    if (me->transfer_leader_node != 0) {
+        return RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS;
+    }
+
+    raft_node_t * target = raft_get_node(me_, node_id);
+    if (target == NULL) {
+        return RAFT_ERR_INVALID_NODEID;
+    }
+
+    if (me->cb.send_timeoutnow &&
+    raft_get_current_idx(me_) == raft_node_get_match_idx(target)) {
+        me->cb.send_timeoutnow(me_, target);
+    }
+
+    me->transfer_leader_node = node_id;
+    if (timeout == 0) {
+        me->transfer_leader_time = me->election_timeout;
+    } else {
+        me->transfer_leader_time = timeout;
+    }
+
+    return 0;
 }
