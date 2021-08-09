@@ -305,7 +305,7 @@ int raft_set_transfer_leader(raft_server_t* me_, raft_node_id_t node_id)
 
     raft_node_t * target = raft_get_node(me_, node_id);
     if (target == NULL) {
-        return RAFT_ERR_INVALID_NDOEID;
+        return RAFT_ERR_INVALID_NODEID;
     }
 
     if (me->cb.send_timeoutnow &&
