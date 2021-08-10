@@ -35,7 +35,8 @@ typedef enum {
     RAFT_STATE_FOLLOWER,
     RAFT_STATE_PRECANDIDATE,
     RAFT_STATE_CANDIDATE,
-    RAFT_STATE_LEADER
+    RAFT_STATE_LEADER,
+    RAFT_STATE_LEADERSHIP_TRANSFER_FAILED
 } raft_state_e;
 
 /** Allow entries to apply while taking a snapshot */
@@ -405,7 +406,7 @@ typedef void (
 
 /** Callback for sending TimeoutNow RPC messages
  * @param[in] raft The Raft server making this callback
- * @param[in] node The node's ID that we are sending this message to
+ * @param[in] node The node that we are sending this message to
  * @return 0 on success
  */
 typedef int (
@@ -1258,16 +1259,26 @@ void raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb
  */
 void raft_process_read_queue(raft_server_t* me_);
 
-int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, int timeout);
+/*
+ * invoke a leadership transfer to targeted node
+ * node_id = targeted node
+ * timeout = timeout in ms before this transfer is aborted.  if 0, use default election timeout
+ */
+int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, long timeout);
 
+/* attempt to abort the leadership transfer */
 void raft_reset_transfer_leader(raft_server_t* me_);
 
-int raft_get_transfer_leader(raft_server_t* me_);
+/* get the targeted node_id if a leadership transfer is in progress, or 0 if not */
+raft_node_id_t raft_get_transfer_leader(raft_server_t* me_);
 
+/* cause this server to force an election on its next raft_periodic function call */
 void raft_set_timeout_now(raft_server_t* me_);
 
+/* determine if we are going to force an election on the next raft_periodic function call */
 int raft_is_timeout_now(raft_server_t* me_);
 
+/* reset attempt at forcing an election on next raft_periodic function call */
 void raft_reset_timeout_now(raft_server_t* me_);
 
 #endif /* RAFT_H_ */

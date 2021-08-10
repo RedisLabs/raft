@@ -116,8 +116,8 @@ typedef struct {
     raft_read_request_t *read_queue_head;
     raft_read_request_t *read_queue_tail;
 
-    raft_node_id_t transfer_leader_node;
-    int transfer_leader_time;
+    raft_node_id_t node_transferring_leader_to; // the node we are targeting for leadership
+    long transfer_leader_time; // how long we should wait for leadership transfer to take, before aborting
 
     int timeout_now;
 } raft_server_private_t;

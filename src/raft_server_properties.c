@@ -319,21 +319,30 @@ int raft_set_transfer_leader(raft_server_t* me_, raft_node_id_t node_id)
     return 0;
 }
 
+/* Stop trying to transfer leader to a targeted node
+ * internally used because because either we have timed out our attempt or because we are no longer the leaderr
+ * possible to be used by a client as well.
+ */
 void raft_reset_transfer_leader(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
 
-    me->transfer_leader_node = 0;
+    me->node_transferring_leader_to = 0;
     me->transfer_leader_time = 0;
 }
 
-int raft_get_transfer_leader(raft_server_t* me_)
+/* return the targeted node_id if we are in the middle of attempting a leadership transfer
+ * returns the node's raft_node_id_t if a leadership transfer is in progress
+ * return 0 if no leadership transfer is in progress
+ */
+raft_node_id_t raft_get_transfer_leader(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
 
-    return me->transfer_leader_node;
+    return me->node_transferring_leader_to;
 }
 
+/* Forces the raft server to invoke an election on the next raft_periodic function call */
 void raft_set_timeout_now(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
@@ -341,6 +350,7 @@ void raft_set_timeout_now(raft_server_t* me_)
     me->timeout_now = 1;
 }
 
+/* Determine if we will force an election on the next raft_periodic function call */
 int raft_is_timeout_now(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
@@ -348,6 +358,7 @@ int raft_is_timeout_now(raft_server_t* me_)
     return me->timeout_now;
 }
 
+/* Remove the flag that will force an election on the next raft_periodic function call */
 void raft_reset_timeout_now(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;

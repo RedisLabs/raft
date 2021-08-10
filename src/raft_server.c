@@ -595,11 +595,11 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
             raft_update_quorum_meta(me_, quorum_id);
 	}
 
-        if (me->transfer_leader_node) {
+        if (me->node_transferring_leader_to) {
             me->transfer_leader_time -= msec_since_last_period;
             if (me->transfer_leader_time < 0) {
                 if (me->cb.notify_state_event)
-                    me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_LEADER);
+                    me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_LEADERSHIP_TRANSFER_FAILED);
                 raft_reset_transfer_leader(me_);
             }
         }
@@ -1096,7 +1096,7 @@ int raft_recv_entry(raft_server_t* me_,
     raft_log(me_, "received entry t:%ld id: %d idx: %ld",
           me->current_term, ety->id, raft_get_current_idx(me_) + 1);
     if (raft_get_transfer_leader(me_))
-        return RAFT_ERR_NOT_LEADER;
+        return RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS;
 
     ety->term = me->current_term;
     int e = raft_append_entry(me_, ety);
@@ -1821,11 +1821,16 @@ void raft_process_read_queue(raft_server_t* me_)
     }
 }
 
-int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, int timeout)
+/* invoke a leadership transfer
+ * node_id = targeted node we are transfering to
+ * timeout = how long this should be allowed to take in milliseconds, as calculated by calls to raft_periodic)
+ * return an error if leadership transfer is already in progress of the targeted node_id is unknown
+ */
+int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, long timeout)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
 
-    if (me->transfer_leader_node != 0) {
+    if (me->node_transferring_leader_to != 0) {
         return RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS;
     }
 
@@ -1839,7 +1844,7 @@ int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, int timeout
         me->cb.send_timeoutnow(me_, target);
     }
 
-    me->transfer_leader_node = node_id;
+    me->node_transferring_leader_to = node_id;
     if (timeout == 0) {
         me->transfer_leader_time = me->election_timeout;
     } else {
