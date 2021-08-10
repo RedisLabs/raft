@@ -281,14 +281,16 @@ typedef int (
  * @param[in] raft The Raft server making this callback
  * @param[in] node The node that is the subject of this log. Could be NULL.
  * @param[in] user_data User data that is passed from Raft server
- * @param[in] buf The buffer that was logged */
+ * @param[in] fmt Format
+ * @param[in] ... Variable args */
 typedef void (
 *func_log_f
 )    (
     raft_server_t* raft,
     raft_node_t* node,
     void *user_data,
-    const char *buf
+    const char *fmt,
+    ...
     );
 #endif
 
