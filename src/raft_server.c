@@ -29,16 +29,6 @@
 #define max(a, b) ((a) < (b) ? (b) : (a))
 #endif
 
-#define raft_log_exp(fmt, ...) fmt, __VA_ARGS__
-
-#define raft_log(server, node, ...)                                            \
-    do {                                                                       \
-        raft_server_private_t* _s = (raft_server_private_t*) server;           \
-        if (_s->cb.log != NULL) {                                              \
-            _s->cb.log(server, node, _s->udata, raft_log_exp(__VA_ARGS__, ""));\
-        }                                                                      \
-    } while(0)
-
 void *(*__raft_malloc)(size_t) = malloc;
 void *(*__raft_calloc)(size_t, size_t) = calloc;
 void *(*__raft_realloc)(void *, size_t) = realloc;
@@ -53,6 +43,26 @@ void raft_set_heap_functions(void *(*_malloc)(size_t),
     __raft_calloc = _calloc;
     __raft_realloc = _realloc;
     __raft_free = _free;
+}
+
+static void raft_log(raft_server_t *me_, raft_node_t* node, const char *fmt, ...)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+
+    if (me->cb.log == NULL)
+        return;
+
+    char buf[1024];
+    va_list args;
+
+    va_start(args, fmt);
+    int n = vsnprintf(buf, sizeof(buf), fmt, args);
+    if (n < 0) {
+        buf[0] = '\0';
+    }
+    va_end(args);
+
+    me->cb.log(me_, node, me->udata, buf);
 }
 
 void raft_randomize_election_timeout(raft_server_t* me_)
