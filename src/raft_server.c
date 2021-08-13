@@ -343,13 +343,16 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
 
             /**
              * 'request_timeout' will expire earlier than 'quorum_timeout' and
-             *  send a few rounds of append entries with incremented 'msg_id's.
-             *  So, 'quorum id' should be advanced at this point compared to
-             * 'last_acked_msg_id'. If there is no progress, quorum does not
-             *  exist, we step down.
+             * send multiple rounds of append entries with incremented
+             * 'msg_id's. 'quorum id' should be advanced at this point compared
+             * to 'last_acked_msg_id'. If there is no progress, quorum does not
+             * exist, we step down.
              */
             if (me->last_acked_msg_id == quorum_id)
+            {
+                raft_log(me_, NULL, "quorum does not exist, stepping down");
                 raft_become_follower(me_);
+            }
 
             raft_update_quorum_meta(me_, quorum_id);
         }
