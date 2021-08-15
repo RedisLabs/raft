@@ -5,7 +5,7 @@
 #         mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Coverage
 #         make && make coverage
 # Tests :
-#         mkdir build && cd build && cmake .. -DRAFT_BUILD_TESTS=1
+#         mkdir build && cd build && cmake ..
 #         make && make tests_full
 
 
@@ -94,11 +94,9 @@ add_library(raft STATIC
 target_compile_options(raft PRIVATE -fPIC -g)
 target_include_directories(raft PRIVATE include)
 
-if (RAFT_BUILD_TESTS)
-    define_test(test_log)
-    define_test(test_log_impl)
-    define_test(test_node)
-    define_test(test_scenario)
-    define_test(test_server)
-    define_test(test_snapshotting)
-endif()
+define_test(test_log)
+define_test(test_log_impl)
+define_test(test_node)
+define_test(test_scenario)
+define_test(test_server)
+define_test(test_snapshotting)
