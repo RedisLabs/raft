@@ -1093,10 +1093,11 @@ int raft_recv_entry(raft_server_t* me_,
     if (!raft_is_leader(me_))
         return RAFT_ERR_NOT_LEADER;
 
-    raft_log(me_, "received entry t:%ld id: %d idx: %ld",
-          me->current_term, ety->id, raft_get_current_idx(me_) + 1);
     if (raft_get_transfer_leader(me_))
         return RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS;
+
+    raft_log(me_, "received entry t:%ld id: %d idx: %ld",
+          me->current_term, ety->id, raft_get_current_idx(me_) + 1);
 
     ety->term = me->current_term;
     int e = raft_append_entry(me_, ety);

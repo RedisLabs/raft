@@ -3938,8 +3938,9 @@ void single_node_commits_noop_cb(void* arg, int can_read)
     *((char**) arg) = "success";
 }
 
-void TestRaft_single_node_commits_noop(CuTest * tc) {
-    static char *str = "test";
+void TestRaft_single_node_commits_noop(CuTest * tc)
+{
+    static char* str = "test";
     void *r = raft_new();
 
     raft_add_node(r, NULL, 1, 1);
@@ -4023,7 +4024,6 @@ void TestRaft_targeted_node_becomes_candidate_when_before_real_timeout_occurs(Cu
     CuAssertTrue(tc, 1 == raft_is_candidate(r));
 }
 
-<<<<<<< HEAD
 void quorum_msg_id_correctness_cb(void* arg, int can_read)
 {
     (void) can_read;
@@ -4078,7 +4078,8 @@ void TestRaft_quorum_msg_id_correctness(CuTest * tc)
     raft_node_set_last_ack(raft_get_node(r, 3), 2, 1);
     raft_periodic(r, 200);
     CuAssertIntEquals(tc, 1, val);
-=======
+}
+
 int timeoutnow_sent = 0;
 
 int __fake_timeoutnow(raft_server_t* raft, raft_node_t* node)
@@ -4152,7 +4153,6 @@ void TestRaft_callback_timeoutnow_at_send_appendentries_response_if_up_to_date(C
     aer.current_idx = 2;
     raft_recv_appendentries_response(r, raft_get_node(r, 2), &aer);
     CuAssertTrue(tc, 1 == timeoutnow_sent);
->>>>>>> 2b4d7a5 (add more tests)
 }
 
 void TestRaft_leader_steps_down_if_there_is_no_quorum(CuTest * tc)
