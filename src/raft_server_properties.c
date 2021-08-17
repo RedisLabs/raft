@@ -7,16 +7,10 @@
  * @author Willem Thiart himself@willemthiart.com
  */
 
-#include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <assert.h>
 
-/* for varags */
-#include <stdarg.h>
-
 #include "raft.h"
-#include "raft_log.h"
 #include "raft_private.h"
 
 void raft_set_election_timeout(raft_server_t* me_, int millisec)

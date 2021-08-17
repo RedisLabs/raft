@@ -8,9 +8,7 @@
  * @author Willem Thiart himself@willemthiart.com
  */
 
-#include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <assert.h>
 
 #include "raft.h"
@@ -55,7 +53,7 @@ static int __ensurecapacity(log_private_t * me)
     if (me->count < me->size)
         return 0;
 
-    temp = (raft_entry_t**)__raft_calloc(1, sizeof(raft_entry_t *) * me->size * 2);
+    temp = raft_calloc(1, sizeof(raft_entry_t *) * me->size * 2);
     if (!temp)
         return RAFT_ERR_NOMEM;
 
@@ -67,7 +65,7 @@ static int __ensurecapacity(log_private_t * me)
     }
 
     /* clean up old entries */
-    __raft_free(me->entries);
+    raft_free(me->entries);
 
     me->size *= 2;
     me->entries = temp;
@@ -89,14 +87,14 @@ int log_load_from_snapshot(log_t *me_, raft_index_t idx, raft_term_t term)
 
 log_t* log_alloc(raft_index_t initial_size)
 {
-    log_private_t* me = (log_private_t*)__raft_calloc(1, sizeof(log_private_t));
+    log_private_t* me = raft_calloc(1, sizeof(log_private_t));
     if (!me)
         return NULL;
     me->size = initial_size;
     log_clear((log_t*)me);
-    me->entries = (raft_entry_t**)__raft_calloc(1, sizeof(raft_entry_t *) * me->size);
+    me->entries = raft_calloc(1, sizeof(raft_entry_t *) * me->size);
     if (!me->entries) {
-        __raft_free(me);
+        raft_free(me);
         return NULL;
     }
     return (log_t*)me;
@@ -185,14 +183,14 @@ raft_entry_t** log_get_from_idx(log_t* me_, raft_index_t idx, int *n_etys)
 
     i = (me->front + idx - me->base) % me->size;
 
-    int logs_till_end_of_log;
+    long logs_till_end_of_log;
 
     if (i < me->back)
         logs_till_end_of_log = me->back - i;
     else
         logs_till_end_of_log = me->size - i;
 
-    *n_etys = logs_till_end_of_log;
+    *n_etys = (int) logs_till_end_of_log;
     return &me->entries[i];
 }
 
@@ -312,8 +310,8 @@ void log_free(log_t * me_)
 {
     log_private_t* me = (log_private_t*)me_;
 
-    __raft_free(me->entries);
-    __raft_free(me);
+    raft_free(me->entries);
+    raft_free(me);
 }
 
 raft_index_t log_get_current_idx(log_t* me_)
