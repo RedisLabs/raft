@@ -339,15 +339,20 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
         me->quorum_timeout -= msec_since_last_period;
         if (me->quorum_timeout < 0)
         {
+            /**
+             * Check-quorum implementation
+             *
+             * Periodically (every quorum_timeout), we enter this check to
+             * verify quorum exists. The current 'quorum msg id' should be
+             * greater than the last time we were here. It means we've got
+             * responses for append entry requests from the cluster, so we
+             * conclude that cluster is operational and quorum exists. In that
+             * case, we save the current quorum msg id and update the
+             * quorum_timeout timer. Otherwise, it means quorum does not exist.
+             * We should step down and become a follower.
+             */
             raft_msg_id_t quorum_id = quorum_msg_id(me_);
 
-            /**
-             * 'request_timeout' will expire earlier than 'quorum_timeout' and
-             * send multiple rounds of append entries with incremented
-             * 'msg_id's. 'quorum id' should be advanced at this point compared
-             * to 'last_acked_msg_id'. If there is no progress, quorum does not
-             * exist, we step down.
-             */
             if (me->last_acked_msg_id == quorum_id)
             {
                 raft_log(me_, NULL, "quorum does not exist, stepping down");
