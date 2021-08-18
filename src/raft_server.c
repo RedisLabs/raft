@@ -19,11 +19,15 @@
 #include "raft_private.h"
 
 #ifndef min
-#define min(a, b) ((a) < (b) ? (a) : (b))
+    #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
 #ifndef max
-#define max(a, b) ((a) < (b) ? (b) : (a))
+    #define max(a, b) ((a) < (b) ? (b) : (a))
+#endif
+
+#ifndef __GNUC__
+    #define __attribute__(a)
 #endif
 
 void *(*raft_malloc)(size_t) = malloc;

@@ -845,11 +845,11 @@ void* raft_node_get_udata(raft_node_t* me);
 void raft_node_set_udata(raft_node_t* me, void* user_data);
 
 /**
- * After sending the snapshot, library user can set next index for the node
+ * After sending the snapshot, user can set the next index for the node
  *
  * @param[in] node node
  * @param[in] idx next entry index */
-void raft_node_set_next_idx(raft_node_t* me_, raft_index_t idx);
+void raft_node_set_next_idx(raft_node_t* me, raft_index_t idx);
 
 /**
  * @param[in] idx The entry's index
