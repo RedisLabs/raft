@@ -221,6 +221,23 @@ def raft_notify_membership_event(raft, udata, node, ety, event_type):
     return ffi.from_handle(udata).notify_membership_event(node, ety, event_type)
 
 
+class ReadQueueEntry(object):
+    def __init__(self, network):
+        self.network = network
+        self.iteration = network.iteration
+
+
+def handle_read_queue(arg, can_read):
+    val = int(ffi.cast("int", arg))
+    if can_read != 0:
+        logger.debug(f"handling read_request {val}")
+        if net.last_read_iteration < val:
+            net.last_read_iteration = val
+    else:
+        logger.debug(f"ignoring read_request {val}")
+
+
+
 def raft_log(raft, node, udata, buf):
     server = ffi.from_handle(lib.raft_get_udata(raft))
     # print(server.id, ffi.string(buf).decode('utf8'))
@@ -256,6 +273,7 @@ class Network(object):
         self.random = random.Random(seed)
         self.partitions = set()
         self.no_random_period = False
+        self.last_read_iteration = -1
 
         self.server_id = 0
 
@@ -292,6 +310,12 @@ class Network(object):
                 e = sv.recv_entry(ety)
                 assert e == 0 or e == lib.RAFT_ERR_NOT_LEADER
                 break
+
+    def push_read(self):
+        for sv in self.active_servers:
+            if lib.raft_is_leader(sv.raft):
+                logger.debug(f"adding a read_request to {sv.id}")
+                lib.raft_queue_read_request(sv.raft, sv.handle_read_queue, ffi.cast("void *", sv.network.iteration))
 
     def id2server(self, id):
         for server in self.servers:
@@ -343,13 +367,18 @@ class Network(object):
                 server.periodic(self.random.randint(1, 100))
 
         # Deadlock detection
-        if self.latest_applied_log_idx != 0 and self.latest_applied_log_iteration + 5000 < self.iteration:
+        if self.client_rate != 0 and self.latest_applied_log_idx != 0 and self.latest_applied_log_iteration + 5000 < self.iteration:
             logger.error("deadlock detected iteration:{0} appliedidx:{1}\n".format(
                 self.latest_applied_log_iteration,
                 self.latest_applied_log_idx,
                 ))
             self.diagnostic_info()
             sys.exit(1)
+
+        if self.last_read_iteration + 5000 < self.iteration:
+            logger.error("deadlock detected in handling reads: last_read from iteration {0} current at {1}\n".format(
+                self.last_read_iteration, self.iteration,
+            ))
 
         # Count leadership changes
         assert len(self.active_servers) > 0, self.diagnostic_info()
@@ -370,6 +399,7 @@ class Network(object):
         for partition in self.partitions:
             # Partitions are in one direction
             if partition[0] is sendor and partition[1] is sendee:
+                logger.info(f"dropping message from {sendor.id} to {sendee.id}")
                 return
 
         if self.random.randint(1, 100) < self.drop_rate:
@@ -768,6 +798,7 @@ class RaftServer(object):
         self.raft_node_has_sufficient_logs = ffi.callback("int(raft_server_t* raft, void *user_data, raft_node_t* node)", raft_node_has_sufficient_logs)
         self.raft_notify_membership_event = ffi.callback("void(raft_server_t* raft, void *user_data, raft_node_t* node, raft_entry_t* ety, raft_membership_e)", raft_notify_membership_event)
         self.raft_log = ffi.callback("void(raft_server_t*, raft_node_t*, void*, const char* buf)", raft_log)
+        self.handle_read_queue = ffi.callback("void(void *arg, int can_read)", handle_read_queue)
 
     def recv_entry(self, ety):
         # FIXME: leak
@@ -1018,7 +1049,7 @@ class RaftServer(object):
 
     def entry_append(self, ety, ety_idx):
         try:
-            assert not self.fsm_log or self.fsm_log[-1].term <= ety.term
+            assert not self.fsm_log or self.fsm_log[-1].term <= ety.term, f"node {self.id}'s term {self.fsm_log[-1].term} > to entry term {ety.term}"
         except Exception as e:
             self.abort_exception = e
             # FIXME: consider returning RAFT_ERR_SHUTDOWN
@@ -1162,6 +1193,7 @@ if __name__ == '__main__':
             logger.addHandler(fh)
             logger.propagate = False
 
+    global net
     net = Network(int(args['--seed']))
 
     net.dupe_rate = int(args['--dupe_rate'])
@@ -1185,6 +1217,8 @@ if __name__ == '__main__':
     for i in range(0, int(args['--iterations'])):
         net.iteration += 1
         try:
+            net.push_read()
+            net.poll_messages()
             net.periodic()
             net.poll_messages()
         except:
