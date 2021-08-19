@@ -165,7 +165,7 @@ int log_append_entry(log_t* me_, raft_entry_t* ety)
     return 0;
 }
 
-raft_entry_t** log_get_from_idx(log_t* me_, raft_index_t idx, int *n_etys)
+raft_entry_t** log_get_from_idx(log_t* me_, raft_index_t idx, long *n_etys)
 {
     log_private_t* me = (log_private_t*)me_;
     raft_index_t i;
@@ -183,14 +183,12 @@ raft_entry_t** log_get_from_idx(log_t* me_, raft_index_t idx, int *n_etys)
 
     i = (me->front + idx - me->base) % me->size;
 
-    long logs_till_end_of_log;
-
+    /* log entries until the end of the log */
     if (i < me->back)
-        logs_till_end_of_log = me->back - i;
+        *n_etys = me->back - i;
     else
-        logs_till_end_of_log = me->size - i;
+        *n_etys = me->size - i;
 
-    *n_etys = (int) logs_till_end_of_log;
     return &me->entries[i];
 }
 
@@ -376,7 +374,7 @@ static raft_entry_t *__log_get(void *log, raft_index_t idx)
 
 static int __log_get_batch(void *log, raft_index_t idx, int entries_n, raft_entry_t **entries)
 {
-    int n, i;
+    long n, i;
     raft_entry_t **r = log_get_from_idx(log, idx, &n);
 
     if (!r || n < 1) {
@@ -390,7 +388,7 @@ static int __log_get_batch(void *log, raft_index_t idx, int entries_n, raft_entr
         entries[i] = r[i];
         raft_entry_hold(entries[i]);
     }
-    return n;
+    return (int) n;
 }
 
 static int __log_pop(void *log, raft_index_t from_idx, func_entry_notify_f cb, void *cb_arg)
