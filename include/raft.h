@@ -164,7 +164,7 @@ typedef struct
 typedef struct
 {
     /** id, to make it possible to associate responses with requests. */
-    raft_msg_id_t msg_id;
+    raft_read_queue_id_t read_queue_id;
 
     /** currentTerm, to force other leader/candidate to step down */
     raft_term_t term;
@@ -193,8 +193,8 @@ typedef struct
  * This message could force a leader/candidate to become a follower. */
 typedef struct
 {
-    /** the msg_id this response refers to */
-    unsigned long msg_id;
+    /** the read_queue_id this response refers to */
+    unsigned long read_queue_id;
 
     /** currentTerm, to force other leader/candidate to step down */
     raft_term_t term;
@@ -1217,4 +1217,5 @@ void raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb
  */
 void raft_process_read_queue(raft_server_t* me_);
 
+raft_node_id_t * raft_get_voting_node_ids(raft_server_t* me_);
 #endif /* RAFT_H_ */

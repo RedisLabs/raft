@@ -328,10 +328,10 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
     raft_log(me_, node,
-          "received appendentries response %s ci:%ld rci:%ld msgid:%lu",
+          "received appendentries response %s ci:%ld rci:%ld rqid:%lu",
           r->success == 1 ? "SUCCESS" : "fail",
           raft_get_current_idx(me_),
-          r->current_idx, r->msg_id);
+          r->current_idx, r->read_queue_id);
 
     if (!node)
         return -1;
@@ -389,7 +389,7 @@ int raft_recv_appendentries_response(raft_server_t* me_,
             raft_node_set_has_sufficient_logs(node);
     }
 
-    raft_node_set_last_ack(node, r->msg_id, r->term);
+    raft_node_set_last_ack(node, r->read_queue_id, r->term);
 
     if (r->current_idx <= match_idx)
         return 0;
@@ -453,7 +453,7 @@ int raft_recv_appendentries(
               ae->prev_log_term,
               ae->n_entries);
 
-    r->msg_id = ae->msg_id;
+    r->read_queue_id = ae->read_queue_id;
     r->success = 0;
 
     if (raft_is_candidate(me_) && me->current_term == ae->term)
@@ -530,6 +530,8 @@ int raft_recv_appendentries(
 
     r->success = 1;
     r->current_idx = ae->prev_log_idx;
+    /* reset our read_queue_id to that of our leader */
+    me->read_queue_id = ae->read_queue_id;
 
     /* 3. If an existing entry conflicts with a new one (same index
        but different terms), delete the existing entry and all that
@@ -978,7 +980,7 @@ int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
     ae.leader_commit = raft_get_commit_idx(me_);
     ae.prev_log_idx = 0;
     ae.prev_log_term = 0;
-    ae.msg_id = me->msg_id;
+    ae.read_queue_id = me->read_queue_id;
 
     raft_index_t next_idx = raft_node_get_next_idx(node);
 
@@ -1011,14 +1013,14 @@ int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
         }
     }
 
-    raft_log(me_, node, "sending appendentries: ci:%lu comi:%lu t:%lu lc:%lu pli:%lu plt:%lu msgid:%lu #%d",
+    raft_log(me_, node, "sending appendentries: ci:%lu comi:%lu t:%lu lc:%lu pli:%lu plt:%lu rqgid:%lu #%d",
           raft_get_current_idx(me_),
           raft_get_commit_idx(me_),
           ae.term,
           ae.leader_commit,
           ae.prev_log_idx,
           ae.prev_log_term,
-          ae.msg_id,
+          ae.read_queue_id,
           ae.n_entries);
 
     int res = me->cb.send_appendentries(me_, me->udata, node, &ae);
@@ -1588,18 +1590,18 @@ void raft_entry_release_list(raft_entry_t **ety_list, size_t len)
     }
 }
 
-static int msgid_cmp(const void *a, const void *b)
+static int read_queue_id_cmp(const void *a, const void *b)
 {
-    raft_msg_id_t va = *((raft_msg_id_t*) a);
-    raft_msg_id_t vb = *((raft_msg_id_t*) b);
+    raft_read_queue_id_t va = *((raft_read_queue_id_t*) a);
+    raft_read_queue_id_t vb = *((raft_read_queue_id_t*) b);
 
     return va > vb ? -1 : 1;
 }
 
-raft_msg_id_t quorum_msg_id(raft_server_t* me_)
+raft_read_queue_id_t quorum_read_queue_id(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
-    raft_msg_id_t msg_ids[me->num_nodes];
+    raft_read_queue_id_t read_queue_ids[me->num_nodes];
     int num_voters = 0;
 
     for (int i = 0; i < me->num_nodes; i++) {
@@ -1609,22 +1611,22 @@ raft_msg_id_t quorum_msg_id(raft_server_t* me_)
             continue;
 
         if (me->node == node) {
-            msg_ids[num_voters++] = me->msg_id;
+            read_queue_ids[num_voters++] = me->read_queue_id;
         } else {
-            msg_ids[num_voters++] = raft_node_get_last_acked_msgid(node);
+            read_queue_ids[num_voters++] = raft_node_get_last_acked_read_queue_id(node);
         }
     }
 
     assert(num_voters == raft_get_num_voting_nodes(me_));
 
     /**
-     *  Sort the acknowledged msg_ids in the descending order and return
-     *  the median value. Median value means it's the highest msg_id
+     *  Sort the acknowledged read_queue_ids in the descending order and return
+     *  the median value. Median value means it's the highest read_queue_id
      *  acknowledged by the majority.
      */
-    qsort(msg_ids, num_voters, sizeof(raft_msg_id_t), msgid_cmp);
+    qsort(read_queue_ids, num_voters, sizeof(raft_read_queue_id_t), read_queue_id_cmp);
 
-    return msg_ids[num_voters / 2];
+    return read_queue_ids[num_voters / 2];
 }
 
 void raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb, void *cb_arg)
@@ -1635,7 +1637,7 @@ void raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb
 
     req->read_idx = raft_get_current_idx(me_);
     req->read_term = raft_get_current_term(me_);
-    req->msg_id = ++me->msg_id;
+    req->read_queue_id = ++me->read_queue_id;
     req->cb = cb;
     req->cb_arg = cb_arg;
     req->next = NULL;
@@ -1710,7 +1712,7 @@ void raft_process_read_queue(raft_server_t* me_)
             return;
     }
 
-    raft_msg_id_t last_acked_msgid = quorum_msg_id(me_);
+    raft_read_queue_id_t last_acked_read_queue_id = quorum_read_queue_id(me_);
     raft_index_t last_applied_idx = me->last_applied_idx;
 
     /* Special case: the log's first index is 1, so we need to account
@@ -1723,7 +1725,7 @@ void raft_process_read_queue(raft_server_t* me_)
         last_applied_idx = 1;
 
     while (me->read_queue_head &&
-            me->read_queue_head->msg_id <= last_acked_msgid &&
+            me->read_queue_head->read_queue_id <= last_acked_read_queue_id &&
             me->read_queue_head->read_idx <= last_applied_idx) {
         pop_read_queue(me, me->read_queue_head->read_term == me->current_term);
     }

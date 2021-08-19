@@ -25,7 +25,7 @@ typedef struct raft_read_request {
     raft_index_t read_idx;
     raft_term_t read_term;
 
-    raft_msg_id_t msg_id;
+    raft_read_queue_id_t read_queue_id;
     func_read_request_callback_f cb;
     void *cb_arg;
 
@@ -102,7 +102,7 @@ typedef struct {
     /* Read requests that await a network round trip to confirm
      * we're still the leader.
      */
-    raft_msg_id_t msg_id;
+    raft_read_queue_id_t read_queue_id;
     raft_read_request_t *read_queue_head;
     raft_read_request_t *read_queue_tail;
 } raft_server_private_t;
@@ -126,17 +126,9 @@ int raft_send_appendentries_all(raft_server_t* me_);
  * @return 1 if entry committed, 0 otherwise */
 int raft_apply_entry(raft_server_t* me_);
 
-/**
- * Appends entry using the current term.
- * Note: we make the assumption that current term is up-to-date
- * @return 0 if unsuccessful */
-int raft_append_entry(raft_server_t* me_, raft_entry_t* c);
-
 void raft_set_last_applied_idx(raft_server_t* me, raft_index_t idx);
 
 void raft_set_state(raft_server_t* me_, int state);
-
-int raft_get_state(raft_server_t* me_);
 
 raft_node_t* raft_node_new(void* udata, raft_node_id_t id);
 
@@ -145,8 +137,6 @@ void raft_node_free(raft_node_t* me_);
 void raft_node_set_next_idx(raft_node_t* node, raft_index_t nextIdx);
 
 void raft_node_set_match_idx(raft_node_t* node, raft_index_t matchIdx);
-
-raft_index_t raft_node_get_match_idx(raft_node_t* me_);
 
 void raft_node_vote_for_me(raft_node_t* me_, const int vote);
 
@@ -158,30 +148,25 @@ int raft_is_single_node_voting_cluster(raft_server_t *me_);
 
 int raft_votes_is_majority(const int nnodes, const int nvotes);
 
-void raft_handle_append_cfg_change(raft_server_t* me_, raft_entry_t* ety, const raft_index_t idx);
-
 void raft_handle_remove_cfg_change(raft_server_t* me_, raft_entry_t* ety, const raft_index_t idx);
 
 raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me_);
 
-int raft_node_is_active(raft_node_t* me_);
+void raft_node_set_last_ack(raft_node_t* me_, raft_read_queue_id_t msgid, raft_term_t term);
 
-void raft_node_set_voting_committed(raft_node_t* me_, int voting);
-
-void raft_node_set_addition_committed(raft_node_t* me_, int committed);
-
-void raft_node_set_last_ack(raft_node_t* me_, raft_msg_id_t msgid, raft_term_t term);
-
-raft_msg_id_t raft_node_get_last_acked_msgid(raft_node_t* me_);
+raft_read_queue_id_t raft_node_get_last_acked_read_queue_id(raft_node_t* me_);
 
 raft_term_t raft_node_get_last_acked_term(raft_node_t* me_);
-
-void raft_process_read_queue(raft_server_t* me_);
 
 /* Heap functions */
 extern void *(*__raft_malloc)(size_t size);
 extern void *(*__raft_calloc)(size_t nmemb, size_t size);
 extern void *(*__raft_realloc)(void *ptr, size_t size);
 extern void (*__raft_free)(void *ptr);
+
+/* get the read_queue_id
+ * this will either be the last sent, or the last valid one recieved from leader
+ */
+raft_read_queue_id_t raft_get_read_queue_id(raft_server_t* me_);
 
 #endif /* RAFT_PRIVATE_H_ */

@@ -59,10 +59,10 @@ import coloredlogs
 import docopt
 import logging
 import random
-import re
 import sys
 import terminaltables
 import traceback
+import os
 
 from raft_cffi import ffi, lib
 
@@ -227,15 +227,46 @@ class ReadQueueEntry(object):
         self.iteration = network.iteration
 
 
+def verify_read(arg):
+    ret = lib.raft_get_voting_node_ids(net.leader.raft)
+    ret = ffi.gc(ret, lib.__raft_free)
+    num_nodes = lib.raft_get_num_voting_nodes(net.leader.raft)
+    buf = ffi.buffer(ret,ffi.sizeof("int")*num_nodes)
+    voter_ids = ffi.from_buffer("int *", buf)
+    required = num_nodes / 2;
+    count = 0;
+    for i in range(num_nodes):
+        id = lib.raft_get_read_queue_id(net.servers[voter_ids[i]-1].raft)
+        if id >= arg:
+            count += 1
+
+    if count <= required:
+        logger.error(f"verify_read failed {count} < {required}")
+        os._exit(-1)
+
+#    logger.error(f"voters = {voters}")
+#    voters = [int.from_bytes(x, 'little') for x in buffer]
+#    logger.error(f"# voters = {len(voters)}")
+#    logger.error(f"voters = {voters}")
+#    count = 1;
+#    required = int(((len(voters) + 1) / 2) + 1)
+#    for voter in voters:
+#        id = lib.raft_get_read_queue_id(net.servers[voter].raft)
+#        logger.error(f"voters = {voter} id = {id}")
+#        if id >= arg:
+#            count += 1
+#    if count < required:
+#        logger.error(f"count = {count}, required = {required} voters = {len(voters) + 1}, arg = {arg}")
+#        os._exit(-1)
+
 def handle_read_queue(arg, can_read):
     val = int(ffi.cast("int", arg))
     if can_read != 0:
+        verify_read(val);
         logger.debug(f"handling read_request {val}")
-        if net.last_read_iteration < val:
-            net.last_read_iteration = val
+        net.last_seen_read_queue_id = val
     else:
         logger.debug(f"ignoring read_request {val}")
-
 
 
 def raft_log(raft, node, udata, buf):
@@ -273,7 +304,7 @@ class Network(object):
         self.random = random.Random(seed)
         self.partitions = set()
         self.no_random_period = False
-        self.last_read_iteration = -1
+        self.last_seen_read_queue_id = -1
 
         self.server_id = 0
 
@@ -315,7 +346,8 @@ class Network(object):
         for sv in self.active_servers:
             if lib.raft_is_leader(sv.raft):
                 logger.debug(f"adding a read_request to {sv.id}")
-                lib.raft_queue_read_request(sv.raft, sv.handle_read_queue, ffi.cast("void *", sv.network.iteration))
+                val = lib.raft_get_read_queue_id(sv.raft) + 1
+                lib.raft_queue_read_request(sv.raft, sv.handle_read_queue, ffi.cast("void *", val))
 
     def id2server(self, id):
         for server in self.servers:
@@ -375,9 +407,9 @@ class Network(object):
             self.diagnostic_info()
             sys.exit(1)
 
-        if self.last_read_iteration + 5000 < self.iteration:
-            logger.error("deadlock detected in handling reads: last_read from iteration {0} current at {1}\n".format(
-                self.last_read_iteration, self.iteration,
+        if self.leader and self.last_seen_read_queue_id + 1000 < lib.raft_get_read_queue_id(self.leader.raft):
+            logger.error("deadlock detected in handling reads: last_read from iteration {0} current at {1} iteration {2}".format(
+                self.last_seen_read_queue_id, lib.raft_get_read_queue_id(self.leader.raft), self.iteration,
             ))
 
         # Count leadership changes
@@ -1098,10 +1130,7 @@ class RaftServer(object):
             change = ffi.from_handle(lib.raft_entry_getdata(ety))
             server = self.network.id2server(change.node_id)
 
-            if ety.type == lib.RAFT_LOGTYPE_DEMOTE_NODE:
-                server.set_connection_status(NODE_CONNECTED)
-
-            elif ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
+            if ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
                 pass
 
             elif ety.type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE:

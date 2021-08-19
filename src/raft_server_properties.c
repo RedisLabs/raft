@@ -281,3 +281,27 @@ int raft_is_single_node_voting_cluster(raft_server_t *me_)
 
     return (1 == raft_get_num_voting_nodes(me_) && raft_node_is_voting(me->node));
 }
+
+raft_read_queue_id_t raft_get_read_queue_id(raft_server_t* me_)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    return me->read_queue_id;
+}
+
+raft_node_id_t * raft_get_voting_node_ids(raft_server_t* me_)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    raft_node_id_t * ret = __raft_malloc(sizeof(int)*me->num_nodes);
+    if (ret == NULL) {
+        return NULL;
+    }
+
+    int i, num = 0;
+    for (i = 0; i < me->num_nodes; i++) {
+        if (raft_node_is_voting(me->nodes[i])) {
+            ret[num++] = raft_node_get_id(me->nodes[i]);
+        }
+    }
+
+    return ret;
+}
