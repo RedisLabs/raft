@@ -228,13 +228,23 @@ class ReadQueueEntry(object):
 
 
 def verify_read(arg):
+    # cffi magic explanation, as didn't see this documented anywhere
+    # 1. normal call
     ret = lib.raft_get_voting_node_ids(net.leader.raft)
+    # 2. setup the pointer we were returned to be garbage collected, with libraft's free
     ret = ffi.gc(ret, lib.__raft_free)
+    # 3. for the ability to turn pointer/array into a python list, get its length
     num_nodes = lib.raft_get_num_voting_nodes(net.leader.raft)
+    # 4A. to convert to a list, we have to convert it to a buffer of a certain size
     buf = ffi.buffer(ret,ffi.sizeof("int")*num_nodes)
+    # 4B. and then convert from buffer to a list
     voter_ids = ffi.from_buffer("int *", buf)
-    required = num_nodes / 2;
-    count = 0;
+
+    # primary verification logic.  we always need to count more than the required, looking to see that for voters,
+    # the read_queue_id they have recorded is equal to our greater than the arg (i.e. the read_queue id this was sent on
+    required = num_nodes / 2
+    count = 0
+
     for i in range(num_nodes):
         id = lib.raft_get_read_queue_id(net.servers[voter_ids[i]-1].raft)
         if id >= arg:
@@ -244,20 +254,6 @@ def verify_read(arg):
         logger.error(f"verify_read failed {count} < {required}")
         os._exit(-1)
 
-#    logger.error(f"voters = {voters}")
-#    voters = [int.from_bytes(x, 'little') for x in buffer]
-#    logger.error(f"# voters = {len(voters)}")
-#    logger.error(f"voters = {voters}")
-#    count = 1;
-#    required = int(((len(voters) + 1) / 2) + 1)
-#    for voter in voters:
-#        id = lib.raft_get_read_queue_id(net.servers[voter].raft)
-#        logger.error(f"voters = {voter} id = {id}")
-#        if id >= arg:
-#            count += 1
-#    if count < required:
-#        logger.error(f"count = {count}, required = {required} voters = {len(voters) + 1}, arg = {arg}")
-#        os._exit(-1)
 
 def handle_read_queue(arg, can_read):
     val = int(ffi.cast("int", arg))
