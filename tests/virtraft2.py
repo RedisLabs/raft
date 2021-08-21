@@ -230,13 +230,11 @@ class ReadQueueEntry(object):
 def verify_read(arg):
     # cffi magic explanation, as didn't see this documented anywhere
     # 1. normal call
-    ret = lib.raft_get_voting_node_ids(net.leader.raft)
+    voter_ids = lib.raft_get_voting_node_ids(net.leader.raft)
     # 2. setup the pointer we were returned to be garbage collected, with libraft's free
-    ret = ffi.gc(ret, lib.__raft_free)
-    # 3. for the ability to turn pointer/array into a python list, get its length
+    voter_ids = ffi.gc(voter_ids, lib.__raft_free)
+    # 3. need to know length of array, so we don't go past it.
     num_nodes = lib.raft_get_num_voting_nodes(net.leader.raft)
-    # 4. covnvert to a python list
-    voter_ids = ffi.unpack(ret, num_nodes)
 
     # primary verification logic.  we always need to count more than the required, looking to see that for voters,
     # the read_queue_id they have recorded is equal to our greater than the arg (i.e. the read_queue id this was sent on
