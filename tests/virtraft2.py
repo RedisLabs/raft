@@ -235,14 +235,12 @@ def verify_read(arg):
     ret = ffi.gc(ret, lib.__raft_free)
     # 3. for the ability to turn pointer/array into a python list, get its length
     num_nodes = lib.raft_get_num_voting_nodes(net.leader.raft)
-    # 4A. to convert to a list, we have to convert it to a buffer of a certain size
-    buf = ffi.buffer(ret,ffi.sizeof("int")*num_nodes)
-    # 4B. and then convert from buffer to a list
-    voter_ids = ffi.from_buffer("int *", buf)
+    # 4. covnvert to a python list
+    voter_ids = ffi.unpack(ret, num_nodes)
 
     # primary verification logic.  we always need to count more than the required, looking to see that for voters,
     # the read_queue_id they have recorded is equal to our greater than the arg (i.e. the read_queue id this was sent on
-    required = num_nodes / 2
+    required = int(num_nodes / 2) + 1
     count = 0
 
     for i in range(num_nodes):
@@ -250,7 +248,7 @@ def verify_read(arg):
         if id >= arg:
             count += 1
 
-    if count <= required:
+    if count < required:
         logger.error(f"verify_read failed {count} < {required}")
         os._exit(-1)
 
