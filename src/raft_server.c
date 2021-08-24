@@ -620,7 +620,7 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     {
         /* If AppendEntries fails because of log inconsistency:
            decrement nextIndex and retry (§5.3) */
-        raft_index_t next_idx = raft_node_get_next_idx(node);
+        raft_index_t next_idx = r->prev_log_idx + 1;
         assert(0 < next_idx);
         /* Stale response -- ignore */
         if (r->current_idx < match_idx)
@@ -715,6 +715,7 @@ int raft_recv_appendentries(
               ae->n_entries);
 
     r->msg_id = ae->msg_id;
+    r->prev_log_idx = ae->prev_log_idx;
     r->success = 0;
 
     if (raft_is_candidate(me_) && me->current_term == ae->term)
