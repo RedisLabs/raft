@@ -346,9 +346,10 @@ class Network(object):
 
         # Deadlock detection
         if self.latest_applied_log_idx != 0 and self.latest_applied_log_iteration + 5000 < self.iteration:
-            logger.error("deadlock detected iteration:{0} appliedidx:{1}\n".format(
+            logger.error("deadlock detected iteration:{0} appliedidx:{1} iteration{2}\n".format(
                 self.latest_applied_log_iteration,
                 self.latest_applied_log_idx,
+                self.iteration,
                 ))
             self.diagnostic_info()
             sys.exit(1)

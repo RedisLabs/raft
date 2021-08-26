@@ -399,7 +399,9 @@ int raft_become_leader(raft_server_t* me_)
 
         raft_node_set_next_idx(node, next_idx);
         raft_node_set_match_idx(node, 0);
+        raft_node_set_responded_to_leader(node);
         raft_send_appendentries(me_, node);
+        raft_node_reset_responded_to_leader(node);
     }
 
     return 0;
@@ -613,6 +615,8 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     }
     else if (me->current_term != r->term)
         return 0;
+
+    raft_node_set_responded_to_leader(node);
 
     raft_index_t match_idx = raft_node_get_match_idx(node);
 
@@ -1220,6 +1224,10 @@ raft_entry_t** raft_get_entries_from_idx(raft_server_t* me_, raft_index_t idx, i
 int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
 {
     if (!raft_node_is_active(node)) {
+        return 0;
+    }
+
+    if (!raft_node_get_responded_to_leader(node)) {
         return 0;
     }
 

@@ -166,4 +166,7 @@ extern void *(*raft_calloc)(size_t nmemb, size_t size);
 extern void *(*raft_realloc)(void *ptr, size_t size);
 extern void (*raft_free)(void *ptr);
 
+void raft_node_set_responded_to_leader(raft_node_t* me_);
+void raft_node_reset_responded_to_leader(raft_node_t* me_);
+int raft_node_get_responded_to_leader(raft_node_t* me_);
 #endif /* RAFT_PRIVATE_H_ */

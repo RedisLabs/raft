@@ -2961,6 +2961,7 @@ void TestRaft_leader_recv_appendentries_response_jumps_to_lower_next_idx(
     /* become leader sets next_idx to current_idx */
     raft_become_leader(r);
     raft_node_t* node = raft_get_node(r, 2);
+    raft_node_set_responded_to_leader(node);
     CuAssertIntEquals(tc, 5, raft_node_get_next_idx(node));
     CuAssertTrue(tc, NULL != (ae = sender_poll_msg_data(sender)));
 
@@ -3015,6 +3016,7 @@ void TestRaft_leader_recv_appendentries_response_decrements_to_lower_next_idx(
     /* become leader sets next_idx to current_idx */
     raft_become_leader(r);
     raft_node_t* node = raft_get_node(r, 2);
+    raft_node_set_responded_to_leader(node);
     CuAssertIntEquals(tc, 5, raft_node_get_next_idx(node));
     CuAssertTrue(tc, NULL != (ae = sender_poll_msg_data(sender)));
 
@@ -3514,6 +3516,8 @@ void TestRaft_leader_sends_empty_appendentries_every_request_timeout(
     /* candidate to leader */
     raft_set_state(r, RAFT_STATE_CANDIDATE);
     raft_become_leader(r);
+    raft_node_set_responded_to_leader(raft_get_node(r, 2));
+    raft_node_set_responded_to_leader(raft_get_node(r, 3));
 
     /* receive appendentries messages for both nodes */
     msg_appendentries_t* ae;

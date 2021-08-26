@@ -36,6 +36,7 @@ typedef struct
     /* last AE heartbeat response received */
     raft_term_t last_acked_term;
     raft_msg_id_t last_acked_msgid;
+    int responded_to_leader;
 } raft_node_private_t;
 
 raft_node_t* raft_node_new(void* udata, raft_node_id_t id)
@@ -51,6 +52,7 @@ raft_node_t* raft_node_new(void* udata, raft_node_id_t id)
     me->match_idx = 0;
     me->id = id;
     me->flags = RAFT_NODE_VOTING;
+    me->responded_to_leader = 1;
     return (raft_node_t*)me;
 }
 
@@ -206,4 +208,22 @@ raft_msg_id_t raft_node_get_last_acked_msgid(raft_node_t* me_)
 {
     raft_node_private_t* me = (raft_node_private_t*)me_;
     return me->last_acked_msgid;
+}
+
+void raft_node_set_responded_to_leader(raft_node_t* me_)
+{
+    raft_node_private_t* me = (raft_node_private_t*)me_;
+    me->responded_to_leader = 1;
+}
+
+void raft_node_reset_responded_to_leader(raft_node_t* me_)
+{
+    raft_node_private_t* me = (raft_node_private_t*)me_;
+    me->responded_to_leader = 0;
+}
+
+int raft_node_get_responded_to_leader(raft_node_t* me_)
+{
+    raft_node_private_t* me = (raft_node_private_t*)me_;
+    return me->responded_to_leader;
 }
