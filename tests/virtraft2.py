@@ -355,7 +355,7 @@ class Network(object):
 
         # Count leadership changes
         assert len(self.active_servers) > 0, self.diagnostic_info()
-        leader_node = lib.raft_get_current_leader_node(self.active_servers[0].raft)
+        leader_node = lib.raft_get_leader_node(self.active_servers[0].raft)
         if leader_node:
             leader = ffi.from_handle(lib.raft_node_get_udata(leader_node))
             if self.leader is not leader:
@@ -1140,7 +1140,7 @@ class RaftServer(object):
             "snapshot": lib.raft_get_snapshot_last_idx(self.raft),
             "removed": getattr(self, 'removed', False),
             "partitioned": partitioned_from,
-            "leader": lib.raft_get_current_leader(self.raft),
+            "leader": lib.raft_get_leader_id(self.raft),
         }
 
 

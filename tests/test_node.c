@@ -1,13 +1,7 @@
-#include <stdbool.h>
-#include <assert.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-#include <stdint.h>
 #include "CuTest.h"
 
 #include "raft.h"
-#include "raft_log.h"
 #include "raft_private.h"
 
 void TestRaft_is_voting_by_default(CuTest * tc)

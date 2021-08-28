@@ -74,9 +74,9 @@ typedef struct {
     /* latest quorum id for the previous quorum_timeout round */
     raft_msg_id_t last_acked_msg_id;
 
-    /* what this node thinks is the node ID of the current leader, or NULL if
+    /* what this node thinks is the node ID of the current leader, or -1 if
      * there isn't a known current leader. */
-    raft_node_t* current_leader;
+    raft_node_id_t leader;
 
     /* callbacks */
     raft_cbs_t cb;
@@ -84,6 +84,7 @@ typedef struct {
 
     /* my node ID */
     raft_node_t* node;
+    raft_node_t* unknown_leader;
 
     /* the log which has a voting cfg change, otherwise -1 */
     raft_index_t voting_cfg_change_log_idx;
@@ -143,6 +144,8 @@ raft_node_t* raft_node_new(void* udata, raft_node_id_t id);
 void raft_node_free(raft_node_t* me_);
 
 void raft_node_set_match_idx(raft_node_t* node, raft_index_t idx);
+
+void raft_node_update_id(raft_node_t* me_, raft_node_id_t id);
 
 void raft_node_vote_for_me(raft_node_t* me_, int vote);
 

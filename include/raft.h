@@ -28,10 +28,6 @@ typedef enum {
     RAFT_MEMBERSHIP_REMOVE,
 } raft_membership_e;
 
-#define RAFT_REQUESTVOTE_ERR_GRANTED          1
-#define RAFT_REQUESTVOTE_ERR_NOT_GRANTED      0
-#define RAFT_REQUESTVOTE_ERR_UNKNOWN_NODE    (-1)
-
 typedef enum {
     RAFT_STATE_NONE,
     RAFT_STATE_FOLLOWER,
@@ -163,6 +159,9 @@ typedef struct
  * This message could force a leader/candidate to become a follower. */
 typedef struct
 {
+    /** sender node id **/
+    raft_node_id_t leader_id;
+
     /** id, to make it possible to associate responses with requests. */
     raft_msg_id_t msg_id;
 
@@ -878,12 +877,12 @@ int raft_get_voted_for(raft_server_t* me);
 /** Get what this node thinks the node ID of the leader is.
  * @return node of what this node thinks is the valid leader;
  *   -1 if the leader is unknown */
-raft_node_id_t raft_get_current_leader(raft_server_t* me);
+raft_node_id_t raft_get_leader_id(raft_server_t*me_);
 
 /** Get what this node thinks the node of the leader is.
  * @return node of what this node thinks is the valid leader;
  *   NULL if the leader is unknown */
-raft_node_t* raft_get_current_leader_node(raft_server_t* me);
+raft_node_t*raft_get_leader_node(raft_server_t* me);
 
 /**
  * @return callback user data */

@@ -136,8 +136,10 @@ void raft_set_state(raft_server_t* me_, int state)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
     /* if became the leader, then update the current leader entry */
-    if (state == RAFT_STATE_LEADER)
-        me->current_leader = me->node;
+    if (state == RAFT_STATE_LEADER) {
+        me->leader = raft_node_get_id(me->node);
+    }
+
     me->state = state;
 }
 
@@ -173,21 +175,32 @@ raft_node_t* raft_get_my_node(raft_server_t *me_)
 raft_node_t* raft_get_node_from_idx(raft_server_t* me_, const raft_index_t idx)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
+
     return me->nodes[idx];
 }
 
-raft_node_id_t raft_get_current_leader(raft_server_t* me_)
+raft_node_id_t raft_get_leader_id(raft_server_t* me_)
 {
-    raft_server_private_t* me = (void*)me_;
-    if (me->current_leader)
-        return raft_node_get_id(me->current_leader);
-    return -1;
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    return me->leader;
 }
 
-raft_node_t* raft_get_current_leader_node(raft_server_t* me_)
+raft_node_t* raft_get_leader_node(raft_server_t* me_)
 {
-    raft_server_private_t* me = (void*)me_;
-    return me->current_leader;
+    raft_server_private_t* me = (void*) me_;
+
+    if (me->leader == -1) {
+        return NULL;
+    }
+
+    raft_node_t* node = raft_get_node(me_, me->leader);
+    if (node == NULL) {
+        if (me->leader == raft_node_get_id(me->unknown_leader)) {
+            node = me->unknown_leader;
+        }
+    }
+
+    return node;
 }
 
 void* raft_get_udata(raft_server_t* me_)

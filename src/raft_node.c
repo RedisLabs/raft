@@ -180,6 +180,19 @@ raft_node_id_t raft_node_get_id(raft_node_t* me_)
     return me != NULL ? me->id : -1;
 }
 
+void raft_node_update_id(raft_node_t* me_, raft_node_id_t id)
+{
+    raft_node_private_t* me = (raft_node_private_t*)me_;
+
+    if (me->id == id) {
+        return;
+    }
+
+    me->id = id;
+    me->udata = NULL;
+    me->flags = 0;
+}
+
 void raft_node_set_addition_committed(raft_node_t* me_, int committed)
 {
     raft_node_private_t* me = (raft_node_private_t*)me_;

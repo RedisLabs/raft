@@ -97,6 +97,12 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     me->request_timeout = 200;
     me->election_timeout = 1000;
 
+    me->node = raft_node_new(NULL, -1);
+    raft_node_set_voting(me->node, 0);
+
+    me->unknown_leader = raft_node_new(NULL, -1);
+    raft_node_set_voting(me->unknown_leader, 0);
+
     raft_update_quorum_meta((raft_server_t*)me, me->msg_id);
     raft_randomize_election_timeout((raft_server_t*)me);
 
@@ -109,7 +115,7 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
 
     me->voting_cfg_change_log_idx = -1;
     raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
-    me->current_leader = NULL;
+    me->leader = -1;
 
     me->snapshot_in_progress = 0;
     raft_set_snapshot_metadata((raft_server_t*)me, 0, 0);
@@ -148,10 +154,11 @@ void raft_clear(raft_server_t* me_)
     raft_randomize_election_timeout(me_);
     me->voting_cfg_change_log_idx = -1;
     raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
-    me->current_leader = NULL;
+    me->leader = -1;
     me->commit_idx = 0;
     me->last_applied_idx = 0;
     me->num_nodes = 0;
+    raft_node_free(me->node);
     me->node = NULL;
     me->log_impl->reset(me->log, 1, 1);
 }
@@ -183,13 +190,15 @@ raft_node_t* raft_add_node_internal(raft_server_t* me_, raft_entry_t *ety, void*
         raft_node_free(node);
         return NULL;
     }
+
     me->num_nodes++;
     me->nodes = p;
     me->nodes[me->num_nodes - 1] = node;
-    if (is_self)
-        me->node = me->nodes[me->num_nodes - 1];
 
-    node = me->nodes[me->num_nodes - 1];
+    if (is_self) {
+        raft_node_free(me->node);
+        me->node = node;
+    }
 
     if (me->cb.notify_membership_event)
         me->cb.notify_membership_event(me_, raft_get_udata(me_), node, ety, RAFT_MEMBERSHIP_ADD);
@@ -242,13 +251,11 @@ void raft_remove_node(raft_server_t* me_, raft_node_t* node)
     memmove(&me->nodes[i], &me->nodes[i + 1], sizeof(*me->nodes) * (me->num_nodes - i - 1));
     me->num_nodes--;
 
-    /* if we are removing the current leader, have to reset it, as this data is now stale */
-    raft_node_t *current_leader_node = raft_get_current_leader_node(me_);
-    if (node == current_leader_node) {
-        me->current_leader = NULL;
+    if (me->node == node) {
+        raft_node_update_id(me->unknown_leader, raft_node_get_id(node));
+    } else {
+        raft_node_free(node);
     }
-
-    raft_node_free(node);
 }
 
 void raft_handle_append_cfg_change(raft_server_t* me_, raft_entry_t* ety, raft_index_t idx)
@@ -408,33 +415,40 @@ int raft_become_leader(raft_server_t* me_)
 int raft_become_candidate(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
-    int i;
 
     raft_log(me_, NULL, "becoming candidate");
-    if (me->cb.notify_state_event)
-        me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_CANDIDATE);
+
+    if (me->cb.notify_state_event) {
+        me->cb.notify_state_event(me_, raft_get_udata(me_),
+                                  RAFT_STATE_CANDIDATE);
+    }
 
     int e = raft_set_current_term(me_, raft_get_current_term(me_) + 1);
-    if (0 != e)
+    if (e != 0) {
         return e;
-    for (i = 0; i < me->num_nodes; i++)
+    }
+
+    for (int i = 0; i < me->num_nodes; i++) {
         raft_node_vote_for_me(me->nodes[i], 0);
-    raft_vote(me_, me->node);
-    me->current_leader = NULL;
-    raft_set_state(me_, RAFT_STATE_CANDIDATE);
+    }
 
-    raft_randomize_election_timeout(me_);
+    if (raft_node_is_voting(me->node)) {
+        raft_vote(me_, me->node);
+    }
+
+    me->leader = -1;
     me->timeout_elapsed = 0;
+    raft_set_state(me_, RAFT_STATE_CANDIDATE);
+    raft_randomize_election_timeout(me_);
 
-    for (i = 0; i < me->num_nodes; i++)
-    {
+    for (int i = 0; i < me->num_nodes; i++) {
         raft_node_t* node = me->nodes[i];
 
-        if (me->node != node && raft_node_is_voting(node))
-        {
+        if (me->node != node && raft_node_is_voting(node)) {
             raft_send_requestvote(me_, node);
         }
     }
+
     return 0;
 }
 
@@ -510,17 +524,14 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
         }
     }
 
-    if (me->state == RAFT_STATE_LEADER)
-    {
-        if (me->request_timeout <= me->timeout_elapsed)
-        {
+    if (me->state == RAFT_STATE_LEADER) {
+        if (me->request_timeout <= me->timeout_elapsed) {
             me->msg_id++;
             raft_send_appendentries_all(me_);
         }
 
         me->quorum_timeout -= msec_since_last_period;
-        if (me->quorum_timeout < 0)
-        {
+        if (me->quorum_timeout < 0) {
             /**
              * Check-quorum implementation
              *
@@ -535,35 +546,29 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
              */
             raft_msg_id_t quorum_id = quorum_msg_id(me_);
 
-            if (me->last_acked_msg_id == quorum_id)
-            {
+            if (me->last_acked_msg_id == quorum_id) {
                 raft_log(me_, NULL, "quorum does not exist, stepping down");
                 raft_become_follower(me_);
             }
 
             raft_update_quorum_meta(me_, quorum_id);
         }
-    }
-    else if (me->election_timeout_rand <= me->timeout_elapsed &&
+    } else if (me->election_timeout_rand <= me->timeout_elapsed &&
         /* Don't become the leader when building snapshots or bad things will
          * happen when we get a client request */
-        !raft_snapshot_is_in_progress(me_))
-    {
-        if (1 < raft_get_num_voting_nodes(me_) &&
-            raft_node_is_voting(raft_get_my_node(me_)))
-        {
-            int e = raft_election_start(me_);
-            if (0 != e)
-                return e;
+        !raft_snapshot_is_in_progress(me_)) {
+
+        int e = raft_election_start(me_);
+        if (e != 0) {
+            return e;
         }
     }
 
-    if (me->last_applied_idx < raft_get_commit_idx(me_) &&
-            raft_is_apply_allowed(me_))
-    {
+    if (me->last_applied_idx < me->commit_idx && raft_is_apply_allowed(me_)) {
         int e = raft_apply_all(me_);
-        if (0 != e)
+        if (e != 0) {
             return e;
+        }
     }
 
     raft_process_read_queue(me_);
@@ -608,7 +613,7 @@ int raft_recv_appendentries_response(raft_server_t* me_,
         if (0 != e)
             return e;
         raft_become_follower(me_);
-        me->current_leader = NULL;
+        me->leader = -1;
         return 0;
     }
     else if (me->current_term != r->term)
@@ -695,55 +700,58 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     return 0;
 }
 
-int raft_recv_appendentries(
-    raft_server_t* me_,
-    raft_node_t* node,
-    msg_appendentries_t* ae,
-    msg_appendentries_response_t *r
-    )
+int raft_recv_appendentries(raft_server_t* me_,
+                            raft_node_t* node,
+                            msg_appendentries_t* ae,
+                            msg_appendentries_response_t *r)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
     int e = 0;
+    raft_node_id_t leader_id = node != NULL ? raft_node_get_id(node) : ae->leader_id;
 
-    if (0 < ae->n_entries)
-        raft_log(me_, node, "recvd appendentries t:%ld ci:%ld lc:%ld pli:%ld plt:%ld #%d",
-              ae->term,
-              raft_get_current_idx(me_),
-              ae->leader_commit,
-              ae->prev_log_idx,
-              ae->prev_log_term,
-              ae->n_entries);
+    if (node == NULL) {
+        node = raft_get_node(me_, ae->leader_id);
+    }
+
+    if (ae->n_entries > 0) {
+        raft_log(me_, node,
+                 "recvd appendentries"
+                 "t:%ld ci:%ld lc:%ld pli:%ld plt:%ld #%d",
+                 ae->term, raft_get_current_idx(me_), ae->leader_commit,
+                 ae->prev_log_idx, ae->prev_log_term, ae->n_entries);
+    }
 
     r->msg_id = ae->msg_id;
     r->success = 0;
 
-    if (raft_is_candidate(me_) && me->current_term == ae->term)
-    {
-        raft_become_follower(me_);
-    }
-    else if (me->current_term < ae->term)
-    {
-        e = raft_set_current_term(me_, ae->term);
-        if (0 != e)
-            goto out;
-        raft_become_follower(me_);
-    }
-    else if (ae->term < me->current_term)
-    {
+    if (ae->term < me->current_term) {
         /* 1. Reply false if term < currentTerm (§5.1) */
         raft_log(me_, node, "AE term %ld is less than current term %ld",
-              ae->term, me->current_term);
+                 ae->term, me->current_term);
         goto out;
     }
 
-    /* update current leader because ae->term is up to date */
-    me->current_leader = node;
+    if (ae->term > me->current_term ||
+        (ae->term == me->current_term && raft_is_candidate(me_))) {
+
+        e = raft_set_current_term(me_, ae->term);
+        if (e != 0)
+            goto out;
+
+        raft_become_follower(me_);
+    }
+
+    me->leader = leader_id;
+
+    if (node  == NULL) {
+        raft_node_update_id(me->unknown_leader, leader_id);
+    }
 
     me->timeout_elapsed = 0;
 
     /* Not the first appendentries we've received */
     /* NOTE: the log starts at 1 */
-    if (0 < ae->prev_log_idx)
+    if (ae->prev_log_idx > 0)
     {
         raft_entry_t* ety = raft_get_entry_from_idx(me_, ae->prev_log_idx);
 
@@ -769,9 +777,13 @@ int raft_recv_appendentries(
         }
         else if (ety->term != ae->prev_log_term)
         {
-            raft_log(me_, node, "AE term doesn't match prev_term (ie. %ld vs %ld) ci:%ld comi:%ld lcomi:%ld pli:%ld",
-                  ety->term, ae->prev_log_term, raft_get_current_idx(me_),
-                  raft_get_commit_idx(me_), ae->leader_commit, ae->prev_log_idx);
+            raft_log(me_, node,
+                     "AE term doesn't match prev_term"
+                     "(ie. %ld vs %ld) ci:%ld comi:%ld lcomi:%ld pli:%ld",
+                     ety->term, ae->prev_log_term, raft_get_current_idx(me_),
+                     raft_get_commit_idx(me_), ae->leader_commit,
+                     ae->prev_log_idx);
+
             if (ae->prev_log_idx <= raft_get_commit_idx(me_))
             {
                 /* Should never happen; something is seriously wrong! */
@@ -785,6 +797,7 @@ int raft_recv_appendentries(
             raft_entry_release(ety);
             goto out;
         }
+
         if (ety)
             raft_entry_release(ety);
     }
@@ -803,27 +816,35 @@ int raft_recv_appendentries(
 
         raft_entry_t* existing_ety = raft_get_entry_from_idx(me_, ety_index);
         raft_term_t existing_term = existing_ety ? existing_ety->term : 0;
-        if (existing_ety)
-            raft_entry_release(existing_ety);
 
-        if (existing_ety && existing_term != ety->term)
+        if (!existing_ety) {
+            break;
+        }
+
+        raft_entry_release(existing_ety);
+
+        if (existing_term != ety->term)
         {
             if (ety_index <= raft_get_commit_idx(me_))
             {
                 /* Should never happen; something is seriously wrong! */
-                raft_log(me_, node, "AE entry conflicts with committed entry ci:%ld comi:%ld lcomi:%ld pli:%ld",
-                      raft_get_current_idx(me_), raft_get_commit_idx(me_),
-                      ae->leader_commit, ae->prev_log_idx);
+                raft_log(me_, node,
+                         "AE entry conflicts with committed entry "
+                         "ci:%ld comi:%ld lcomi:%ld pli:%ld",
+                         raft_get_current_idx(me_), raft_get_commit_idx(me_),
+                         ae->leader_commit, ae->prev_log_idx);
+
                 e = RAFT_ERR_SHUTDOWN;
                 goto out;
             }
+
             e = raft_delete_entry_from_idx(me_, ety_index);
-            if (0 != e)
+            if (e != 0)
                 goto out;
+
             break;
         }
-        else if (!existing_ety)
-            break;
+
         r->current_idx = ety_index;
     }
 
@@ -831,14 +852,15 @@ int raft_recv_appendentries(
     for (; i < ae->n_entries; i++)
     {
         e = raft_append_entry(me_, ae->entries[i]);
-        if (0 != e)
+        if (e != 0)
             goto out;
+
         r->current_idx = ae->prev_log_idx + 1 + i;
     }
 
     /* 4. If leaderCommit > commitIndex, set commitIndex =
         min(leaderCommit, index of most recent entry) */
-    if (raft_get_commit_idx(me_) < ae->leader_commit)
+    if (ae->leader_commit > raft_get_commit_idx(me_))
     {
         raft_index_t last_log_idx = max(raft_get_current_idx(me_), 1);
         raft_set_commit_idx(me_, min(last_log_idx, ae->leader_commit));
@@ -846,45 +868,15 @@ int raft_recv_appendentries(
 
 out:
     r->term = me->current_term;
-    if (0 == r->success)
+    if (r->success == 0)
         r->current_idx = raft_get_current_idx(me_);
+
     return e;
 }
 
 int raft_already_voted(raft_server_t* me_)
 {
     return ((raft_server_private_t*)me_)->voted_for != -1;
-}
-
-static int raft_should_grant_vote(raft_server_t* me_, msg_requestvote_t* vr)
-{
-    if (!raft_node_is_voting(raft_get_my_node(me_)))
-        return 0;
-
-    if (vr->term < raft_get_current_term(me_))
-        return 0;
-
-    /* TODO: if voted for is candidate return 1 (if below checks pass) */
-    if (raft_already_voted(me_))
-        return 0;
-
-    /* Below we check if log is more up-to-date... */
-
-    raft_index_t current_idx = raft_get_current_idx(me_);
-
-    /* Our log is definitely not more up-to-date if it's empty! */
-    if (0 == current_idx)
-        return 1;
-
-    raft_term_t ety_term = raft_get_last_log_term(me_);
-
-    if (ety_term < vr->last_log_term)
-        return 1;
-
-    if (vr->last_log_term == ety_term && current_idx <= vr->last_log_idx)
-        return 1;
-
-    return 0;
 }
 
 int raft_recv_requestvote(raft_server_t* me_,
@@ -895,60 +887,60 @@ int raft_recv_requestvote(raft_server_t* me_,
     raft_server_private_t* me = (raft_server_private_t*)me_;
     int e = 0;
 
-    if (!node)
+    r->vote_granted = 0;
+
+    if (!node) {
         node = raft_get_node(me_, vr->candidate_id);
+    }
 
     /* Reject request if we have a leader */
-    if (me->current_leader && me->current_leader != node &&
+    if (me->leader != -1 && me->leader != vr->candidate_id &&
             (me->timeout_elapsed < me->election_timeout)) {
-        r->vote_granted = 0;
-        goto done;
+        goto fail;
     }
 
-    if (raft_get_current_term(me_) < vr->term)
-    {
+    if (vr->term > raft_get_current_term(me_)) {
         e = raft_set_current_term(me_, vr->term);
-        if (0 != e) {
-            r->vote_granted = 0;
-            goto done;
+        if (e != 0) {
+            goto fail;
         }
+
         raft_become_follower(me_);
-        me->current_leader = NULL;
+        me->leader = -1;
     }
 
-    if (raft_should_grant_vote(me_, vr))
-    {
-        /* It shouldn't be possible for a leader or candidate to grant a vote
+    if (vr->term < raft_get_current_term(me_)) {
+        goto fail;
+    }
+
+    if (me->voted_for != -1 && me->voted_for != vr->candidate_id) {
+        goto fail;
+    }
+
+    /* Below we check if log is more up-to-date... */
+    raft_index_t current_idx = raft_get_current_idx(me_);
+    raft_term_t ety_term = raft_get_last_log_term(me_);
+
+    if (vr->last_log_term > ety_term ||
+        (vr->last_log_term == ety_term && vr->last_log_idx >= current_idx)) {
+        goto grant;
+    }
+
+    goto fail;
+
+grant:
+    /* It shouldn't be possible for a leader or candidate to grant a vote
          * Both states would have voted for themselves */
-        assert(!(raft_is_leader(me_) || raft_is_candidate(me_)));
+    assert(!(raft_is_leader(me_) || raft_is_candidate(me_)));
 
-        e = raft_vote_for_nodeid(me_, vr->candidate_id);
-        if (0 == e)
-            r->vote_granted = 1;
-        else
-            r->vote_granted = 0;
+    e = raft_vote_for_nodeid(me_, vr->candidate_id);
+    r->vote_granted = (e == 0) ? 1 : 0;
 
-        /* must be in an election. */
-        me->current_leader = NULL;
-        me->timeout_elapsed = 0;
-    }
-    else
-    {
-        /* It's possible the candidate node has been removed from the cluster but
-         * hasn't received the appendentries that confirms the removal. Therefore
-         * the node is partitioned and still thinks its part of the cluster. It
-         * will eventually send a requestvote. This is error response tells the
-         * node that it might be removed. */
-        if (!node)
-        {
-            r->vote_granted = RAFT_REQUESTVOTE_ERR_UNKNOWN_NODE;
-            goto done;
-        }
-        else
-            r->vote_granted = 0;
-    }
+    /* must be in an election. */
+    me->leader = -1;
+    me->timeout_elapsed = 0;
 
-done:
+fail:
     raft_log(me_, node, "node requested vote: %d replying: %s",
           raft_node_get_id(node),
           r->vote_granted == 1 ? "granted" :
@@ -958,12 +950,10 @@ done:
     return e;
 }
 
-int raft_votes_is_majority(const int num_nodes, const int nvotes)
+int raft_votes_is_majority(int num_nodes, int nvotes)
 {
-    if (num_nodes < nvotes)
-        return 0;
-    int half = num_nodes / 2;
-    return half + 1 <= nvotes;
+    assert(nvotes <= num_nodes);
+    return nvotes > (num_nodes / 2);
 }
 
 int raft_recv_requestvote_response(raft_server_t* me_,
@@ -976,18 +966,19 @@ int raft_recv_requestvote_response(raft_server_t* me_,
           r->vote_granted == 1 ? "granted" :
           r->vote_granted == 0 ? "not granted" : "unknown");
 
-    if (!raft_is_candidate(me_) || raft_get_current_term(me_) > r->term)
-    {
+    if (!raft_is_candidate(me_) || (raft_get_current_term(me_) > r->term)) {
         return 0;
     }
 
-    if (raft_get_current_term(me_) < r->term)
-    {
+    if (raft_get_current_term(me_) < r->term) {
         int e = raft_set_current_term(me_, r->term);
-        if (0 != e)
+        if (e != 0) {
             return e;
+        }
+
         raft_become_follower(me_);
-        me->current_leader = NULL;
+        me->leader = -1;
+
         return 0;
     }
 
@@ -997,30 +988,18 @@ int raft_recv_requestvote_response(raft_server_t* me_,
           me->current_term,
           r->term);
 
-    switch (r->vote_granted)
-    {
-        case RAFT_REQUESTVOTE_ERR_GRANTED:
-            if (node)
-                raft_node_vote_for_me(node, 1);
-            int votes = raft_get_nvotes_for_me(me_);
-            if (raft_votes_is_majority(raft_get_num_voting_nodes(me_), votes)) {
-                int e = raft_become_leader(me_);
-                if (0 != e)
-                    return e;
+    if (r->vote_granted) {
+        if (node) {
+            raft_node_vote_for_me(node, 1);
+        }
+
+        int votes = raft_get_nvotes_for_me(me_);
+        if (raft_votes_is_majority(raft_get_num_voting_nodes(me_), votes)) {
+            int e = raft_become_leader(me_);
+            if (e != 0) {
+                return e;
             }
-            break;
-
-        case RAFT_REQUESTVOTE_ERR_NOT_GRANTED:
-            break;
-
-        case RAFT_REQUESTVOTE_ERR_UNKNOWN_NODE:
-            if (raft_node_is_voting(raft_get_my_node(me_)) &&
-                me->connected == RAFT_NODE_STATUS_DISCONNECTING)
-                return RAFT_ERR_SHUTDOWN;
-            break;
-
-        default:
-            assert(0);
+        }
     }
 
     return 0;
@@ -1561,8 +1540,8 @@ int raft_begin_load_snapshot(
         me->current_term = last_included_term;
     }
 
-    raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
-    me->current_leader = NULL;
+    raft_set_state(me_, RAFT_STATE_FOLLOWER);
+    me->leader = -1;
 
     me->log_impl->reset(me->log, last_included_index + 1, last_included_term);
 
