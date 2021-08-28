@@ -749,6 +749,10 @@ int raft_recv_appendentries(raft_server_t* me_,
     }
 
     if (node == NULL) {
+        /**
+         * We've accepted the request but we don't have this node in the
+         * configuration. Assign its id to the dummy unknown node object.
+         */
         raft_node_update_id(me->unknown_node, ae->leader_id);
         node = me->unknown_node;
     }
