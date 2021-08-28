@@ -3956,6 +3956,8 @@ void TestRaft_vote_for_unknown_node(CuTest * tc)
         .term = 2,
         .last_log_idx = 1,
         .last_log_term = 1,
+
+        // not part of the configuration
         .candidate_id = 500,
     };
 
@@ -3976,18 +3978,25 @@ void TestRaft_recv_appendreq_from_unknown_node(CuTest * tc)
     msg_appendentries_response_t resp;
 
     msg_appendentries_t req = {
-        .leader_id = 10000,
         .term = 1,
+
+        // not part of the configuration
+        .leader_id = 10000,
     };
 
+    // Receive the requst and set node as leader
     raft_recv_appendentries(r, NULL, &req, &resp);
     CuAssertTrue(tc, resp.success == 1);
+
+    // Verify leader node and leader id returns correct value
     CuAssertIntEquals(tc, 10000, raft_get_leader_id(r));
     leader = raft_get_leader_node(r);
     CuAssertIntEquals(tc, 10000, raft_node_get_id(leader));
 
+    // Receive it again to verify everything is ok
     resp = (msg_appendentries_response_t){0};
     raft_recv_appendentries(r, NULL, &req, &resp);
+
     CuAssertTrue(tc, resp.success == 1);
     CuAssertIntEquals(tc, 10000, raft_get_leader_id(r));
     leader = raft_get_leader_node(r);
@@ -4014,8 +4023,13 @@ void TestRaft_removed_leader_should_stay_as_leader(CuTest * tc)
     raft_entry_t *entry = __MAKE_ENTRY(1, 1, "1");
     entry->type = RAFT_LOGTYPE_REMOVE_NODE;
 
-    // After appending remove entry, it should stay as leader to replicate it
+    /*
+     * After appending the removal entry, node should stay as leader to
+     * replicate it
+     */
     raft_recv_entry(r, entry, &entry_resp);
+
+    // We are still the leader
     CuAssertTrue(tc, raft_get_leader_node(r) == n1);
 
     msg_appendentries_response_t resp1 = {
@@ -4029,8 +4043,9 @@ void TestRaft_removed_leader_should_stay_as_leader(CuTest * tc)
     raft_recv_appendentries_response(r, n2, &resp1);
     raft_periodic(r, 10000);
 
-    // After applying the remove entry, it may stay as leader
+    // After applying the removal entry, it may stay as leader
     CuAssertTrue(tc, raft_get_leader_id(r) == raft_node_get_id(n1));
+
 
     // Case 2 : Removed node should start an election and become the leader
 
@@ -4051,6 +4066,7 @@ void TestRaft_removed_leader_should_stay_as_leader(CuTest * tc)
 
     // Validate removed node can be elected as leader
     CuAssertTrue(tc, raft_get_leader_id(r) == raft_node_get_id(n1));
+    CuAssertTrue(tc, raft_get_num_nodes(r) == 1);
 }
 
 void TestRaft_unknown_node_can_become_leader(CuTest * tc)
@@ -4081,11 +4097,12 @@ void TestRaft_unknown_node_can_become_leader(CuTest * tc)
         .n_entries = 1
     };
 
-    // Append the removal entry
+    // Append the entry, this will set the node as leader
     raft_recv_appendentries(r, NULL, &req_append, &resp);
     CuAssertIntEquals(tc, raft_get_leader_id(r), req_append.leader_id);
     CuAssertTrue(tc, resp.success == 1);
 
+    // Send another req with incremented leader_commit to commit the addition
     msg_appendentries_t req_commit = {
         .term = 1,
         .prev_log_idx = 1,
@@ -4095,16 +4112,21 @@ void TestRaft_unknown_node_can_become_leader(CuTest * tc)
     };
 
     raft_recv_appendentries(r, NULL, &req_commit, &resp);
+
+    // Validate added node is the leader
     CuAssertIntEquals(tc, raft_get_leader_id(r), req_append.leader_id);
     CuAssertTrue(tc, resp.success == 1);
 
+    // Validate added node is still the leader
     raft_periodic(r, 1000);
     CuAssertIntEquals(tc, raft_get_leader_id(r), req_append.leader_id);
-    CuAssertTrue(tc, resp.success == 1);
 
+    // Promote node from non-voting to voting
     raft_node_t *added = raft_get_node(r, req_commit.leader_id);
     CuAssertIntEquals(tc, raft_node_get_id(added), raft_get_leader_id(r));
     CuAssertTrue(tc, raft_node_is_active(added) == 1);
+
+    // Validate node is non-voter
     CuAssertTrue(tc, raft_node_is_voting(added) == 0);
 
     entries = __MAKE_ENTRY_ARRAY(1, 1, "100");
@@ -4131,6 +4153,8 @@ void TestRaft_unknown_node_can_become_leader(CuTest * tc)
     added = raft_get_node(r, req_commit.leader_id);
     CuAssertIntEquals(tc, raft_node_get_id(added), raft_get_leader_id(r));
     CuAssertTrue(tc, raft_node_is_active(added) == 1);
+
+    // Validate node is voter
     CuAssertTrue(tc, raft_node_is_voting(added) == 1);
 }
 

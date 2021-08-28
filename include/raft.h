@@ -159,7 +159,8 @@ typedef struct
  * This message could force a leader/candidate to become a follower. */
 typedef struct
 {
-    /** sender node id **/
+    /** used to identify the sender node. Useful when this message is received
+     * from the nodes that are not part of the configuration yet. **/
     raft_node_id_t leader_id;
 
     /** id, to make it possible to associate responses with requests. */
@@ -876,13 +877,13 @@ int raft_get_voted_for(raft_server_t* me);
 
 /** Get what this node thinks the node ID of the leader is.
  * @return node of what this node thinks is the valid leader;
- *   -1 if the leader is unknown */
-raft_node_id_t raft_get_leader_id(raft_server_t*me_);
+ *   -1 if there is no leader */
+raft_node_id_t raft_get_leader_id(raft_server_t* me);
 
 /** Get what this node thinks the node of the leader is.
  * @return node of what this node thinks is the valid leader;
- *   NULL if the leader is unknown */
-raft_node_t*raft_get_leader_node(raft_server_t* me);
+ *   NULL if there is no leader */
+raft_node_t* raft_get_leader_node(raft_server_t* me);
 
 /**
  * @return callback user data */

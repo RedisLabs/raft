@@ -74,9 +74,9 @@ typedef struct {
     /* latest quorum id for the previous quorum_timeout round */
     raft_msg_id_t last_acked_msg_id;
 
-    /* what this node thinks is the node ID of the current leader, or -1 if
+    /* what this node thinks is the node ID of the current leader, or NULL if
      * there isn't a known current leader. */
-    raft_node_id_t leader;
+    raft_node_t* leader;
 
     /* callbacks */
     raft_cbs_t cb;
@@ -84,7 +84,14 @@ typedef struct {
 
     /* my node ID */
     raft_node_t* node;
-    raft_node_t* unknown_leader;
+
+    /*
+     * If the leader node is not part of the configuration yet, we'll use this
+     * node object for it. e.g : Current node is joining to a cluster. It didn't
+     * get the latest configuration yet, so, leader node is not the part of the
+     * current node's configuration.
+     */
+    raft_node_t* unknown_node;
 
     /* the log which has a voting cfg change, otherwise -1 */
     raft_index_t voting_cfg_change_log_idx;
