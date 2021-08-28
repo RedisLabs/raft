@@ -4003,8 +4003,12 @@ void TestRaft_recv_appendreq_from_unknown_node(CuTest * tc)
     CuAssertIntEquals(tc, 10000, raft_node_get_id(leader));
 }
 
-void TestRaft_removed_leader_should_stay_as_leader(CuTest * tc)
+void TestRaft_removed_leader_stays_as_leader1(CuTest * tc)
 {
+    /**
+     *  Our node is the leader and we'll remove ourselves.
+     */
+
     raft_cbs_t funcs = {
         .log_get_node_id = __raft_log_get_node_id
     };
@@ -4068,6 +4072,63 @@ void TestRaft_removed_leader_should_stay_as_leader(CuTest * tc)
     CuAssertTrue(tc, raft_get_leader_id(r) == raft_node_get_id(n1));
     CuAssertTrue(tc, raft_get_num_nodes(r) == 1);
 }
+
+void TestRaft_removed_leader_stays_as_leader2(CuTest * tc)
+{
+    /**
+     *  Leader node will be removed but it'll still be a leader to us.
+     */
+
+    raft_cbs_t funcs = {
+        .log_get_node_id = __raft_log_get_node_id
+    };
+
+    void *r = raft_new();
+
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_add_node(r, NULL, 9, 0);
+
+    raft_set_current_term(r, 1);
+    raft_periodic(r, 50);
+
+    msg_appendentries_response_t entry_resp;
+
+    raft_entry_t **entries = __MAKE_ENTRY_ARRAY(1, 1, "9");
+    entries[0]->type = RAFT_LOGTYPE_REMOVE_NODE;
+
+    msg_appendentries_t req_remove = {
+        .term = 1,
+        .prev_log_idx = 0,
+        .prev_log_term = 0,
+        .leader_id = 9,
+        .msg_id = 1,
+        .entries = entries,
+        .n_entries = 1
+    };
+
+    raft_recv_appendentries(r, NULL, &req_remove, &entry_resp);
+    CuAssertTrue(tc, raft_get_leader_id(r) == req_remove.leader_id);
+
+    msg_appendentries_t req_commit = {
+        .term = 1,
+        .prev_log_idx = 1,
+        .prev_log_term = 1,
+        .leader_id = 9,
+        .msg_id = 1,
+        .leader_commit = 1,
+    };
+
+    raft_recv_appendentries(r, NULL, &req_commit, &entry_resp);
+    CuAssertTrue(tc, raft_get_leader_id(r) == req_commit.leader_id);
+
+    raft_periodic(r, 100);
+    CuAssertTrue(tc, raft_get_leader_id(r) == req_commit.leader_id);
+    CuAssertIntEquals(tc, 2, raft_get_num_nodes(r));
+}
+
+
 
 void TestRaft_unknown_node_can_become_leader(CuTest * tc)
 {
@@ -4287,7 +4348,8 @@ int main(void)
     SUITE_ADD_TEST(suite, TestRaft_leader_steps_down_if_there_is_no_quorum);
     SUITE_ADD_TEST(suite, TestRaft_vote_for_unknown_node);
     SUITE_ADD_TEST(suite, TestRaft_recv_appendreq_from_unknown_node);
-    SUITE_ADD_TEST(suite, TestRaft_removed_leader_should_stay_as_leader);
+    SUITE_ADD_TEST(suite, TestRaft_removed_leader_stays_as_leader1);
+    SUITE_ADD_TEST(suite, TestRaft_removed_leader_stays_as_leader2);
     SUITE_ADD_TEST(suite, TestRaft_unknown_node_can_become_leader);
 
     CuSuiteRun(suite);

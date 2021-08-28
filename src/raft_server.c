@@ -253,15 +253,23 @@ void raft_remove_node(raft_server_t* me_, raft_node_t* node)
             sizeof(*me->nodes) * (me->num_nodes - i - 1));
     me->num_nodes--;
 
-    if (me->node == node) {
-        /*
-         * We are still the leader but we are not part of the configuration
-         * anymore. We set ourselves as unknown leader. Also, me->node is freed
-         * only when this instance(raft_server_t) is destroyed, so we don't free
-         * the node object here.
-         */
+    /**
+     * Handle removing the leader, prevent dangling pointer.
+     *
+     * 1 - If we are removing ourselves(me->node), we don't need to update
+     *     me->leader as me->node is only freed when this raft_server_t is
+     *     destroyed.
+     * 2 - If we are removing any other node, move its id to the
+     *     me->unknown_node and assign it as the leader node.
+     */
+    if (me->leader == node && me->leader != me->node) {
+        // Removing the leader, set it as unknown node
         raft_node_update_id(me->unknown_node, raft_node_get_id(node));
-    } else {
+        me->leader = me->unknown_node;
+    }
+
+    // me->node is only freed when raft instance(raft_server_t) is destroyed
+    if (me->node != node) {
         raft_node_free(node);
     }
 }
