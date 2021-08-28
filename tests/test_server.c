@@ -1960,7 +1960,7 @@ void TestRaft_follower_recv_appendentries_resets_election_timeout(
 
     raft_set_election_timeout(r, 1000);
     raft_add_node(r, NULL, 1, 1);
-    raft_add_node(r, NULL, 2, 1);
+    raft_add_node(r, NULL, 2, 0);
 
     raft_periodic(r, 900);
 
