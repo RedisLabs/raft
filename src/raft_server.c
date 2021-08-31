@@ -600,6 +600,11 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     if (!raft_is_leader(me_))
         return RAFT_ERR_NOT_LEADER;
 
+    if (raft_node_get_last_acked_msgid(node) > r->msg_id) {
+        // this was received out of order and is now irrelevant.
+        return 0;
+    }
+
     /* If response contains term T > currentTerm: set currentTerm = T
        and convert to follower (§5.3) */
     if (me->current_term < r->term)
@@ -1246,7 +1251,7 @@ int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
     msg_appendentries_t ae = {
         .term = me->current_term,
         .leader_commit = raft_get_commit_idx(me_),
-        .msg_id = me->msg_id,
+        .msg_id = ++me->msg_id,
     };
 
     ae.entries = raft_get_entries_from_idx(me_, next_idx, &ae.n_entries);
