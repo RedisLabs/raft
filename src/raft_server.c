@@ -619,6 +619,9 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     else if (me->current_term != r->term)
         return 0;
 
+    // if we got here, it means that the follower has acked us as a leader, even if it cant accept the append_entry
+    raft_node_set_last_ack(node, r->msg_id, r->term);
+
     raft_index_t match_idx = raft_node_get_match_idx(node);
 
     if (0 == r->success)
@@ -654,8 +657,6 @@ int raft_recv_appendentries_response(raft_server_t* me_,
         if (0 == e)
             raft_node_set_has_sufficient_logs(node);
     }
-
-    raft_node_set_last_ack(node, r->msg_id, r->term);
 
     if (r->current_idx <= match_idx)
         return 0;
