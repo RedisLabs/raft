@@ -74,9 +74,9 @@ typedef struct {
     /* latest quorum id for the previous quorum_timeout round */
     raft_msg_id_t last_acked_msg_id;
 
-    /* what this node thinks is the node ID of the current leader, or NULL if
+    /* what this node thinks is the node ID of the current leader, or -1 if
      * there isn't a known current leader. */
-    raft_node_t* current_leader;
+    raft_node_id_t leader_id;
 
     /* callbacks */
     raft_cbs_t cb;

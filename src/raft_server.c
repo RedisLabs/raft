@@ -109,7 +109,7 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
 
     me->voting_cfg_change_log_idx = -1;
     raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
-    me->current_leader = NULL;
+    me->leader_id = -1;
 
     me->snapshot_in_progress = 0;
     raft_set_snapshot_metadata((raft_server_t*)me, 0, 0);
@@ -148,7 +148,7 @@ void raft_clear(raft_server_t* me_)
     raft_randomize_election_timeout(me_);
     me->voting_cfg_change_log_idx = -1;
     raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
-    me->current_leader = NULL;
+    me->leader_id = -1;
     me->commit_idx = 0;
     me->last_applied_idx = 0;
     me->num_nodes = 0;
@@ -242,10 +242,8 @@ void raft_remove_node(raft_server_t* me_, raft_node_t* node)
     memmove(&me->nodes[i], &me->nodes[i + 1], sizeof(*me->nodes) * (me->num_nodes - i - 1));
     me->num_nodes--;
 
-    /* if we are removing the current leader, have to reset it, as this data is now stale */
-    raft_node_t *current_leader_node = raft_get_current_leader_node(me_);
-    if (node == current_leader_node) {
-        me->current_leader = NULL;
+    if (me->leader_id == raft_node_get_id(node)) {
+        me->leader_id = -1;
     }
 
     raft_node_free(node);
@@ -419,8 +417,11 @@ int raft_become_candidate(raft_server_t* me_)
         return e;
     for (i = 0; i < me->num_nodes; i++)
         raft_node_vote_for_me(me->nodes[i], 0);
-    raft_vote(me_, me->node);
-    me->current_leader = NULL;
+
+    if (me->node && raft_node_is_voting(me->node))
+        raft_vote(me_, me->node);
+
+    me->leader_id = -1;
     raft_set_state(me_, RAFT_STATE_CANDIDATE);
 
     raft_randomize_election_timeout(me_);
@@ -549,13 +550,9 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
          * happen when we get a client request */
         !raft_snapshot_is_in_progress(me_))
     {
-        if (1 < raft_get_num_voting_nodes(me_) &&
-            raft_node_is_voting(raft_get_my_node(me_)))
-        {
-            int e = raft_election_start(me_);
-            if (0 != e)
-                return e;
-        }
+        int e = raft_election_start(me_);
+        if (0 != e)
+            return e;
     }
 
     if (me->last_applied_idx < raft_get_commit_idx(me_) &&
@@ -613,7 +610,7 @@ int raft_recv_appendentries_response(raft_server_t* me_,
         if (0 != e)
             return e;
         raft_become_follower(me_);
-        me->current_leader = NULL;
+        me->leader_id = -1;
         return 0;
     }
     else if (me->current_term != r->term)
@@ -712,7 +709,8 @@ int raft_recv_appendentries(
     int e = 0;
 
     if (0 < ae->n_entries)
-        raft_log(me_, node, "recvd appendentries t:%ld ci:%ld lc:%ld pli:%ld plt:%ld #%d",
+        raft_log(me_, node, "recvd appendentries li:%d t:%ld ci:%ld lc:%ld pli:%ld plt:%ld #%d",
+              ae->leader_id,
               ae->term,
               raft_get_current_idx(me_),
               ae->leader_commit,
@@ -744,8 +742,7 @@ int raft_recv_appendentries(
     }
 
     /* update current leader because ae->term is up to date */
-    me->current_leader = node;
-
+    me->leader_id = ae->leader_id;
     me->timeout_elapsed = 0;
 
     /* Not the first appendentries we've received */
@@ -865,9 +862,6 @@ int raft_already_voted(raft_server_t* me_)
 
 static int raft_should_grant_vote(raft_server_t* me_, msg_requestvote_t* vr)
 {
-    if (!raft_node_is_voting(raft_get_my_node(me_)))
-        return 0;
-
     if (vr->term < raft_get_current_term(me_))
         return 0;
 
@@ -902,13 +896,14 @@ int raft_recv_requestvote(raft_server_t* me_,
     raft_server_private_t* me = (raft_server_private_t*)me_;
     int e = 0;
 
+    r->vote_granted = 0;
+
     if (!node)
         node = raft_get_node(me_, vr->candidate_id);
 
     /* Reject request if we have a leader */
-    if (me->current_leader && me->current_leader != node &&
+    if (me->leader_id != -1 && me->leader_id != vr->candidate_id &&
             (me->timeout_elapsed < me->election_timeout)) {
-        r->vote_granted = 0;
         goto done;
     }
 
@@ -916,11 +911,10 @@ int raft_recv_requestvote(raft_server_t* me_,
     {
         e = raft_set_current_term(me_, vr->term);
         if (0 != e) {
-            r->vote_granted = 0;
             goto done;
         }
         raft_become_follower(me_);
-        me->current_leader = NULL;
+        me->leader_id = -1;
     }
 
     if (raft_should_grant_vote(me_, vr))
@@ -932,32 +926,15 @@ int raft_recv_requestvote(raft_server_t* me_,
         e = raft_vote_for_nodeid(me_, vr->candidate_id);
         if (0 == e)
             r->vote_granted = 1;
-        else
-            r->vote_granted = 0;
 
         /* must be in an election. */
-        me->current_leader = NULL;
+        me->leader_id = -1;
         me->timeout_elapsed = 0;
-    }
-    else
-    {
-        /* It's possible the candidate node has been removed from the cluster but
-         * hasn't received the appendentries that confirms the removal. Therefore
-         * the node is partitioned and still thinks its part of the cluster. It
-         * will eventually send a requestvote. This is error response tells the
-         * node that it might be removed. */
-        if (!node)
-        {
-            r->vote_granted = RAFT_REQUESTVOTE_ERR_UNKNOWN_NODE;
-            goto done;
-        }
-        else
-            r->vote_granted = 0;
     }
 
 done:
     raft_log(me_, node, "node requested vote: %d replying: %s",
-          raft_node_get_id(node),
+          vr->candidate_id,
           r->vote_granted == 1 ? "granted" :
           r->vote_granted == 0 ? "not granted" : "unknown");
 
@@ -994,7 +971,7 @@ int raft_recv_requestvote_response(raft_server_t* me_,
         if (0 != e)
             return e;
         raft_become_follower(me_);
-        me->current_leader = NULL;
+        me->leader_id = -1;
         return 0;
     }
 
@@ -1004,30 +981,17 @@ int raft_recv_requestvote_response(raft_server_t* me_,
           me->current_term,
           r->term);
 
-    switch (r->vote_granted)
+    if (r->vote_granted)
     {
-        case RAFT_REQUESTVOTE_ERR_GRANTED:
-            if (node)
-                raft_node_vote_for_me(node, 1);
-            int votes = raft_get_nvotes_for_me(me_);
-            if (raft_votes_is_majority(raft_get_num_voting_nodes(me_), votes)) {
-                int e = raft_become_leader(me_);
-                if (0 != e)
-                    return e;
-            }
-            break;
+        if (node)
+            raft_node_vote_for_me(node, 1);
+        int votes = raft_get_nvotes_for_me(me_);
+        if (raft_votes_is_majority(raft_get_num_voting_nodes(me_), votes)) {
+            int e = raft_become_leader(me_);
+            if (0 != e)
+                return e;
+        }
 
-        case RAFT_REQUESTVOTE_ERR_NOT_GRANTED:
-            break;
-
-        case RAFT_REQUESTVOTE_ERR_UNKNOWN_NODE:
-            if (raft_node_is_voting(raft_get_my_node(me_)) &&
-                me->connected == RAFT_NODE_STATUS_DISCONNECTING)
-                return RAFT_ERR_SHUTDOWN;
-            break;
-
-        default:
-            assert(0);
     }
 
     return 0;
@@ -1568,7 +1532,7 @@ int raft_begin_load_snapshot(
     }
 
     raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
-    me->current_leader = NULL;
+    me->leader_id = -1;
 
     me->log_impl->reset(me->log, last_included_index + 1, last_included_term);
 

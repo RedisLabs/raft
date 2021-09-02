@@ -251,7 +251,7 @@ class Network(object):
         self.dupe_rate = 0
         self.partition_rate = 0
         self.iteration = 0
-        self.leader = None
+        self.leader = -1
         self.ety_id = 0
         self.entries = []
         self.random = random.Random(seed)
@@ -355,16 +355,16 @@ class Network(object):
 
         # Count leadership changes
         assert len(self.active_servers) > 0, self.diagnostic_info()
-        leader_node = lib.raft_get_current_leader_node(self.active_servers[0].raft)
-        if leader_node:
-            leader = ffi.from_handle(lib.raft_node_get_udata(leader_node))
-            if self.leader is not leader:
+        leader = lib.raft_get_leader_id(self.active_servers[0].raft)
+        if leader != -1:
+            if self.leader != leader:
                 self.leadership_changes += 1
-                logger.info(f"old leader: {self.leader.id}")
-                logger.info(f"leader change: {lib.raft_get_nodeid(leader.raft)}")
+                logger.info(f"old leader: {self.leader}")
+                logger.info(f"leader change: {leader}")
 
                 self.diagnostic_info()
             self.leader = leader
+
 
     def enqueue_msg(self, msg, sendor, sendee):
         logger.debug(f"enqueue_msg: {sendor.id} to {sendee.id}")
@@ -509,7 +509,7 @@ class Network(object):
         Add configuration change for leader's node
         """
         server = self.active_servers[0]
-        self.leader = server
+        self.leader = server.id
 
         server.set_connection_status(NODE_CONNECTING)
         lib.raft_add_non_voting_node(server.raft, server.udata, server.id, 1)
@@ -543,17 +543,25 @@ class Network(object):
         if net.num_of_servers <= len(self.active_servers):
             return
 
-        if not self.leader:
+        if self.leader == -1:
             logger.info('add_member: no leader')
             return
 
         leader = self.leader
+        leader_node = None
 
-        if not lib.raft_is_leader(leader.raft):
+        for server in self.active_servers:
+            if server.id == leader:
+                leader_node = server
+
+        if leader_node is None:
             return
 
-        if lib.raft_voting_change_is_in_progress(leader.raft):
-            logger.info('{} voting change in progress'.format(leader.id))
+        if not lib.raft_is_leader(leader_node.raft):
+            return
+
+        if lib.raft_voting_change_is_in_progress(leader_node.raft):
+            logger.info('{} voting change in progress'.format(leader_node.id))
             return
 
         server = RaftServer(self)
@@ -564,7 +572,7 @@ class Network(object):
                              ChangeRaftEntry(server.id))
         assert(lib.raft_entry_is_cfg_change(ety))
 
-        e = leader.recv_entry(ety)
+        e = leader_node.recv_entry(ety)
         if 0 != e:
             logger.error(err2str(e))
             return
@@ -578,21 +586,29 @@ class Network(object):
         assert added_node
 
     def remove_member(self):
-        if not self.leader:
+        if self.leader == -1:
             logger.error('no leader')
             return
 
         leader = self.leader
         server = self.random.choice(self.active_servers)
+        leader_node = None
 
-        if not lib.raft_is_leader(leader.raft):
+        for sv in self.active_servers:
+            if sv.id == leader:
+                leader_node = sv
+
+        if leader_node is None:
             return
 
-        if lib.raft_voting_change_is_in_progress(leader.raft):
+        if not lib.raft_is_leader(leader_node.raft):
+            return
+
+        if lib.raft_voting_change_is_in_progress(leader_node.raft):
             logger.info('{} voting change in progress'.format(server))
             return
 
-        if leader == server:
+        if leader_node == server:
             logger.info('can not remove leader')
             return
 
@@ -610,7 +626,7 @@ class Network(object):
         assert server.connection_status == NODE_CONNECTED
         assert(lib.raft_entry_is_cfg_change(ety))
 
-        e = leader.recv_entry(ety)
+        e = leader_node.recv_entry(ety)
         if 0 != e:
             logger.error(err2str(e))
             return
@@ -1140,7 +1156,7 @@ class RaftServer(object):
             "snapshot": lib.raft_get_snapshot_last_idx(self.raft),
             "removed": getattr(self, 'removed', False),
             "partitioned": partitioned_from,
-            "leader": lib.raft_get_current_leader(self.raft),
+            "leader": lib.raft_get_leader_id(self.raft),
         }
 
 
