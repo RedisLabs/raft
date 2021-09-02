@@ -166,4 +166,14 @@ extern void *(*raft_calloc)(size_t nmemb, size_t size);
 extern void *(*raft_realloc)(void *ptr, size_t size);
 extern void (*raft_free)(void *ptr);
 
+/* get the read_queue_id
+ * this will either be the last sent, or the last valid one recieved from leader
+ */
+raft_msg_id_t raft_get_msg_id(raft_server_t* me_);
+
+/* get an array of raft_node_id_t of the known voting nodes
+ * needs to be freed by caller
+ */
+raft_node_id_t * raft_get_voting_node_ids(raft_server_t* me_);
+
 #endif /* RAFT_PRIVATE_H_ */
