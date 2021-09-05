@@ -185,15 +185,7 @@ raft_node_id_t raft_get_leader_id(raft_server_t* me_)
 raft_node_t* raft_get_leader_node(raft_server_t* me_)
 {
     raft_server_private_t* me = (void*)me_;
-
-    for (int i = 0; i < me->num_nodes; i++)
-    {
-        if (me->leader_id == raft_node_get_id(me->nodes[i])) {
-            return me->nodes[i];
-        }
-    }
-
-    return NULL;
+    return raft_get_node(me_, me->leader_id);
 }
 
 void* raft_get_udata(raft_server_t* me_)

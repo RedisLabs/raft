@@ -203,7 +203,7 @@ void TestRaft_server_add_non_voting_node_with_already_existing_voting_id_is_not_
 void TestRaft_server_remove_node(CuTest * tc)
 {
     void *r = raft_new();
-    void* n1 = raft_add_node(r, NULL, 1, 0);
+    void* n1 = raft_add_node(r, NULL, 1, 1);
     void* n2 = raft_add_node(r, NULL, 9, 0);
 
     raft_remove_node(r, n1);
@@ -216,6 +216,7 @@ void TestRaft_server_remove_node(CuTest * tc)
 void TestRaft_election_start_increments_term(CuTest * tc)
 {
     void *r = raft_new();
+    raft_add_node(r, NULL, 1, 1);
     raft_set_callbacks(r, &generic_funcs, NULL);
     raft_set_current_term(r, 1);
     raft_election_start(r);
@@ -989,6 +990,7 @@ void TestRaft_server_recv_requestvote_ignore_if_master_is_fresh(CuTest * tc)
 void TestRaft_follower_becomes_follower_is_follower(CuTest * tc)
 {
     void *r = raft_new();
+    raft_add_node(r, NULL, 1, 1);
     raft_become_follower(r);
     CuAssertTrue(tc, raft_is_follower(r));
 }
@@ -1884,7 +1886,7 @@ void TestRaft_candidate_becomes_candidate_is_candidate(CuTest * tc)
 
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
-
+    raft_add_node(r, NULL, 1, 1);
     raft_become_candidate(r);
     CuAssertTrue(tc, raft_is_candidate(r));
 }
@@ -1898,6 +1900,7 @@ void TestRaft_follower_becoming_candidate_increments_current_term(CuTest * tc)
     };
 
     void *r = raft_new();
+    raft_add_node(r, NULL, 1, 1);
     raft_set_callbacks(r, &funcs, NULL);
 
     CuAssertTrue(tc, 0 == raft_get_current_term(r));
@@ -1932,6 +1935,8 @@ void TestRaft_follower_becoming_candidate_resets_election_timeout(CuTest * tc)
     };
 
     void *r = raft_new();
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
     raft_set_callbacks(r, &funcs, NULL);
 
     raft_set_election_timeout(r, 1000);
@@ -2258,8 +2263,11 @@ void TestRaft_candidate_recv_appendentries_from_same_term_results_in_step_down(
 void TestRaft_leader_becomes_leader_is_leader(CuTest * tc)
 {
     void *r = raft_new();
+    raft_node_t *n = raft_add_node(r, NULL, 1, 1);
     raft_become_leader(r);
+
     CuAssertTrue(tc, raft_is_leader(r));
+    CuAssertTrue(tc, raft_get_leader_node(r) == n);
 }
 
 void TestRaft_leader_becomes_leader_does_not_clear_voted_for(CuTest * tc)

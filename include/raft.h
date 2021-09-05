@@ -28,9 +28,7 @@ typedef enum {
     RAFT_MEMBERSHIP_REMOVE,
 } raft_membership_e;
 
-#define RAFT_REQUESTVOTE_ERR_GRANTED          1
-#define RAFT_REQUESTVOTE_ERR_NOT_GRANTED      0
-#define RAFT_REQUESTVOTE_ERR_UNKNOWN_NODE    (-1)
+#define RAFT_UNKNOWN_NODE_ID (-1)
 
 typedef enum {
     RAFT_STATE_NONE,
@@ -286,14 +284,15 @@ typedef int (
 /** Callback for providing debug logging information.
  * This callback is optional
  * @param[in] raft The Raft server making this callback
- * @param[in] node The node that is the subject of this log. Could be NULL.
+ * @param[in] node_id The node id that is the subject of this log. If log is not
+ *                    related to a node, this could be 'RAFT_UNKNOWN_NODE_ID'.
  * @param[in] user_data User data that is passed from Raft server
  * @param[in] buf The buffer that was logged */
 typedef void (
 *func_log_f
 )    (
     raft_server_t* raft,
-    raft_node_t* node,
+    raft_node_id_t node_id,
     void *user_data,
     const char *buf
     );
@@ -884,12 +883,13 @@ int raft_get_voted_for(raft_server_t* me);
 
 /** Get what this node thinks the node ID of the leader is.
  * @return node of what this node thinks is the valid leader;
- *   -1 if the leader is unknown */
+ *   RAFT_UNKNOWN_NODE_ID if there is no leader */
 raft_node_id_t raft_get_leader_id(raft_server_t* me_);
 
 /** Get what this node thinks the node of the leader is.
  * @return node of what this node thinks is the valid leader;
- *   NULL if the leader is unknown */
+ *   NULL if there is no leader or
+ *        if the leader is not part of the local configuration yet */
 raft_node_t* raft_get_leader_node(raft_server_t* me_);
 
 /**

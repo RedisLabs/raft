@@ -224,14 +224,11 @@ def raft_notify_membership_event(raft, udata, node, ety, event_type):
 
 def raft_log(raft, node, udata, buf):
     server = ffi.from_handle(lib.raft_get_udata(raft))
-    # print(server.id, ffi.string(buf).decode('utf8'))
-    if node != ffi.NULL:
-        node = ffi.from_handle(lib.raft_node_get_udata(node))
     # if server.id in [1] or (node and node.id in [1]):
     logger.info('{0}>  {1}:{2}: {3}'.format(
         server.network.iteration,
         server.id,
-        node.id if node else '',
+        node,
         ffi.string(buf).decode('utf8'),
     ))
 
@@ -791,7 +788,7 @@ class RaftServer(object):
         self.raft_logentry_get_node_id = ffi.callback("int(raft_server_t*, void*, raft_entry_t*, raft_index_t)", raft_logentry_get_node_id)
         self.raft_node_has_sufficient_logs = ffi.callback("int(raft_server_t* raft, void *user_data, raft_node_t* node)", raft_node_has_sufficient_logs)
         self.raft_notify_membership_event = ffi.callback("void(raft_server_t* raft, void *user_data, raft_node_t* node, raft_entry_t* ety, raft_membership_e)", raft_notify_membership_event)
-        self.raft_log = ffi.callback("void(raft_server_t*, raft_node_t*, void*, const char* buf)", raft_log)
+        self.raft_log = ffi.callback("void(raft_server_t*, raft_node_id_t, void*, const char* buf)", raft_log)
 
     def recv_entry(self, ety):
         # FIXME: leak
