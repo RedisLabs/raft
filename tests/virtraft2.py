@@ -222,14 +222,22 @@ def raft_notify_membership_event(raft, udata, node, ety, event_type):
     return ffi.from_handle(udata).notify_membership_event(node, ety, event_type)
 
 
+def get_voting_node_ids():
+    voting_nodes_ids = []
+    for i in range(net.server_id + 1):
+        if i == 0:
+            continue
+        node = lib.raft_get_node(net.leader.raft, i)
+        if node == ffi.NULL:
+            continue
+        if lib.raft_node_is_voting(node) != 0:
+            voting_nodes_ids.append(i)
+
+    return voting_nodes_ids
+
 def verify_read(arg):
-    # cffi magic explanation, as didn't see this documented anywhere
-    # 1. normal call
-    voter_ids = lib.raft_get_voting_node_ids(net.leader.raft)
-    # 2. setup the pointer we were returned to be garbage collected, with libraft's free
-    voter_ids = ffi.gc(voter_ids, lib.raft_free)
-    # 3. need to know length of array, so we don't go past it.
-    num_nodes = lib.raft_get_num_voting_nodes(net.leader.raft)
+    voter_ids = get_voting_node_ids()
+    num_nodes = len(voter_ids)
 
     # primary verification logic.  we always need to count more than the required, looking to see that for voters,
     # the read_queue_id they have recorded is equal to our greater than the arg (i.e. the read_queue id this was sent on
