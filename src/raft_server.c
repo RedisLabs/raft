@@ -608,10 +608,6 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     if (!raft_is_leader(me_))
         return RAFT_ERR_NOT_LEADER;
 
-    if (r->node_msg_id > me->msg_id) {
-        me->msg_id = r->node_msg_id;
-    }
-
     if (raft_node_get_last_acked_msgid(node) > r->msg_id) {
         // this was received out of order and is now irrelevant.
         return 0;
@@ -734,8 +730,6 @@ int raft_recv_appendentries(
     }
 
     r->msg_id = ae->msg_id;
-    // enable leader to increase msg_id, if this node's msg_id is greater, to synchronize cluster for virtraft
-    r->node_msg_id = me->msg_id;
 
     r->prev_log_idx = ae->prev_log_idx;
     r->success = 0;
@@ -743,6 +737,7 @@ int raft_recv_appendentries(
     if (raft_is_candidate(me_) && me->current_term == ae->term)
     {
         raft_become_follower(me_);
+        me->max_seen_msg_id = 0;
     }
     else if (me->current_term < ae->term)
     {
@@ -750,6 +745,7 @@ int raft_recv_appendentries(
         if (0 != e)
             goto out;
         raft_become_follower(me_);
+        me->max_seen_msg_id = 0;
     }
     else if (ae->term < me->current_term)
     {
@@ -758,6 +754,10 @@ int raft_recv_appendentries(
                     "AE term %ld is less than current term %ld",
                     ae->term, me->current_term);
         goto out;
+    }
+
+    if (me->max_seen_msg_id < ae->msg_id) {
+        me->max_seen_msg_id = ae->msg_id;
     }
 
     /* update current leader because ae->term is up to date */
@@ -817,9 +817,10 @@ int raft_recv_appendentries(
 
     r->success = 1;
     r->current_idx = ae->prev_log_idx;
-    // synchronize msg_id to leader.  not really needed for raft, but needed for virtraft for msg_id to be increasing
-    // cluster wide so that can verify read_queue correctness easily.  Otherwise, it be fine for msg_id to be unique to
-    // each raft_server_t.
+    /* synchronize msg_id to leader.  not really needed for raft, but needed for virtraft for msg_id to be increasing
+     * cluster wide so that can verify read_queue correctness easily.  Otherwise, it be fine for msg_id to be unique to
+     * each raft_server_t.
+     */
     if (ae->msg_id > me->msg_id) {
         me->msg_id = ae->msg_id;
     }

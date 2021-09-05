@@ -235,6 +235,7 @@ def get_voting_node_ids():
 
     return voting_nodes_ids
 
+
 def verify_read(arg):
     voter_ids = get_voting_node_ids()
     num_nodes = len(voter_ids)
@@ -244,9 +245,24 @@ def verify_read(arg):
     required = int(num_nodes / 2) + 1
     count = 0
 
-    for i in range(num_nodes):
-        msg_id = lib.raft_get_msg_id(net.servers[voter_ids[i]-1].raft)
-        if msg_id >= arg:
+    leader_id = -1
+    for i in voter_ids:
+        if lib.raft_is_leader(net.servers[i-1].raft):
+            leader_id = i
+    if leader_id == -1:
+        logger.error("didn't find leader server")
+        os._exit(-1)
+
+    leader_term = lib.raft_get_current_term(net.servers[leader_id-1].raft)
+
+    for i in voter_ids:
+        if lib.raft_is_leader(net.servers[i-1].raft):
+            count += 1
+            continue
+
+        msg_id = lib.raft_get_max_seen_msg_id(net.servers[i-1].raft)
+        follower_term = lib.raft_get_current_term(net.servers[i-1].raft)
+        if msg_id >= arg and leader_term == follower_term:
             count += 1
 
     if count < required:

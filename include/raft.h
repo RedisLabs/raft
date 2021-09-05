@@ -198,9 +198,6 @@ typedef struct
     /** the msg_id this response refers to */
     raft_msg_id_t msg_id;
 
-    /** used for helping make msg_id always increasing (though not strictly) across cluster: needed for testing */
-    raft_msg_id_t node_msg_id;
-
     /** currentTerm, to force other leader/candidate to step down */
     raft_term_t term;
 

@@ -282,3 +282,9 @@ raft_msg_id_t raft_get_msg_id(raft_server_t* me_)
     raft_server_private_t* me = (raft_server_private_t*)me_;
     return me->msg_id;
 }
+
+raft_msg_id_t raft_get_max_seen_msg_id(raft_server_t* me_)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    return me->max_seen_msg_id;
+}
