@@ -737,7 +737,6 @@ int raft_recv_appendentries(
     if (raft_is_candidate(me_) && me->current_term == ae->term)
     {
         raft_become_follower(me_);
-        me->max_seen_msg_id = 0;
     }
     else if (me->current_term < ae->term)
     {
@@ -745,7 +744,6 @@ int raft_recv_appendentries(
         if (0 != e)
             goto out;
         raft_become_follower(me_);
-        me->max_seen_msg_id = 0;
     }
     else if (ae->term < me->current_term)
     {
