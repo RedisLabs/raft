@@ -39,6 +39,10 @@ typedef struct {
      * starts at zero */
     raft_term_t current_term;
 
+    /* monotonic prevote term counter, incremented on each election to
+     * distinguish different prevote terms */
+    raft_term_t prevote_term;
+
     /* The candidate the server voted for in its current term,
      * or Nil if it hasn't voted for any.  */
     raft_node_id_t voted_for;
@@ -116,6 +120,8 @@ typedef struct {
 int raft_election_start(raft_server_t* me);
 
 int raft_become_candidate(raft_server_t* me);
+
+int raft_become_precandidate(raft_server_t* me);
 
 void raft_randomize_election_timeout(raft_server_t* me_);
 

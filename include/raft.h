@@ -28,17 +28,17 @@ typedef enum {
     RAFT_MEMBERSHIP_REMOVE,
 } raft_membership_e;
 
-#define RAFT_UNKNOWN_NODE_ID (-1)
-
 typedef enum {
     RAFT_STATE_NONE,
     RAFT_STATE_FOLLOWER,
+    RAFT_STATE_PRECANDIDATE,
     RAFT_STATE_CANDIDATE,
     RAFT_STATE_LEADER
 } raft_state_e;
 
 /** Allow entries to apply while taking a snapshot */
 #define RAFT_SNAPSHOT_NONBLOCKING_APPLY     1
+#define RAFT_UNKNOWN_NODE_ID (-1)
 
 typedef enum {
     /**
@@ -131,6 +131,10 @@ typedef struct
  * This message could force a leader/candidate to become a follower. */
 typedef struct
 {
+    /** to distinguish different prevote terms, different for each election
+     * -1 if this is not a prevote response */
+    raft_term_t prevote_term;
+
     /** currentTerm, to force other leader/candidate to step down */
     raft_term_t term;
 
@@ -148,6 +152,10 @@ typedef struct
  * Indicates if node has accepted the server's vote request. */
 typedef struct
 {
+    /** to distinguish different prevote terms, different for each election
+     * -1 if this is not a prevote message */
+    raft_term_t prevote_term;
+
     /** currentTerm, for candidate to update itself */
     raft_term_t term;
 
@@ -817,6 +825,10 @@ int raft_is_follower(raft_server_t* me);
 /**
  * @return 1 if leader; 0 otherwise */
 int raft_is_leader(raft_server_t* me);
+
+/**
+ * @return 1 if precandidate; 0 otherwise */
+int raft_is_precandidate(raft_server_t* me);
 
 /**
  * @return 1 if candidate; 0 otherwise */
