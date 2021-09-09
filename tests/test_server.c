@@ -704,7 +704,7 @@ void TestRaft_server_recv_requestvote_response_increase_votes_for_me(
 
     msg_requestvote_response_t rvr;
     memset(&rvr, 0, sizeof(msg_requestvote_response_t));
-    rvr.prevote_term = -1;
+    rvr.request_term = 2;
     rvr.term = 2;
     rvr.vote_granted = 1;
     int e = raft_recv_requestvote_response(r, raft_get_node(r, 2), &rvr);
@@ -850,7 +850,6 @@ void TestRaft_server_recv_requestvote_reset_timeout(
     raft_periodic(r, 900);
 
     memset(&rv, 0, sizeof(msg_requestvote_t));
-    rv.prevote_term = -1;
     rv.term = 2;
     rv.last_log_idx = 1;
     raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
@@ -880,7 +879,6 @@ void TestRaft_server_recv_requestvote_candidate_step_down_if_term_is_higher_than
     /* current term is less than term */
     msg_requestvote_t rv;
     memset(&rv, 0, sizeof(msg_requestvote_t));
-    rv.prevote_term = -1;
     rv.candidate_id = 2;
     rv.term = 2;
     rv.last_log_idx = 1;
@@ -913,7 +911,6 @@ void TestRaft_server_recv_requestvote_depends_on_candidate_id(
     /* current term is less than term */
     msg_requestvote_t rv;
     memset(&rv, 0, sizeof(msg_requestvote_t));
-    rv.prevote_term = -1;
     rv.candidate_id = 3;
     rv.term = 2;
     rv.last_log_idx = 1;
@@ -1014,7 +1011,8 @@ void TestRaft_server_recv_prevote_ignore_if_candidate(CuTest * tc)
 
     msg_requestvote_response_t rv = {
         .term = 1,
-        .prevote_term = 1,
+        .request_term = 1,
+        .prevote = 1,
     };
 
     raft_recv_requestvote_response(r, raft_get_node(r, 2), &rv);
@@ -1036,7 +1034,7 @@ void TestRaft_server_recv_reqvote_ignore_if_not_candidate(CuTest * tc)
 
     msg_requestvote_response_t rv = {
         .term = 1,
-        .prevote_term = -1,
+        .request_term = 1
     };
 
     raft_recv_requestvote_response(r, raft_get_node(r, 2), &rv);
@@ -1058,7 +1056,7 @@ void TestRaft_server_recv_reqvote_always_update_term(CuTest * tc)
 
     msg_requestvote_response_t rv = {
         .term = 3,
-        .prevote_term = -1,
+        .request_term = 3,
     };
 
     raft_recv_requestvote_response(r, raft_get_node(r, 2), &rv);
@@ -2118,7 +2116,8 @@ void TestRaft_candidate_election_timeout_and_no_leader_results_in_new_election(
     CuAssertIntEquals(tc, RAFT_STATE_PRECANDIDATE, raft_get_state(r));
 
     msg_requestvote_response_t vr0 = {
-        .prevote_term = 1,
+        .prevote = 1,
+        .request_term = raft_get_current_term(r) + 1,
         .term = 0,
         .vote_granted = 1
     };
@@ -2127,7 +2126,7 @@ void TestRaft_candidate_election_timeout_and_no_leader_results_in_new_election(
     CuAssertIntEquals(tc, RAFT_STATE_CANDIDATE, raft_get_state(r));
 
     msg_requestvote_response_t vr1 = {
-        .prevote_term = -1,
+        .request_term = 2,
         .term = 2,
         .vote_granted = 1
     };
@@ -2166,7 +2165,7 @@ void TestRaft_candidate_receives_majority_of_votes_becomes_leader(CuTest * tc)
 
     /* a vote for us */
     memset(&vr, 0, sizeof(msg_requestvote_response_t));
-    vr.prevote_term = -1;
+    vr.request_term = 1;
     vr.term = 1;
     vr.vote_granted = 1;
     /* get one vote */
@@ -2262,7 +2261,7 @@ void TestRaft_candidate_recv_requestvote_response_becomes_follower_if_current_te
 
     msg_requestvote_response_t rvr;
     memset(&rvr, 0, sizeof(msg_requestvote_response_t));
-    rvr.prevote_term = -1;
+    rvr.request_term = 2;
     rvr.term = 2;
     rvr.vote_granted = 0;
     raft_recv_requestvote_response(r, raft_get_node(r, 2), &rvr);
@@ -3665,7 +3664,8 @@ void TestRaft_leader_recv_requestvote_responds_without_granting(CuTest * tc)
     raft_election_start(r);
 
     msg_requestvote_response_t rvr = {
-        .prevote_term = 1,
+        .prevote = 1,
+        .request_term = raft_get_current_term(r) + 1,
         .term = 0,
         .vote_granted = 1
     };
@@ -3674,7 +3674,7 @@ void TestRaft_leader_recv_requestvote_responds_without_granting(CuTest * tc)
     CuAssertTrue(tc, 1 == raft_is_candidate(r));
 
     msg_requestvote_response_t rvr1 = {
-        .prevote_term = -1,
+        .request_term = 1,
         .term = 1,
         .vote_granted = 1
     };
@@ -3684,7 +3684,6 @@ void TestRaft_leader_recv_requestvote_responds_without_granting(CuTest * tc)
 
     /* receive request vote from node 3 */
     msg_requestvote_t rv = {
-        .prevote_term = -1,
         .term = 1
     };
 
@@ -4242,7 +4241,7 @@ void TestRaft_removed_node_starts_election(CuTest * tc)
     raft_become_candidate(r);
 
     msg_requestvote_response_t reqresp = {
-        .prevote_term = -1,
+        .request_term = 2,
         .vote_granted = 1,
         .term = 2
     };

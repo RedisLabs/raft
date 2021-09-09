@@ -39,10 +39,6 @@ typedef struct {
      * starts at zero */
     raft_term_t current_term;
 
-    /* monotonic prevote term counter, incremented on each election to
-     * distinguish different prevote terms */
-    raft_term_t prevote_term;
-
     /* The candidate the server voted for in its current term,
      * or Nil if it hasn't voted for any.  */
     raft_node_id_t voted_for;
@@ -79,7 +75,7 @@ typedef struct {
     raft_msg_id_t last_acked_msg_id;
 
     /* what this node thinks is the node ID of the current leader or
-     * RAFT_UNKNOWN_NODE_ID if there isn't a known current leader. */
+     * RAFT_NODE_ID_NONE if there isn't a known current leader. */
     raft_node_id_t leader_id;
 
     /* callbacks */

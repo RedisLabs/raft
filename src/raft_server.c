@@ -72,7 +72,7 @@ static void raft_log_node(raft_server_t *me_,
     me->cb.log(me_, id, me->udata, buf);
 }
 
-#define raft_log(me, ...) (raft_log_node(me, RAFT_UNKNOWN_NODE_ID, __VA_ARGS__))
+#define raft_log(me, ...) (raft_log_node(me, RAFT_NODE_ID_NONE, __VA_ARGS__))
 
 void raft_randomize_election_timeout(raft_server_t* me_)
 {
@@ -116,7 +116,7 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
 
     me->voting_cfg_change_log_idx = -1;
     raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
-    me->leader_id = RAFT_UNKNOWN_NODE_ID;
+    me->leader_id = RAFT_NODE_ID_NONE;
 
     me->snapshot_in_progress = 0;
     raft_set_snapshot_metadata((raft_server_t*)me, 0, 0);
@@ -155,7 +155,7 @@ void raft_clear(raft_server_t* me_)
     raft_randomize_election_timeout(me_);
     me->voting_cfg_change_log_idx = -1;
     raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
-    me->leader_id = RAFT_UNKNOWN_NODE_ID;
+    me->leader_id = RAFT_NODE_ID_NONE;
     me->commit_idx = 0;
     me->last_applied_idx = 0;
     me->num_nodes = 0;
@@ -167,7 +167,7 @@ raft_node_t* raft_add_node_internal(raft_server_t* me_, raft_entry_t *ety, void*
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
-    if (id == RAFT_UNKNOWN_NODE_ID)
+    if (id == RAFT_NODE_ID_NONE)
         return NULL;
 
     /* set to voting if node already exists */
@@ -253,7 +253,7 @@ void raft_remove_node(raft_server_t* me_, raft_node_t* node)
     me->num_nodes--;
 
     if (me->leader_id == raft_node_get_id(node)) {
-        me->leader_id = RAFT_UNKNOWN_NODE_ID;
+        me->leader_id = RAFT_NODE_ID_NONE;
     }
 
     raft_node_free(node);
@@ -365,7 +365,7 @@ int raft_election_start(raft_server_t* me_)
         me->election_timeout_rand, me->timeout_elapsed, me->current_term,
         raft_get_current_idx(me_));
 
-    me->leader_id = RAFT_UNKNOWN_NODE_ID;
+    me->leader_id = RAFT_NODE_ID_NONE;
     me->timeout_elapsed = 0;
     raft_randomize_election_timeout(me_);
 
@@ -432,7 +432,6 @@ int raft_become_precandidate(raft_server_t* me_)
         raft_node_vote_for_me(me->nodes[i], 0);
 
     raft_set_state(me_, RAFT_STATE_PRECANDIDATE);
-    me->prevote_term++;
 
     for (int i = 0; i < me->num_nodes; i++)
     {
@@ -463,7 +462,7 @@ int raft_become_candidate(raft_server_t* me_)
     if (raft_node_is_voting(me->node))
         raft_vote(me_, me->node);
 
-    me->leader_id = RAFT_UNKNOWN_NODE_ID;
+    me->leader_id = RAFT_NODE_ID_NONE;
     raft_set_state(me_, RAFT_STATE_CANDIDATE);
 
     for (i = 0; i < me->num_nodes; i++)
@@ -649,7 +648,7 @@ int raft_recv_appendentries_response(raft_server_t* me_,
         if (0 != e)
             return e;
         raft_become_follower(me_);
-        me->leader_id = RAFT_UNKNOWN_NODE_ID;
+        me->leader_id = RAFT_NODE_ID_NONE;
         return 0;
     }
     else if (me->current_term != r->term)
@@ -906,28 +905,26 @@ int raft_recv_requestvote(raft_server_t* me_,
     raft_server_private_t* me = (raft_server_private_t*)me_;
     int e = 0;
 
-    r->prevote_term = vr->prevote_term;
+    r->prevote = vr->prevote;
+    r->request_term = vr->term;
     r->vote_granted = 0;
 
-    if (!node)
-        node = raft_get_node(me_, vr->candidate_id);
-
     /* Reject request if we have a leader */
-    if (me->leader_id != RAFT_UNKNOWN_NODE_ID &&
+    if (me->leader_id != RAFT_NODE_ID_NONE &&
         me->leader_id != vr->candidate_id &&
         me->timeout_elapsed < me->election_timeout) {
         goto done;
     }
 
     /* Update the term only if this is not a prevote request */
-    if (r->prevote_term == -1 && raft_get_current_term(me_) < vr->term)
+    if (!vr->prevote && raft_get_current_term(me_) < vr->term)
     {
         e = raft_set_current_term(me_, vr->term);
         if (0 != e) {
             goto done;
         }
         raft_become_follower(me_);
-        me->leader_id = RAFT_UNKNOWN_NODE_ID;
+        me->leader_id = RAFT_NODE_ID_NONE;
     }
 
     if (me->current_term > vr->term) {
@@ -950,7 +947,7 @@ int raft_recv_requestvote(raft_server_t* me_,
 
     r->vote_granted = 1;
 
-    if (r->prevote_term == -1)
+    if (!vr->prevote)
     {
         /* It shouldn't be possible for a leader or candidate to grant a vote
          * Both states would have voted for themselves */
@@ -961,13 +958,15 @@ int raft_recv_requestvote(raft_server_t* me_,
             r->vote_granted = 0;
 
         /* must be in an election. */
-        me->leader_id = RAFT_UNKNOWN_NODE_ID;
+        me->leader_id = RAFT_NODE_ID_NONE;
         me->timeout_elapsed = 0;
     }
 
 done:
-    raft_log_node(me_, vr->candidate_id, "node requested vote: %d replying: %s",
+    raft_log_node(me_, vr->candidate_id, "node requested vote: %d, t:%ld, pv:%d replying: %s",
           vr->candidate_id,
+          vr->term,
+          vr->prevote,
           r->vote_granted == 1 ? "granted" :
           r->vote_granted == 0 ? "not granted" : "unknown");
 
@@ -990,10 +989,11 @@ int raft_recv_requestvote_response(raft_server_t* me_,
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
     raft_log_node(me_, raft_node_get_id(node),
-             "node responded to requestvote status:%s pt:%ld ct:%ld rt:%ld",
+             "node responded to requestvote status:%s pv:%d rt:%ld ct:%ld rt:%ld",
              r->vote_granted == 1 ? "granted" :
              r->vote_granted == 0 ? "not granted" : "unknown",
-             r->prevote_term,
+             r->prevote,
+             r->request_term,
              me->current_term,
              r->term);
 
@@ -1003,17 +1003,17 @@ int raft_recv_requestvote_response(raft_server_t* me_,
         if (0 != e)
             return e;
         raft_become_follower(me_);
-        me->leader_id = RAFT_UNKNOWN_NODE_ID;
+        me->leader_id = RAFT_NODE_ID_NONE;
         return 0;
     }
 
-    if (r->prevote_term != -1) {
+    if (r->prevote) {
         /* Validate prevote is not stale */
-        if (!raft_is_precandidate(me_) || me->prevote_term > r->prevote_term)
+        if (!raft_is_precandidate(me_) || r->request_term != me->current_term + 1)
             return 0;
     } else {
         /* Validate reqvote is not stale */
-        if (!raft_is_candidate(me_) || me->current_term > r->term)
+        if (!raft_is_candidate(me_) || r->request_term != me->current_term)
             return 0;
     }
 
@@ -1111,16 +1111,15 @@ int raft_send_requestvote(raft_server_t* me_, raft_node_t* node)
 
     if (raft_is_precandidate(me_))
     {
-        rv.prevote_term = me->prevote_term;
+        rv.prevote = 1;
         rv.term = me->current_term + 1;
     }
     else
     {
-        rv.prevote_term = -1;
+        rv.prevote = 0;
         rv.term = me->current_term;
     }
 
-    rv.term = me->current_term;
     rv.last_log_idx = raft_get_current_idx(me_);
     rv.last_log_term = raft_get_last_log_term(me_);
     rv.candidate_id = raft_get_nodeid(me_);
@@ -1585,7 +1584,7 @@ int raft_begin_load_snapshot(
     }
 
     raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
-    me->leader_id = RAFT_UNKNOWN_NODE_ID;
+    me->leader_id = RAFT_NODE_ID_NONE;
 
     me->log_impl->reset(me->log, last_included_index + 1, last_included_term);
 
