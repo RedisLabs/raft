@@ -222,12 +222,25 @@ def raft_notify_membership_event(raft, udata, node, ety, event_type):
     return ffi.from_handle(udata).notify_membership_event(node, ety, event_type)
 
 
-def get_voting_node_ids():
+def find_leader():
+    max_term = -1
+    leader = None
+    for s in net.servers:
+        if lib.raft_is_leader(s.raft):
+            term = lib.raft_get_current_term(s.raft)
+            if term > max_term:
+                max_term = term
+                leader = s
+
+    return leader
+
+def get_voting_node_ids(leader):
     voting_nodes_ids = []
+
     for i in range(net.server_id + 1):
         if i == 0:
             continue
-        node = lib.raft_get_node(net.leader.raft, i)
+        node = lib.raft_get_node(leader.raft, i)
         if node == ffi.NULL:
             continue
         if lib.raft_node_is_voting(node) != 0:
@@ -237,7 +250,12 @@ def get_voting_node_ids():
 
 
 def verify_read(arg):
-    voter_ids = get_voting_node_ids()
+    leader = find_leader()
+    if leader is None:
+        logger.error("failed to find leader")
+        os._exit(-1)
+
+    voter_ids = get_voting_node_ids(leader)
     num_nodes = len(voter_ids)
 
     # primary verification logic.  we always need to count more than the required, looking to see that for voters,
@@ -245,15 +263,11 @@ def verify_read(arg):
     required = int(num_nodes / 2) + 1
     count = 0
 
-    leader_id = -1
     for i in voter_ids:
-        if lib.raft_is_leader(net.servers[i-1].raft):
+        if lib.raft_is_leader(net.servers[i-1].raft) == 1:
             leader_id = i
-    if leader_id == -1:
-        logger.error("didn't find leader server")
-        os._exit(-1)
 
-    leader_term = lib.raft_get_current_term(net.servers[leader_id-1].raft)
+    leader_term = lib.raft_get_current_term(net.servers[leader.id-1].raft)
 
     for i in voter_ids:
         if lib.raft_is_leader(net.servers[i-1].raft):
@@ -416,9 +430,10 @@ class Network(object):
             self.diagnostic_info()
             sys.exit(1)
 
-        if self.leader and self.last_seen_read_queue_msg_id + 5000 < lib.raft_get_msg_id(self.leader.raft):
+        leader = find_leader()
+        if leader and self.last_seen_read_queue_msg_id + 5000 < lib.raft_get_msg_id(self.servers[leader.id - 1].raft):
             logger.error("deadlock detected in handling reads: last seen read queue msg_id {0} current at {1}, iter: {2}\n".format(
-                self.last_seen_read_queue_msg_id, lib.raft_get_msg_id(self.leader.raft), self.iteration,
+                self.last_seen_read_queue_msg_id, lib.raft_get_msg_id(leader.raft), self.iteration,
             ))
             self.diagnostic_info()
             sys.exit(1)
