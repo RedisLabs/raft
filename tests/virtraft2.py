@@ -760,7 +760,7 @@ class RaftServer(object):
         self.raft = lib.raft_new()
         self.udata = ffi.new_handle(self)
         self.removed = False
-        self.connected = True
+        self.old_status = ""
 
         network.add_server(self)
 
@@ -804,9 +804,10 @@ class RaftServer(object):
         #     self,
         #     connectstatus2str(self.connection_status),
         #     connectstatus2str(new_status)))
+        if new_status == NODE_DISCONNECTING and self.old_status != '':
+            self.old_status = self.connection_status
+
         self.connection_status = new_status
-        if self.connection_status == NODE_CONNECTED:
-            self.connected = True
 
     def debug_log(self):
         first_idx = lib.raft_get_snapshot_last_idx(self.raft)
@@ -1178,10 +1179,8 @@ class RaftServer(object):
             server = self.network.id2server(change.node_id)
 
             if ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
-                if server.connected:
-                    server.set_connection_status(NODE_CONNECTED)
-                else:
-                    server.set_connection_status(NODE_CONNECTING)
+                if server.old_status != "":
+                    server.set_connection_status(self.old_status)
             elif ety.type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE:
                 logger.error("POP disconnect {} {}".format(self, ety_idx))
                 server.set_connection_status(NODE_DISCONNECTED)
@@ -1217,6 +1216,15 @@ class RaftServer(object):
             else:
                 node = lib.raft_get_node(self.raft, node_id)
                 lib.raft_node_set_udata(node, server.udata)
+        elif event_type == lib.RAFT_MEMBERSHIP_REMOVE:
+            node_id = lib.raft_node_get_id(node)
+            try:
+                server = self.network.id2server(node_id)
+                server.set_connection_status(NODE_DISCONNECTED)
+            except ServerDoesNotExist:
+                pass
+
+
 
     def debug_statistic_keys(self):
         return ["node", "state", "leader", "status", "removed", "current", "last_log_term", "term", "committed", "applied",
