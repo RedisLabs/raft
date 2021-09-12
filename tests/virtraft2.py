@@ -238,13 +238,11 @@ def find_leader():
     return leader
 
 
-def get_voting_node_ids(leader):
+def get_voting_node_ids(server):
     voting_nodes_ids = []
 
-    for i in range(net.server_id + 1):
-        if i == 0:
-            continue
-        node = lib.raft_get_node(leader.raft, i)
+    for i in range(1, net.server_id + 1):
+        node = lib.raft_get_node(server.raft, i)
         if node == ffi.NULL:
             continue
         if lib.raft_node_is_voting(node) != 0:
@@ -762,6 +760,7 @@ class RaftServer(object):
         self.raft = lib.raft_new()
         self.udata = ffi.new_handle(self)
         self.removed = False
+        self.connected = True
 
         network.add_server(self)
 
@@ -806,6 +805,8 @@ class RaftServer(object):
         #     connectstatus2str(self.connection_status),
         #     connectstatus2str(new_status)))
         self.connection_status = new_status
+        if self.connection_status == NODE_CONNECTED:
+            self.connected = True
 
     def debug_log(self):
         first_idx = lib.raft_get_snapshot_last_idx(self.raft)
@@ -1177,8 +1178,10 @@ class RaftServer(object):
             server = self.network.id2server(change.node_id)
 
             if ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
-                pass
-
+                if server.connected:
+                    server.set_connection_status(NODE_CONNECTED)
+                else:
+                    server.set_connection_status(NODE_CONNECTING)
             elif ety.type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE:
                 logger.error("POP disconnect {} {}".format(self, ety_idx))
                 server.set_connection_status(NODE_DISCONNECTED)
@@ -1216,8 +1219,8 @@ class RaftServer(object):
                 lib.raft_node_set_udata(node, server.udata)
 
     def debug_statistic_keys(self):
-        return ["node", "state", "status", "removed", "current", "last_log_term", "term", "committed", "applied",
-                "log_count", "#peers", "#voters", "cfg_change", "snapshot", "partitioned", "leader"]
+        return ["node", "state", "leader", "status", "removed", "current", "last_log_term", "term", "committed", "applied",
+                "log_count", "#peers", "#voters", "cfg_change", "snapshot", "partitioned", "voters"]
 
     def debug_statistics(self):
         partitioned_from = []
@@ -1229,6 +1232,7 @@ class RaftServer(object):
             "node": lib.raft_get_nodeid(self.raft),
             "state": state2str(lib.raft_get_state(self.raft)),
             "current": lib.raft_get_current_idx(self.raft),
+            "leader": lib.raft_get_leader_id(self.raft),
             "last_log_term": lib.raft_get_last_log_term(self.raft),
             "term": lib.raft_get_current_term(self.raft),
             "committed": lib.raft_get_commit_idx(self.raft),
@@ -1241,7 +1245,7 @@ class RaftServer(object):
             "snapshot": lib.raft_get_snapshot_last_idx(self.raft),
             "removed": getattr(self, 'removed', False),
             "partitioned": partitioned_from,
-            "leader": lib.raft_get_leader_id(self.raft),
+            "voters": get_voting_node_ids(self),
         }
 
 
