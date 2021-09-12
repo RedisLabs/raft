@@ -234,6 +234,7 @@ def find_leader():
 
     return leader
 
+
 def get_voting_node_ids(leader):
     voting_nodes_ids = []
 
