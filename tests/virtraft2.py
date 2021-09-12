@@ -263,14 +263,10 @@ def verify_read(arg):
     required = int(num_nodes / 2) + 1
     count = 0
 
-    for i in voter_ids:
-        if lib.raft_is_leader(net.servers[i-1].raft) == 1:
-            leader_id = i
-
     leader_term = lib.raft_get_current_term(net.servers[leader.id-1].raft)
 
     for i in voter_ids:
-        if lib.raft_is_leader(net.servers[i-1].raft):
+        if net.servers[i-1] == leader:
             count += 1
             continue
 
