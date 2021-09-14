@@ -4021,7 +4021,7 @@ void TestRaft_targeted_node_becomes_candidate_when_before_real_timeout_occurs(Cu
     raft_periodic(r, 1);
 
     /* is a candidate now */
-    CuAssertTrue(tc, 1 == raft_is_candidate(r));
+    CuAssertTrue(tc, 1 == raft_is_precandidate(r));
 }
 
 void quorum_msg_id_correctness_cb(void* arg, int can_read)

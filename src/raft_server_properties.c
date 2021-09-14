@@ -299,7 +299,7 @@ int raft_set_transfer_leader(raft_server_t* me_, raft_node_id_t node_id)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
 
-    if (me->transfer_leader_node != 0) {
+    if (me->node_transferring_leader_to  != 0) {
         return RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS;
     }
 
@@ -313,7 +313,7 @@ int raft_set_transfer_leader(raft_server_t* me_, raft_node_id_t node_id)
         me->cb.send_timeoutnow(me_, target);
     }
 
-    me->transfer_leader_node = node_id;
+    me->node_transferring_leader_to = node_id;
     me->transfer_leader_time = me->election_timeout;
 
     return 0;
