@@ -31,7 +31,7 @@ static void __LOG_APPEND_ENTRIES_SEQ_ID(void *l, int count, int id, raft_term_t 
     }
 }
 
-static int __get_node_id(
+static raft_node_id_t __get_node_id(
     raft_server_t* raft,
     void *udata,
     raft_entry_t *ety,

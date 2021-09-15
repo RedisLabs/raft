@@ -70,7 +70,7 @@ static int __raft_send_appendentries(raft_server_t* raft,
     return 0;
 }
 
-static int __raft_get_node_id(raft_server_t* raft,
+static raft_node_id_t __raft_get_node_id(raft_server_t* raft,
         void *udata,
         raft_entry_t *entry,
         raft_index_t entry_idx)

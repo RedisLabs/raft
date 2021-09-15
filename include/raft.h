@@ -366,7 +366,7 @@ typedef int (
  * @param[in] entry_idx The entries index in the log
 *  @return the node ID of the node
  * */
-typedef int (
+typedef raft_node_id_t (
 *func_get_node_id_f
 )   (
     raft_server_t* raft,

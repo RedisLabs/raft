@@ -11,7 +11,7 @@
 #include "raft.h"
 #include "helpers.h"
 
-static int __get_node_id(
+static raft_node_id_t __get_node_id(
     raft_server_t* raft,
     void *udata,
     raft_entry_t *ety,
