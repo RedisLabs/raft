@@ -253,12 +253,13 @@ def get_voting_node_ids(leader):
 
 
 def verify_read(arg):
-    leader = find_leader()
-    if leader is None:
-        logger.error("failed to find leader")
-        os._exit(-1)
+#    logger.error(f"verify_read: {arg}")
+    node_id = int(arg / 10000000)
+    arg = arg % 10000000
+    leader = net.servers[node_id - 1]
 
     voter_ids = get_voting_node_ids(leader)
+#    logger.error(f"voters = {voter_ids}")
     num_nodes = len(voter_ids)
 
     # primary verification logic.  we always need to count more than the required, looking to see that for voters,
@@ -266,16 +267,15 @@ def verify_read(arg):
     required = int(num_nodes / 2) + 1
     count = 0
 
-    leader_term = lib.raft_get_current_term(net.servers[leader.id-1].raft)
-
     for i in voter_ids:
         if net.servers[i-1] == leader:
             count += 1
             continue
 
-        msg_id = lib.raft_get_max_seen_msg_id(net.servers[i-1].raft)
-        follower_term = lib.raft_get_current_term(net.servers[i-1].raft)
-        if msg_id >= arg and leader_term == follower_term:
+        node = lib.raft_get_node(net.servers[i-1].raft, leader.id)
+        msg_id = lib.raft_node_get_max_seen_msg_id(node)
+#        logger.error(f"msg_id seeen by node {i} = {msg_id}")
+        if msg_id >= arg:
             count += 1
 
     if count < required:
@@ -367,9 +367,10 @@ class Network(object):
     def push_read(self):
         for sv in self.active_servers:
             if lib.raft_is_leader(sv.raft):
-                logger.debug(f"adding a read_request to {sv.id}")
                 msg_id = lib.raft_get_msg_id(sv.raft) + 1
-                lib.raft_queue_read_request(sv.raft, sv.handle_read_queue, ffi.cast("void *", msg_id))
+                arg = sv.id * 10000000 + msg_id
+#                logger.error(f"adding a read_request to {sv.id} at {msg_id} = msg_id, arg = {arg}")
+                lib.raft_queue_read_request(sv.raft, sv.handle_read_queue, ffi.cast("void *", arg))
 
     def id2server(self, id):
         for server in self.servers:
@@ -1294,9 +1295,9 @@ if __name__ == '__main__':
     for i in range(0, int(args['--iterations'])):
         net.iteration += 1
         try:
-            net.push_read()
-            net.poll_messages()
             net.periodic()
+            net.poll_messages()
+            net.push_read()
             net.poll_messages()
         except:
             # for server in net.servers:
