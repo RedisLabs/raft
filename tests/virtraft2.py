@@ -20,7 +20,7 @@ Some chaos we generate:
 
 Usage:
   virtraft --servers SERVERS [-d RATE] [-D RATE] [-c RATE] [-C RATE] [-m RATE]
-                             [-P RATE] [-s SEED] [-i ITERS] [-p] [--tsv]
+                             [-P RATE] [-s SEED] [-i ITERS] [-p] [--tsv] [--rqm MULTI]
                              [-q] [-v] [-l LEVEL] [-j] [-L LOGFILE] [--duplex_partition]
   virtraft --version
   virtraft --help
@@ -41,6 +41,7 @@ Options:
   -i --iterations ITERS      Number of iterations before the simulation ends
                              [default: 1000]
   --tsv                      Output node status tab separated values at exit
+  --rqm MULTI                multiplier to use for node_id in read_queue test [default: 10000000000]
   -v --verbose               Show debug logs
   -j --json_output           JSON output for diagnostics
   -l --log_level LEVEL       Set log level
@@ -253,8 +254,8 @@ def get_voting_node_ids(leader):
 
 
 def verify_read(arg):
-    node_id = int(arg / 10000000)
-    arg = arg % 10000000
+    node_id = int(arg / net.rqm)
+    arg = arg % net.rqm
     leader = net.servers[node_id - 1]
 
     voter_ids = get_voting_node_ids(leader)
@@ -281,7 +282,7 @@ def verify_read(arg):
 
 
 def handle_read_queue(arg, can_read):
-    val = int(ffi.cast("int", arg))
+    val = int(ffi.cast("long", arg))
     if can_read != 0:
         verify_read(val)
         logger.debug(f"handling read_request {val}")
@@ -324,6 +325,7 @@ class Network(object):
         self.no_random_period = False
         self.duplex_partition = False
         self.last_seen_read_queue_msg_id = -1
+        self.rqm = 10000000000
 
         self.server_id = 0
 
@@ -365,7 +367,7 @@ class Network(object):
         for sv in self.active_servers:
             if lib.raft_is_leader(sv.raft):
                 msg_id = lib.raft_get_msg_id(sv.raft) + 1
-                arg = sv.id * 10000000 + msg_id
+                arg = sv.id * net.rqm + msg_id
                 lib.raft_queue_read_request(sv.raft, sv.handle_read_queue, ffi.cast("void *", arg))
 
     def id2server(self, id):
@@ -1277,6 +1279,7 @@ if __name__ == '__main__':
     net.partition_rate = int(args['--partition_rate'])
     net.no_random_period = 1 == int(args['--no_random_period'])
     net.duplex_partition = 1 == int(args['--duplex_partition'])
+    net.rqm = int(args['--rqm'])
 
     net.num_of_servers = int(args['--servers'])
 
