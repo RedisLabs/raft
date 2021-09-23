@@ -1269,7 +1269,7 @@ int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, long timeou
 /* attempt to abort the leadership transfer */
 void raft_reset_transfer_leader(raft_server_t* me_);
 
-/* get the targeted node_id if a leadership transfer is in progress, or 0 if not */
+/* get the targeted node_id if a leadership transfer is in progress, or RAFT_NODE_ID_NONE if not */
 raft_node_id_t raft_get_transfer_leader(raft_server_t* me_);
 
 /* cause this server to force an election on its next raft_periodic function call */
