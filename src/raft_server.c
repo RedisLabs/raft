@@ -103,6 +103,7 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     me->timeout_elapsed = 0;
     me->request_timeout = 200;
     me->election_timeout = 1000;
+    me->node_transferring_leader_to = RAFT_NODE_ID_NONE;
 
     raft_update_quorum_meta((raft_server_t*)me, me->msg_id);
 
@@ -382,8 +383,6 @@ int raft_become_leader(raft_server_t* me_)
     if (me->cb.notify_state_event)
         me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_LEADER);
 
-    raft_reset_transfer_leader(me_);
-
     raft_index_t next_idx = raft_get_current_idx(me_) + 1;
 
     if (raft_get_current_term(me_) > 1) {
@@ -458,8 +457,6 @@ int raft_become_candidate(raft_server_t* me_)
     if (me->cb.notify_state_event)
         me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_CANDIDATE);
 
-    raft_reset_transfer_leader(me_);
-
     int e = raft_set_current_term(me_, raft_get_current_term(me_) + 1);
     if (0 != e)
         return e;
@@ -493,8 +490,6 @@ void raft_become_follower(raft_server_t* me_)
 
     if (me->cb.notify_state_event)
         me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_FOLLOWER);
-
-    raft_reset_transfer_leader(me_);
 
     raft_set_state(me_, RAFT_STATE_FOLLOWER);
     raft_randomize_election_timeout(me_);
@@ -595,7 +590,7 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
             raft_update_quorum_meta(me_, quorum_id);
 	}
 
-        if (me->node_transferring_leader_to) {
+        if (me->node_transferring_leader_to != RAFT_NODE_ID_NONE) {
             me->transfer_leader_time -= msec_since_last_period;
             if (me->transfer_leader_time < 0) {
                 if (me->cb.notify_state_event)
@@ -1093,7 +1088,7 @@ int raft_recv_entry(raft_server_t* me_,
     if (!raft_is_leader(me_))
         return RAFT_ERR_NOT_LEADER;
 
-    if (raft_get_transfer_leader(me_))
+    if (raft_get_transfer_leader(me_) != RAFT_NODE_ID_NONE)
         return RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS;
 
     raft_log(me_, "received entry t:%ld id: %d idx: %ld",
@@ -1161,8 +1156,11 @@ int raft_send_requestvote(raft_server_t* me_, raft_node_t* node)
     rv.last_log_idx = raft_get_current_idx(me_);
     rv.last_log_term = raft_get_last_log_term(me_);
     rv.candidate_id = raft_get_nodeid(me_);
+    rv.transfer_leader = (me->node_transferring_leader_to != RAFT_NODE_ID_NONE);
+
     if (me->cb.send_requestvote)
         e = me->cb.send_requestvote(me_, me->udata, node, &rv);
+
     return e;
 }
 
@@ -1831,7 +1829,7 @@ int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, long timeou
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
 
-    if (me->node_transferring_leader_to != 0) {
+    if (me->node_transferring_leader_to != RAFT_NODE_ID_NONE) {
         return RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS;
     }
 

@@ -1275,10 +1275,4 @@ raft_node_id_t raft_get_transfer_leader(raft_server_t* me_);
 /* cause this server to force an election on its next raft_periodic function call */
 void raft_set_timeout_now(raft_server_t* me_);
 
-/* determine if we are going to force an election on the next raft_periodic function call */
-int raft_is_timeout_now(raft_server_t* me_);
-
-/* reset attempt at forcing an election on next raft_periodic function call */
-void raft_reset_timeout_now(raft_server_t* me_);
-
 #endif /* RAFT_H_ */
