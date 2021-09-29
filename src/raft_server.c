@@ -379,10 +379,6 @@ int raft_become_leader(raft_server_t* me_)
     int i;
 
     raft_log(me_, "becoming leader term:%ld", raft_get_current_term(me_));
-    if (me->cb.notify_state_event)
-        me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_LEADER);
-
-    raft_reset_transfer_leader(me_);
 
     raft_index_t next_idx = raft_get_current_idx(me_) + 1;
 
@@ -405,6 +401,11 @@ int raft_become_leader(raft_server_t* me_)
     raft_set_state(me_, RAFT_STATE_LEADER);
     raft_update_quorum_meta(me_, me->msg_id);
     me->timeout_elapsed = 0;
+
+    raft_reset_transfer_leader(me_, 0);
+
+    if (me->cb.notify_state_event)
+        me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_LEADER);
 
     for (i = 0; i < me->num_nodes; i++)
     {
@@ -456,8 +457,6 @@ int raft_become_candidate(raft_server_t* me_)
     if (me->cb.notify_state_event)
         me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_CANDIDATE);
 
-    raft_reset_transfer_leader(me_);
-
     int e = raft_set_current_term(me_, raft_get_current_term(me_) + 1);
     if (0 != e)
         return e;
@@ -489,8 +488,6 @@ void raft_become_follower(raft_server_t* me_)
     raft_log(me_, "becoming follower");
     if (me->cb.notify_state_event)
         me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_FOLLOWER);
-
-    raft_reset_transfer_leader(me_);
 
     raft_set_state(me_, RAFT_STATE_FOLLOWER);
     raft_randomize_election_timeout(me_);
@@ -557,6 +554,14 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
         }
     }
 
+    /* needs to be outside state check, as can become a followr and still timeout */
+    if (me->node_transferring_leader_to != RAFT_NODE_ID_NONE) {
+        me->transfer_leader_time -= msec_since_last_period;
+        if (me->transfer_leader_time < 0) {
+            raft_reset_transfer_leader(me_, 1);
+        }
+    }
+
     if (me->state == RAFT_STATE_LEADER)
     {
         if (me->request_timeout <= me->timeout_elapsed)
@@ -589,16 +594,7 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
             }
 
             raft_update_quorum_meta(me_, quorum_id);
-	}
-
-        if (me->node_transferring_leader_to != RAFT_NODE_ID_NONE) {
-            me->transfer_leader_time -= msec_since_last_period;
-            if (me->transfer_leader_time < 0) {
-                if (me->cb.notify_state_event)
-                    me->cb.notify_state_event(me_, raft_get_udata(me_), RAFT_STATE_LEADERSHIP_TRANSFER_FAILED);
-                raft_reset_transfer_leader(me_);
-            }
-        }
+	    }
     }
     else if ((me->election_timeout_rand <= me->timeout_elapsed || me->timeout_now) &&
         /* Don't become the leader when building snapshots or bad things will
@@ -806,6 +802,7 @@ int raft_recv_appendentries(
 
     /* update current leader because ae->term is up to date */
     me->leader_id = ae->leader_id;
+    raft_reset_transfer_leader(me_, 0);
     me->timeout_elapsed = 0;
 
     /* Not the first appendentries we've received */
@@ -1852,4 +1849,28 @@ int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, long timeou
     }
 
     return 0;
+}
+
+/* Stop trying to transfer leader to a targeted node
+ * internally used because either we have timed out our attempt or because we are no longer the leader
+ * possible to be used by a client as well.
+ */
+void raft_reset_transfer_leader(raft_server_t* me_, int timed_out)
+{
+    raft_server_private_t* me = (raft_server_private_t*) me_;
+
+    if (me->node_transferring_leader_to != RAFT_NODE_ID_NONE) {
+        if (me->cb.notify_transfer_event) {
+            raft_transfer_state_e state = RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER;
+            if (me->node_transferring_leader_to != me->leader_id) {
+                state = RAFT_STATE_LEADERSHIP_TRANSFER_UNEXPECTED_LEADER;
+            } else if (timed_out) {
+                state = RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT;
+            }
+            me->cb.notify_transfer_event(me_, raft_get_udata(me_), state);
+        }
+
+        me->node_transferring_leader_to = RAFT_NODE_ID_NONE;
+        me->transfer_leader_time = 0;
+    }
 }

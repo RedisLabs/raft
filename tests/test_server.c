@@ -4113,7 +4113,7 @@ void TestRaft_callback_timeoutnow_at_set_if_up_to_date(CuTest *tc)
     raft_transfer_leader(r, 2, 0);
     CuAssertTrue(tc, 0 == timeoutnow_sent);
 
-    raft_reset_transfer_leader(r);
+    raft_reset_transfer_leader(r, 0);
 
     /* should trigger callback */
     raft_node_set_match_idx(raft_get_node(r, 2), 2);
@@ -4432,6 +4432,88 @@ void TestRaft_verify_append_entries_fields_are_set(CuTest * tc)
     raft_send_appendentries_all(r);
 }
 
+void cb_notify_transfer_event(raft_server_t *raft, void *udata, raft_transfer_state_e state)
+{
+    raft_transfer_state_e * data = udata;
+    *data = state;
+}
+
+void Test_reset_transfer_leader(CuTest *tc)
+{
+    raft_transfer_state_e state;
+    raft_cbs_t funcs = {
+            .notify_transfer_event = cb_notify_transfer_event,
+    };
+    raft_server_t *r = raft_new();
+    raft_set_state(r, RAFT_STATE_LEADER);
+    raft_server_private_t * me = (raft_server_private_t *) r;
+
+    raft_set_callbacks(r, &funcs, &state);
+
+    raft_add_node(r, NULL, 100, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_transfer_leader(r, 2, 0);
+    raft_reset_transfer_leader(r, 0);
+    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_UNEXPECTED_LEADER, state);
+
+    raft_transfer_leader(r, 2, 0);
+    me->leader_id = 2;
+    raft_reset_transfer_leader(r, 0);
+    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER, state);
+
+    /* tests timeout in general, so don't need a separate test for it */
+    raft_transfer_leader(r, 2, 1);
+    raft_periodic(r, 2);
+    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT, state);
+}
+
+void Test_transfer_leader_success(CuTest *tc)
+{
+    raft_transfer_state_e state = RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT;
+    raft_cbs_t funcs = {
+            .notify_transfer_event = cb_notify_transfer_event,
+    };
+    raft_server_t *r = raft_new();
+    raft_set_callbacks(r, &funcs, &state);
+
+    raft_add_node(r, NULL, 100, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_transfer_leader(r, 2, 0);
+
+    msg_appendentries_t ae = { 0 };
+    msg_appendentries_response_t aer;
+    ae.term = 1;
+    ae.leader_id = 2;
+
+    raft_recv_appendentries(r, raft_get_node(r, 2), &ae, &aer);
+    CuAssertTrue(tc, 1 == aer.success);
+    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER, state);
+}
+
+void Test_transfer_leader_unexpected(CuTest *tc)
+{
+    raft_transfer_state_e state = RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT;
+    raft_cbs_t funcs = {
+            .notify_transfer_event = cb_notify_transfer_event,
+    };
+    raft_server_t *r = raft_new();
+    raft_set_callbacks(r, &funcs, &state);
+
+    raft_add_node(r, NULL, 100, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_add_node(r, NULL, 3, 0);
+    raft_transfer_leader(r, 3, 0);
+
+    msg_appendentries_t ae = { 0 };
+    msg_appendentries_response_t aer;
+    ae.term = 1;
+    ae.leader_id = 2;
+
+    raft_recv_appendentries(r, raft_get_node(r, 2), &ae, &aer);
+    CuAssertTrue(tc, 1 == aer.success);
+    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_UNEXPECTED_LEADER, state);
+}
+
 int main(void)
 {
     CuString *output = CuStringNew();
@@ -4571,7 +4653,9 @@ int main(void)
     SUITE_ADD_TEST(suite, TestRaft_targeted_node_becomes_candidate_when_before_real_timeout_occurs);
     SUITE_ADD_TEST(suite, TestRaft_callback_timeoutnow_at_set_if_up_to_date);
     SUITE_ADD_TEST(suite, TestRaft_callback_timeoutnow_at_send_appendentries_response_if_up_to_date);
-
+    SUITE_ADD_TEST(suite, Test_reset_transfer_leader);
+    SUITE_ADD_TEST(suite, Test_transfer_leader_success);
+    SUITE_ADD_TEST(suite, Test_transfer_leader_unexpected);
     CuSuiteRun(suite);
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);
