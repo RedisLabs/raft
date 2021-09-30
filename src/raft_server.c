@@ -1864,7 +1864,8 @@ void raft_reset_transfer_leader(raft_server_t* me_, int timed_out)
             raft_transfer_state_e state = RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER;
             if (me->node_transferring_leader_to != me->leader_id) {
                 state = RAFT_STATE_LEADERSHIP_TRANSFER_UNEXPECTED_LEADER;
-            } else if (timed_out) {
+            }
+            if (timed_out) {
                 state = RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT;
             }
             me->cb.notify_transfer_event(me_, raft_get_udata(me_), state);

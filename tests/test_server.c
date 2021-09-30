@@ -4462,6 +4462,7 @@ void Test_reset_transfer_leader(CuTest *tc)
     CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER, state);
 
     /* tests timeout in general, so don't need a separate test for it */
+    me->leader_id = 1;
     raft_transfer_leader(r, 2, 1);
     raft_periodic(r, 2);
     CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT, state);
