@@ -118,8 +118,10 @@ typedef struct {
 
     raft_node_id_t node_transferring_leader_to; // the node we are targeting for leadership
     long transfer_leader_time; // how long we should wait for leadership transfer to take, before aborting
+    int sent_timeout_now; // if we've already sent a leadership transfer signal
 
     int timeout_now;
+    int timed_out;
 } raft_server_private_t;
 
 int raft_election_start(raft_server_t* me);
