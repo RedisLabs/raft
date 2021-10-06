@@ -983,6 +983,7 @@ void TestRaft_server_recv_requestvote_ignore_if_master_is_fresh(CuTest * tc)
     CuAssertTrue(tc, 1 == aer.success);
 
     msg_requestvote_t rv = {
+        .prevote = 1,
         .term = 2,
         .candidate_id = 3,
         .last_log_idx = 0,
@@ -3975,6 +3976,7 @@ void TestRaft_server_recv_requestvote_with_transfer_node(CuTest * tc)
 
     /* setup requestvote struct */
     msg_requestvote_t rv = {
+            .prevote = 1,
             .term = 2,
             .candidate_id = 2,
             .last_log_idx = 0,

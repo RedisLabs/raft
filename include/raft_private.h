@@ -121,7 +121,6 @@ typedef struct {
     int sent_timeout_now; // if we've already sent a leadership transfer signal
 
     int timeout_now;
-    int timed_out;
 } raft_server_private_t;
 
 int raft_election_start(raft_server_t* me);

@@ -305,5 +305,4 @@ void raft_set_timeout_now(raft_server_t* me_)
     raft_server_private_t* me = (raft_server_private_t*) me_;
 
     me->timeout_now = 1;
-    me->timed_out = 0;
 }

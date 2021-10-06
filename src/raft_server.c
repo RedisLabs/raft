@@ -597,17 +597,15 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
             raft_update_quorum_meta(me_, quorum_id);
 	    }
     }
-    else if ((me->election_timeout_rand <= me->timeout_elapsed || (me->timeout_now && !me->timed_out)) &&
+    else if ((me->election_timeout_rand <= me->timeout_elapsed || me->timeout_now) &&
         /* Don't become the leader when building snapshots or bad things will
          * happen when we get a client request */
         !raft_snapshot_is_in_progress(me_))
     {
-        if (me->timeout_now) {
-            me->timed_out = 1;
-        }
         int e = raft_election_start(me_);
         if (0 != e)
             return e;
+        me->timeout_now = 0;
     }
 
     if (me->last_applied_idx < raft_get_commit_idx(me_) &&
@@ -940,8 +938,9 @@ int raft_recv_requestvote(raft_server_t* me_,
     r->request_term = vr->term;
     r->vote_granted = 0;
 
-    /* Reject request if we have a leader */
-    if (!vr->transfer_leader &&
+    /* Reject request if we have a leader, during prevote */
+    if (vr->prevote &&
+        !vr->transfer_leader &&
         me->leader_id != RAFT_NODE_ID_NONE &&
         me->leader_id != vr->candidate_id &&
         me->timeout_elapsed < me->election_timeout) {
