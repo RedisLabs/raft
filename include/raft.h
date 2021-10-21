@@ -653,6 +653,7 @@ typedef struct raft_log_impl
      *
      * @param[in] idx Index of first entry to fetch.
      * @param[in] entries_n Length of entries (max. entries to fetch).
+     * @param[in] soft_max soft limit in bytes (keep adding entries till over)
      * @param[out] entries An initialized array of raft_entry_t*.
      * @return
      *  Number of entries fetched;
@@ -663,7 +664,7 @@ typedef struct raft_log_impl
      *    the returned entries.
      */
     int (*get_batch) (void *log, raft_index_t idx, int entries_n,
-            raft_entry_t **entries);
+            size_t soft_max, raft_entry_t **entries);
 
     /** Get first entry's index.
      * @return

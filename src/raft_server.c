@@ -1257,8 +1257,11 @@ raft_entry_t** raft_get_entries_from_idx(raft_server_t* me_, raft_index_t idx, i
 
     raft_server_private_t* me = (raft_server_private_t*)me_;
     raft_index_t size = raft_get_current_idx(me_) - idx + 1;
+    if (size > 1024) {
+        size = 1024;
+    }
     raft_entry_t **e = raft_malloc(size * sizeof(raft_entry_t*));
-    int n = me->log_impl->get_batch(me->log, idx, (int) size, e);
+    int n = me->log_impl->get_batch(me->log, idx, (int) size, 1024*1024, e);
 
     if (n < 1) {
         raft_free(e);
