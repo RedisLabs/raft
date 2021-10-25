@@ -105,6 +105,12 @@ typedef struct {
     raft_index_t saved_snapshot_last_idx;
     raft_term_t saved_snapshot_last_term;
 
+    /* Last included index of the incoming snapshot */
+    raft_index_t snapshot_recv_idx;
+
+    /* Current offset of the incoming snapshot */
+    raft_size_t snapshot_recv_offset;
+
     /* Read requests that await a network round trip to confirm
      * we're still the leader.
      */
@@ -187,5 +193,9 @@ raft_msg_id_t raft_get_msg_id(raft_server_t* me_);
 
 /* attempt to abort the leadership transfer */
 void raft_reset_transfer_leader(raft_server_t* me_, int timed_out);
+
+raft_size_t raft_node_get_snapshot_offset(raft_node_t *me_);
+
+void raft_node_set_snapshot_offset(raft_node_t *me_, raft_size_t snapshot_offset);
 
 #endif /* RAFT_PRIVATE_H_ */

@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
 #include "raft.h"
 #include "raft_private.h"
@@ -90,6 +91,20 @@ void raft_update_quorum_meta(raft_server_t* me_, raft_msg_id_t id)
     // Make sure that timeout is greater than 'randomized election timeout'
     me->quorum_timeout = me->election_timeout * 2;
     me->last_acked_msg_id = id;
+}
+
+int raft_clear_incoming_snapshot(raft_server_t* me_, raft_index_t new_idx)
+{
+    int e = 0;
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+
+    if (me->snapshot_recv_idx != 0)
+        e = me->cb.clear_snapshot(me_, me->udata);
+
+    me->snapshot_recv_idx = new_idx;
+    me->snapshot_recv_offset = 0;
+
+    return e;
 }
 
 raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
@@ -373,6 +388,22 @@ int raft_election_start(raft_server_t* me_)
     return raft_become_precandidate(me_);
 }
 
+void raft_accept_leader(raft_server_t* me_, raft_node_id_t leader)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+
+    if (!raft_is_follower(me_)) {
+        raft_become_follower(me_);
+    }
+
+    if (me->leader_id != leader) {
+        raft_clear_incoming_snapshot(me_, 0);
+    }
+
+    me->timeout_elapsed = 0;
+    me->leader_id = leader;
+}
+
 int raft_become_leader(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
@@ -400,6 +431,7 @@ int raft_become_leader(raft_server_t* me_)
 
     raft_set_state(me_, RAFT_STATE_LEADER);
     raft_update_quorum_meta(me_, me->msg_id);
+    raft_clear_incoming_snapshot(me_, 0);
     me->timeout_elapsed = 0;
 
     raft_reset_transfer_leader(me_, 0);
@@ -492,6 +524,7 @@ void raft_become_follower(raft_server_t* me_)
 
     raft_set_state(me_, RAFT_STATE_FOLLOWER);
     raft_randomize_election_timeout(me_);
+    raft_clear_incoming_snapshot(me_, 0);
     me->timeout_elapsed = 0;
     me->leader_id = RAFT_NODE_ID_NONE;
 }
@@ -802,9 +835,8 @@ int raft_recv_appendentries(
     }
 
     /* update current leader because ae->term is up to date */
-    me->leader_id = ae->leader_id;
+    raft_accept_leader(me_, ae->leader_id);
     raft_reset_transfer_leader(me_, 0);
-    me->timeout_elapsed = 0;
 
     /* Not the first appendentries we've received */
     /* NOTE: the log starts at 1 */
@@ -1275,6 +1307,199 @@ raft_entry_t** raft_get_entries_from_idx(raft_server_t* me_, raft_index_t idx, i
     return e;
 }
 
+int raft_send_snapshot(raft_server_t* me_, raft_node_t* node)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+
+    if (!me->cb.send_snapshot)
+        return 0;
+
+    uint64_t offset = raft_node_get_snapshot_offset(node);
+
+    while (true) {
+        raft_snapshot_chunk_t chunk = {0};
+
+        int e = me->cb.get_snapshot_chunk(me_, me->udata, node, offset, &chunk);
+        if (e != 0) {
+            return (e != RAFT_ERR_DONE) ? e : 0;
+        }
+
+        msg_snapshot_t msg = {
+            .leader_id = raft_get_nodeid(me_),
+            .snapshot_index = me->snapshot_last_idx,
+            .snapshot_term = me->snapshot_last_term,
+            .term = me->current_term,
+            .msg_id = ++me->msg_id,
+            .offset = offset,
+            .len = chunk.len,
+            .last_chunk = chunk.last_chunk,
+            .data = chunk.data
+        };
+
+        e = me->cb.send_snapshot(me_, me->udata, node, &msg);
+        if (e != 0) {
+            return e;
+        }
+
+        offset += chunk.len;
+    }
+
+    return 0;
+}
+
+int raft_recv_snapshot(raft_server_t* me_,
+                       raft_node_t* node,
+                       msg_snapshot_t *req,
+                       msg_snapshot_response_t *resp)
+{
+    int e = 0;
+
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+
+    raft_log_node(me_, raft_node_get_id(node),
+                  "recv snapshot: ci:%lu comi:%lu t:%lu li:%d mi:%lu si:%lu st:%lu o:%lu, lc:%d, len:%lu",
+                  raft_get_current_idx(me_),
+                  raft_get_commit_idx(me_),
+                  req->term,
+                  req->leader_id,
+                  req->msg_id,
+                  req->snapshot_index,
+                  req->snapshot_term,
+                  req->offset,
+                  req->last_chunk,
+                  req->len);
+
+    resp->msg_id = req->msg_id;
+    resp->offset = req->len + req->offset;
+    resp->last_chunk = req->last_chunk;
+    resp->success = 0;
+
+    if (raft_is_candidate(me_) && me->current_term == req->term)
+    {
+        raft_become_follower(me_);
+    }
+    else if (me->current_term < req->term)
+    {
+        e = raft_set_current_term(me_, req->term);
+        if (0 != e)
+            goto out;
+
+        raft_become_follower(me_);
+    }
+    else if (req->term < me->current_term)
+    {
+        goto out;
+    }
+
+    if (node != NULL) {
+        raft_node_update_max_seen_msg_id(node, req->msg_id);
+    }
+
+    raft_accept_leader(me_, req->leader_id);
+    raft_reset_transfer_leader(me_, 0);
+
+    /** If we already have this snapshot, inform the leader. */
+    if (req->snapshot_index <= me->snapshot_last_idx) {
+        /** Set response as if it is the last chunk to tell leader that we have
+         * the snapshot */
+        resp->last_chunk = 1;
+        goto success;
+    }
+
+    /** In case leader takes another snapshot, it may start sending a more
+     * recent snapshot. In that case, we dismiss existing snapshot file. */
+    if (me->snapshot_recv_idx != req->snapshot_index) {
+        e = raft_clear_incoming_snapshot(me_, req->snapshot_index);
+        if (e != 0) {
+            goto out;
+        }
+    }
+
+    /** Reject message if this is not our current offset. */
+    if (me->snapshot_recv_offset != req->offset) {
+        resp->offset = me->snapshot_recv_offset;
+        goto out;
+    }
+
+    raft_snapshot_chunk_t chunk = {
+        .len = req->len,
+        .data = req->data,
+        .last_chunk = req->last_chunk
+    };
+
+    e = me->cb.store_snapshot_chunk(me_, me->udata,
+                                    req->snapshot_index, req->offset, &chunk);
+    if (e != 0) {
+        goto out;
+    }
+
+    me->snapshot_recv_offset = req->offset + req->len;
+
+    if (req->last_chunk) {
+        e = me->cb.load_snapshot(me_, me->udata,
+                                 req->snapshot_index, req->snapshot_term);
+        if (e != 0) {
+            goto out;
+        }
+    }
+
+success:
+    resp->success = 1;
+out:
+    resp->term = me->current_term;
+
+    return e;
+}
+
+int raft_recv_snapshot_response(raft_server_t* me_,
+                                raft_node_t* node,
+                                msg_snapshot_response_t *r)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+
+    raft_log_node(me_, raft_node_get_id(node),
+                  "recv snapshot response: ci:%lu comi:%lu mi:%lu t:%ld o:%lu s:%d lc:%d",
+                  raft_get_current_idx(me_),
+                  raft_get_commit_idx(me_),
+                  r->msg_id,
+                  r->term,
+                  r->offset,
+                  r->success,
+                  r->last_chunk);
+
+    if (!raft_is_leader(me_))
+        return RAFT_ERR_NOT_LEADER;
+
+    if (raft_node_get_last_acked_msgid(node) > r->msg_id) {
+        return 0;
+    }
+
+    if (me->current_term < r->term)
+    {
+        int e = raft_set_current_term(me_, r->term);
+        if (0 != e)
+            return e;
+
+        raft_become_follower(me_);
+        return 0;
+    }
+    else if (me->current_term != r->term)
+    {
+        return 0;
+    }
+
+    raft_node_set_last_ack(node, r->msg_id, r->term);
+    raft_node_set_snapshot_offset(node, r->offset);
+
+    if (r->success && r->last_chunk) {
+        raft_node_set_snapshot_offset(node, 0);
+        raft_node_set_next_idx(node, me->snapshot_last_idx + 1);
+        return 0;
+    }
+
+    return raft_send_snapshot(me_, node);
+}
+
 int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
@@ -1291,10 +1516,7 @@ int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
     /* figure out if the client needs a snapshot sent */
     if (me->snapshot_last_idx > 0 && next_idx <= me->snapshot_last_idx)
     {
-        if (me->cb.send_snapshot)
-            me->cb.send_snapshot(me_, me->udata, node);
-
-        return RAFT_ERR_NEEDS_SNAPSHOT;
+        return raft_send_snapshot(me_, node);
     }
 
     if (!me->cb.send_appendentries)
@@ -1587,8 +1809,7 @@ int raft_end_snapshot(raft_server_t *me_)
         /* figure out if the client needs a snapshot sent */
         if (me->snapshot_last_idx > 0 && next_idx <= me->snapshot_last_idx)
         {
-            if (me->cb.send_snapshot)
-                me->cb.send_snapshot(me_, me->udata, node);
+            raft_send_snapshot(me_, node);
         }
     }
 
