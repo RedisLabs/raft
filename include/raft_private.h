@@ -188,4 +188,8 @@ raft_msg_id_t raft_get_msg_id(raft_server_t* me_);
 /* attempt to abort the leadership transfer */
 void raft_reset_transfer_leader(raft_server_t* me_, int timed_out);
 
+int raft_recv_appendentries_response_internal(raft_server_t* me_,
+                                              raft_node_t* node,
+                                              msg_appendentries_response_t* r);
+
 #endif /* RAFT_PRIVATE_H_ */
