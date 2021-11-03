@@ -1164,6 +1164,11 @@ int raft_append_entry(raft_server_t* me_, raft_entry_t* ety)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
+    /* Don't allow inserting entries that are > our term.
+     * term needs to be updated first
+     */
+    assert(me->current_term >= ety->term);
+
     int e = me->log_impl->append(me->log, ety);
     if (e < 0)
         return e;
@@ -1336,6 +1341,9 @@ int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
               ae.n_entries);
 
     int res = me->cb.send_appendentries(me_, me->udata, node, &ae);
+    if (!res) {
+        raft_node_set_next_idx(node, next_idx + ae.n_entries);
+    }
     raft_entry_release_list(ae.entries, ae.n_entries);
     raft_free(ae.entries);
 
