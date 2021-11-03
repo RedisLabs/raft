@@ -632,17 +632,17 @@ int raft_voting_change_is_in_progress(raft_server_t* me_)
     return ((raft_server_private_t*)me_)->voting_cfg_change_log_idx != -1;
 }
 
-int raft_recv_appendentries_response_internal(raft_server_t* me_,
-                                              raft_node_t* node,
-                                              msg_appendentries_response_t* r)
+int raft_recv_appendentries_response(raft_server_t* me_,
+                                     raft_node_t* node,
+                                     msg_appendentries_response_t* r)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
     raft_log_node(me_, raft_node_get_id(node),
-                  "received appendentries response %s ci:%ld rci:%ld msgid:%lu",
-                  r->success == 1 ? "SUCCESS" : "fail",
-                  raft_get_current_idx(me_),
-                  r->current_idx, r->msg_id);
+          "received appendentries response %s ci:%ld rci:%ld msgid:%lu",
+          r->success == 1 ? "SUCCESS" : "fail",
+          raft_get_current_idx(me_),
+          r->current_idx, r->msg_id);
 
     if (!node)
         return -1;
@@ -686,7 +686,8 @@ int raft_recv_appendentries_response_internal(raft_server_t* me_,
         raft_node_set_next_idx(node, next);
 
         /* retry */
-        return RAFT_ERR_WANTS_SEND_APPENDENTRIES;
+        raft_send_appendentries(me_, node);
+        return 0;
     }
 
     if (me->cb.send_timeoutnow && raft_get_transfer_leader(me_) == raft_node_get_id(node) && !me->sent_timeout_now
@@ -702,7 +703,7 @@ int raft_recv_appendentries_response_internal(raft_server_t* me_,
         raft_node_is_addition_committed(node) &&
         me->cb.node_has_sufficient_logs &&
         0 == raft_node_has_sufficient_logs(node)
-            )
+        )
     {
         int e = me->cb.node_has_sufficient_logs(me_, me->udata, node);
         if (0 == e)
@@ -745,24 +746,11 @@ int raft_recv_appendentries_response_internal(raft_server_t* me_,
 
     /* Aggressively send remaining entries */
     if (raft_node_get_next_idx(node) <= raft_get_current_idx(me_))
-        return RAFT_ERR_WANTS_SEND_APPENDENTRIES;
+        raft_send_appendentries(me_, node);
+
+    /* periodic applies committed entries lazily */
 
     return 0;
-}
-
-int raft_recv_appendentries_response(raft_server_t* me_,
-                                     raft_node_t* node,
-                                     msg_appendentries_response_t* r)
-{
-    int ret = raft_recv_appendentries_response_internal(me_, node, r);
-
-    switch (ret) {
-        case RAFT_ERR_WANTS_SEND_APPENDENTRIES:
-            raft_send_appendentries(me_, node);
-            return 0;
-        default:
-            return ret;
-    }
 }
 
 int raft_recv_appendentries(
