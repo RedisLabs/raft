@@ -3134,14 +3134,16 @@ void TestRaft_leader_recv_appendentries_response_jumps_to_lower_next_idx(
     aer.term = 4;
     aer.success = 0;
     aer.current_idx = 1;
-    CuAssertIntEquals(tc, RAFT_ERR_WANTS_SEND_APPENDENTRIES, raft_recv_appendentries_response_internal(r, raft_get_node(r, 2), &aer));
-    CuAssertIntEquals(tc, 2, raft_node_get_next_idx(node));
-
+    CuAssertIntEquals(tc, 0, raft_recv_appendentries_response(r, raft_get_node(r, 2), &aer));
+    /* we failed, but raft_recv_appendentries_response() will reset next_idx and resend everything, setting next_idx to current_idx + 1 */
+    CuAssertIntEquals(tc, 6, raft_node_get_next_idx(node));
     /* see if new appendentries have appropriate values */
-    raft_send_appendentries(r, raft_get_node(r, 2));
     CuAssertPtrNotNull(tc, (ae = sender_poll_msg_data(sender)));
+    /* we replied with a failure above, and told it our current_idx is 1, so thats what new one has */
     CuAssertIntEquals(tc, 1, ae->prev_log_term);
     CuAssertIntEquals(tc, 1, ae->prev_log_idx);
+    /* since current_idx is 1, and we are up 5, if it reset next_idx correctly, we should have 4 entries */
+    CuAssertIntEquals(tc, 4, ae->n_entries);
 
     /* receive mock success responses */
     memset(&aer, 0, sizeof(msg_appendentries_response_t));
