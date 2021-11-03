@@ -3150,7 +3150,7 @@ void TestRaft_leader_recv_appendentries_response_jumps_to_lower_next_idx(
     aer.term = 4;
     aer.success = 1;
     aer.current_idx = 5;
-    CuAssertIntEquals(tc, 0, raft_recv_appendentries_response_internal(r, raft_get_node(r, 2), &aer));
+    CuAssertIntEquals(tc, 0, raft_recv_appendentries_response(r, raft_get_node(r, 2), &aer));
     // it's 6 and not 2 because the raft_send_appendentries() that is sent at end of recv_response send the rest
     CuAssertIntEquals(tc, 6, raft_node_get_next_idx(node));
 }
