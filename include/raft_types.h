@@ -23,7 +23,7 @@ typedef long int raft_index_t;
 /**
  * Size type. This should be at least 64 bits.
  */
-typedef unsigned long raft_size_t;
+typedef unsigned long long raft_size_t;
 
 /**
  * Unique node identifier.

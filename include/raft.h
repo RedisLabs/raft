@@ -22,6 +22,7 @@ typedef enum {
     RAFT_ERR_INVALID_NODEID=-8,
     RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS=-9,
     RAFT_ERR_DONE=-10,
+    RAFT_ERR_STALE_TERM=-11,
     RAFT_ERR_LAST=-100,
 } raft_error_e;
 
@@ -122,6 +123,9 @@ typedef raft_entry_t msg_entry_t;
 
 typedef struct
 {
+    /** chunk offset */
+    raft_size_t offset;
+
     /** Chunk data pointer */
     void *data;
 
@@ -189,7 +193,7 @@ typedef struct
 
 typedef struct
 {
-    /** currentTerm, for candidate to update itself */
+    /** currentTerm, for follower to update itself */
     raft_term_t term;
 
     /** used to identify the sender node. Useful when this message is received
@@ -205,17 +209,9 @@ typedef struct
     /** last included term of the snapshot */
     raft_term_t snapshot_term;
 
-    /** chunk offset */
-    raft_size_t offset;
+    /** snapshot chunk **/
+    raft_snapshot_chunk_t chunk;
 
-    /** 1 if this is the last chunk */
-    int last_chunk;
-
-    /** chunk data len */
-    raft_size_t len;
-
-    /** chunk data */
-    void *data;
 } msg_snapshot_t;
 
 typedef struct
@@ -223,7 +219,7 @@ typedef struct
     /** the msg_id this response refers to */
     raft_msg_id_t msg_id;
 
-    /** currentTerm, to force other leader/candidate to step down */
+    /** currentTerm, to force other leader to step down */
     raft_term_t term;
 
     /** indicates last acknowledged snapshot offset by the follower */
@@ -342,8 +338,30 @@ typedef int (
     msg_snapshot_t* msg
     );
 
-/** Callback for loading received snapshot. User should load snapshot using
+/** Callback for loading the received snapshot. User should load snapshot using
  * raft_begin_load_snapshot() and raft_end_load_snapshot();
+ * e.g
+ *
+ * int loadsnapshot_callback()
+ * {
+ *      // User loads the received snapshot
+ *      int rc = loadSnapshotData();
+ *      if (rc != 0) {
+ *          return rc;
+ *      }
+ *
+ *      rc = raft_begin_load_snapshot(raft, snapshot_term, snapshot_index);
+ *      if (rc != 0) {
+ *           return -1;
+ *      }
+ *
+ *      // User should configure nodes using configuration data in the snapshot
+ *      // e.g Using raft_add_node(), raft_node_set_voting() etc.
+ *      configureNodesFromSnapshot();
+ *
+ *      raft_end_load_snapshot(raft);
+ *      return 0;
+ * }
  *
  * @param[in] raft Raft server making this callback
  * @param[in] user_data User data that is passed from Raft server

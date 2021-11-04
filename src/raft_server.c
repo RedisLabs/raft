@@ -14,7 +14,6 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdarg.h>
-#include <stdbool.h>
 
 #include "raft.h"
 #include "raft_private.h"
@@ -786,6 +785,31 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     return 0;
 }
 
+static int raft_receive_term(raft_server_t* me_, raft_term_t term)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    int e;
+
+    if (raft_is_candidate(me_) && me->current_term == term)
+    {
+        raft_become_follower(me_);
+    }
+    else if (me->current_term < term)
+    {
+        e = raft_set_current_term(me_, term);
+        if (0 != e)
+            return e;
+
+        raft_become_follower(me_);
+    }
+    else if (term < me->current_term)
+    {
+        return RAFT_ERR_STALE_TERM;
+    }
+
+    return 0;
+}
+
 int raft_recv_appendentries(
     raft_server_t* me_,
     raft_node_t* node,
@@ -807,26 +831,18 @@ int raft_recv_appendentries(
     }
 
     r->msg_id = ae->msg_id;
-
     r->success = 0;
 
-    if (raft_is_candidate(me_) && me->current_term == ae->term)
-    {
-        raft_become_follower(me_);
-    }
-    else if (me->current_term < ae->term)
-    {
-        e = raft_set_current_term(me_, ae->term);
-        if (0 != e)
-            goto out;
-        raft_become_follower(me_);
-    }
-    else if (ae->term < me->current_term)
-    {
-        /* 1. Reply false if term < currentTerm (§5.1) */
-        raft_log_node(me_, ae->leader_id,
-                    "AE term %ld is less than current term %ld",
-                    ae->term, me->current_term);
+    e = raft_receive_term(me_, ae->term);
+    if (e != 0) {
+        if (e == RAFT_ERR_STALE_TERM) {
+            /* 1. Reply false if term < currentTerm (§5.1) */
+            raft_log_node(me_, ae->leader_id,
+                          "AE term %ld is less than current term %ld", ae->term,
+                          me->current_term);
+            e = 0;
+        }
+
         goto out;
     }
 
@@ -1314,15 +1330,9 @@ int raft_send_snapshot(raft_server_t* me_, raft_node_t* node)
     if (!me->cb.send_snapshot)
         return 0;
 
-    uint64_t offset = raft_node_get_snapshot_offset(node);
+    raft_size_t offset = raft_node_get_snapshot_offset(node);
 
-    while (true) {
-        raft_snapshot_chunk_t chunk = {0};
-
-        int e = me->cb.get_snapshot_chunk(me_, me->udata, node, offset, &chunk);
-        if (e != 0) {
-            return (e != RAFT_ERR_DONE) ? e : 0;
-        }
+    while (1) {
 
         msg_snapshot_t msg = {
             .leader_id = raft_get_nodeid(me_),
@@ -1330,18 +1340,20 @@ int raft_send_snapshot(raft_server_t* me_, raft_node_t* node)
             .snapshot_term = me->snapshot_last_term,
             .term = me->current_term,
             .msg_id = ++me->msg_id,
-            .offset = offset,
-            .len = chunk.len,
-            .last_chunk = chunk.last_chunk,
-            .data = chunk.data
+            .chunk.offset = offset
         };
+
+        int e = me->cb.get_snapshot_chunk(me_, me->udata, node, offset, &msg.chunk);
+        if (e != 0) {
+            return (e != RAFT_ERR_DONE) ? e : 0;
+        }
 
         e = me->cb.send_snapshot(me_, me->udata, node, &msg);
         if (e != 0) {
             return e;
         }
 
-        offset += chunk.len;
+        offset += msg.chunk.len;
     }
 
     return 0;
@@ -1357,7 +1369,7 @@ int raft_recv_snapshot(raft_server_t* me_,
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
     raft_log_node(me_, raft_node_get_id(node),
-                  "recv snapshot: ci:%lu comi:%lu t:%lu li:%d mi:%lu si:%lu st:%lu o:%lu, lc:%d, len:%lu",
+                  "recv snapshot: ci:%lu comi:%lu t:%lu li:%d mi:%lu si:%lu st:%lu o:%llu, lc:%d, len:%llu",
                   raft_get_current_idx(me_),
                   raft_get_commit_idx(me_),
                   req->term,
@@ -1365,29 +1377,24 @@ int raft_recv_snapshot(raft_server_t* me_,
                   req->msg_id,
                   req->snapshot_index,
                   req->snapshot_term,
-                  req->offset,
-                  req->last_chunk,
-                  req->len);
+                  req->chunk.offset,
+                  req->chunk.last_chunk,
+                  req->chunk.len);
 
     resp->msg_id = req->msg_id;
-    resp->offset = req->len + req->offset;
-    resp->last_chunk = req->last_chunk;
+    resp->offset = req->chunk.len + req->chunk.offset;
+    resp->last_chunk = req->chunk.last_chunk;
     resp->success = 0;
 
-    if (raft_is_candidate(me_) && me->current_term == req->term)
-    {
-        raft_become_follower(me_);
-    }
-    else if (me->current_term < req->term)
-    {
-        e = raft_set_current_term(me_, req->term);
-        if (0 != e)
-            goto out;
+    e = raft_receive_term(me_, req->term);
+    if (e != 0) {
+        if (e == RAFT_ERR_STALE_TERM) {
+            raft_log_node(me_, req->leader_id,
+                          "Snapshot req term %ld is less than current term %ld",
+                          req->term, me->current_term);
+            e = 0;
+        }
 
-        raft_become_follower(me_);
-    }
-    else if (req->term < me->current_term)
-    {
         goto out;
     }
 
@@ -1416,26 +1423,20 @@ int raft_recv_snapshot(raft_server_t* me_,
     }
 
     /** Reject message if this is not our current offset. */
-    if (me->snapshot_recv_offset != req->offset) {
+    if (me->snapshot_recv_offset != req->chunk.offset) {
         resp->offset = me->snapshot_recv_offset;
         goto out;
     }
 
-    raft_snapshot_chunk_t chunk = {
-        .len = req->len,
-        .data = req->data,
-        .last_chunk = req->last_chunk
-    };
-
-    e = me->cb.store_snapshot_chunk(me_, me->udata,
-                                    req->snapshot_index, req->offset, &chunk);
+    e = me->cb.store_snapshot_chunk(me_, me->udata, req->snapshot_index,
+                                    req->chunk.offset, &req->chunk);
     if (e != 0) {
         goto out;
     }
 
-    me->snapshot_recv_offset = req->offset + req->len;
+    me->snapshot_recv_offset = req->chunk.offset + req->chunk.len;
 
-    if (req->last_chunk) {
+    if (req->chunk.last_chunk) {
         e = me->cb.load_snapshot(me_, me->udata,
                                  req->snapshot_index, req->snapshot_term);
         if (e != 0) {
@@ -1458,7 +1459,7 @@ int raft_recv_snapshot_response(raft_server_t* me_,
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
     raft_log_node(me_, raft_node_get_id(node),
-                  "recv snapshot response: ci:%lu comi:%lu mi:%lu t:%ld o:%lu s:%d lc:%d",
+                  "recv snapshot response: ci:%lu comi:%lu mi:%lu t:%ld o:%llu s:%d lc:%d",
                   raft_get_current_idx(me_),
                   raft_get_commit_idx(me_),
                   r->msg_id,

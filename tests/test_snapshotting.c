@@ -921,9 +921,9 @@ void TestRaft_clear_snapshot_on_leader_change(CuTest * tc)
         .snapshot_index = 1,
         .snapshot_term = 1,
         .msg_id = 1,
-        .data = "tmp",
-        .len = strlen("tmp"),
-        .last_chunk = 0,
+        .chunk.data = "tmp",
+        .chunk.len = strlen("tmp"),
+        .chunk.last_chunk = 0,
     };
 
     msg_snapshot_response_t resp = {0};
@@ -961,10 +961,10 @@ void TestRaft_reject_wrong_offset(CuTest * tc)
         .snapshot_index = 1,
         .snapshot_term = 1,
         .msg_id = 1,
-        .data = "tmp",
-        .offset = 0,
-        .len = 50,
-        .last_chunk = 0,
+        .chunk.data = "tmp",
+        .chunk.offset = 0,
+        .chunk.len = 50,
+        .chunk.last_chunk = 0,
     };
 
     msg_snapshot_response_t resp = {0};
@@ -972,7 +972,7 @@ void TestRaft_reject_wrong_offset(CuTest * tc)
     raft_recv_snapshot(r, NULL, &msg, &resp);
     CuAssertIntEquals(tc, 1, data.store_chunk);
 
-    msg.offset = 80;
+    msg.chunk.offset = 80;
     raft_recv_snapshot(r, NULL, &msg, &resp);
 
     CuAssertIntEquals(tc, 0, resp.success);
@@ -1002,10 +1002,10 @@ void TestRaft_set_last_chunk_on_duplicate(CuTest * tc)
         .snapshot_index = 5,
         .snapshot_term = 1,
         .msg_id = 1,
-        .data = "tmp",
-        .offset = 0,
-        .len = 50,
-        .last_chunk = 1,
+        .chunk.data = "tmp",
+        .chunk.offset = 0,
+        .chunk.len = 50,
+        .chunk.last_chunk = 1,
     };
 
     msg_snapshot_response_t resp = {0};
@@ -1020,9 +1020,9 @@ void TestRaft_set_last_chunk_on_duplicate(CuTest * tc)
         .snapshot_index = 4,
         .snapshot_term = 1,
         .msg_id = 1,
-        .offset = 0,
-        .len = 50,
-        .last_chunk = 0,
+        .chunk.offset = 0,
+        .chunk.len = 50,
+        .chunk.last_chunk = 0,
     };
 
     raft_recv_snapshot(r, NULL, &msg2, &resp);
