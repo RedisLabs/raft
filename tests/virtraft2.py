@@ -200,7 +200,20 @@ def raft_get_snapshot_chunk(raft, udata, node, offset, chunk):
     chunk.len = min(4096, len(server.snapshot_buf) - offset)
     chunk.last_chunk = offset + chunk.len == len(server.snapshot_buf)
     chunk.data = ffi.from_buffer("char*", server.snapshot_buf, 0) + offset
-    return lib.RAFT_ERR_DONE if chunk.len == 0 else 0
+
+    target_node = ffi.from_handle(lib.raft_node_get_udata(node))
+
+    # If receiver node has more than 8 messages to be consumed, apply some
+    # backpressure by returning RAFT_ERR_DONE
+    count = 0
+    for message in target_node.network.messages:
+        if message.sendee == target_node:
+            count += 1
+
+    if count > 8 or chunk.len == 0:
+        return lib.RAFT_ERR_DONE
+
+    return 0
 
 
 def raft_store_snapshot_chunk(raft, udata, index, offset, chunk):
@@ -829,10 +842,10 @@ class RaftServer(object):
         self.fsm_dict = {}
         self.fsm_log = []
 
-        # Generate dummy snapshot file for each node to send to other nodes as
-        # part of snapshot delivery validation
-        r = random.Random(self.id)
-        self.snapshot_buf = bytearray(r.randbytes(SNAPSHOT_SIZE))
+        self.random = random.Random(self.id)
+
+        # Dummy snapshot file for this node
+        self.snapshot_buf = bytearray(SNAPSHOT_SIZE)
 
         # Save incoming snapshot chunks to this buffer
         self.snapshot_recv_buf = bytearray(SNAPSHOT_SIZE)
@@ -870,6 +883,9 @@ class RaftServer(object):
             return
 
         assert(lib.raft_snapshot_is_in_progress(self.raft))
+
+        # Generate a dummy snapshot
+        self.snapshot_buf = bytearray(self.random.randbytes(SNAPSHOT_SIZE))
 
         e = lib.raft_end_snapshot(self.raft)
         assert(e == 0)
@@ -1060,9 +1076,13 @@ class RaftServer(object):
         leader = find_leader()
         leader_snapshot = leader.snapshot_buf
 
+        # Copy received snapshot as our snapshot and clear the temp buf
+        self.snapshot_buf[:] = self.snapshot_recv_buf
+        self.snapshot_recv_buf = bytearray(SNAPSHOT_SIZE)
+
         # Validate received snapshot against the leader's snapshot
         for i in range(len(self.snapshot_buf)):
-            assert self.snapshot_recv_buf[i] == leader_snapshot[i]
+            assert self.snapshot_buf[i] == leader_snapshot[i]
 
         e = lib.raft_begin_load_snapshot(self.raft, index, term)
         logger.debug(f"return value from raft_begin_load_snapshot = {e}")
@@ -1123,7 +1143,6 @@ class RaftServer(object):
         # assert(sv->snapshot_fsm);
 
         self.fsm_dict = dict(snapshot_info.image)
-        self.snapshot_recv_buf = bytearray(SNAPSHOT_SIZE)
 
         # logger.warning('{} loaded snapshot t:{} idx:{}'.format(
         #     self, snapshot.last_term, snapshot.last_idx))
