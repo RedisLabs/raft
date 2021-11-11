@@ -238,17 +238,16 @@ def find_leader():
     return leader
 
 
-def get_voting_node_ids(leader):
+def get_voting_node_ids(server):
     voting_nodes_ids = []
 
-    for i in range(net.server_id + 1):
-        if i == 0:
-            continue
-        node = lib.raft_get_node(leader.raft, i)
+    for i in range(0, lib.raft_get_num_nodes(server.raft)):
+        node = lib.raft_get_node_from_idx(server.raft, i)
         if node == ffi.NULL:
             continue
+
         if lib.raft_node_is_voting(node) != 0:
-            voting_nodes_ids.append(i)
+            voting_nodes_ids.append(lib.raft_node_get_id(node))
 
     return voting_nodes_ids
 
@@ -762,6 +761,7 @@ class RaftServer(object):
         self.raft = lib.raft_new()
         self.udata = ffi.new_handle(self)
         self.removed = False
+        self.old_status = None
 
         network.add_server(self)
 
@@ -805,6 +805,9 @@ class RaftServer(object):
         #     self,
         #     connectstatus2str(self.connection_status),
         #     connectstatus2str(new_status)))
+        if new_status == NODE_DISCONNECTING and self.old_status is not None:
+            self.old_status = self.connection_status
+
         self.connection_status = new_status
 
     def debug_log(self):
@@ -1177,8 +1180,9 @@ class RaftServer(object):
             server = self.network.id2server(change.node_id)
 
             if ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
-                pass
-
+                if server.old_status is not None:
+                    server.set_connection_status(self.old_status)
+                    server.old_status = None
             elif ety.type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE:
                 logger.error("POP disconnect {} {}".format(self, ety_idx))
                 server.set_connection_status(NODE_DISCONNECTED)
@@ -1214,10 +1218,19 @@ class RaftServer(object):
             else:
                 node = lib.raft_get_node(self.raft, node_id)
                 lib.raft_node_set_udata(node, server.udata)
+        elif event_type == lib.RAFT_MEMBERSHIP_REMOVE:
+            node_id = lib.raft_node_get_id(node)
+            try:
+                server = self.network.id2server(node_id)
+                server.set_connection_status(NODE_DISCONNECTED)
+            except ServerDoesNotExist:
+                pass
+
+
 
     def debug_statistic_keys(self):
-        return ["node", "state", "status", "removed", "current", "last_log_term", "term", "committed", "applied",
-                "log_count", "#peers", "#voters", "cfg_change", "snapshot", "partitioned", "leader"]
+        return ["node", "state", "leader", "status", "removed", "current", "last_log_term", "term", "committed", "applied",
+                "log_count", "#peers", "#voters", "cfg_change", "snapshot", "partitioned", "voters"]
 
     def debug_statistics(self):
         partitioned_from = []
@@ -1229,6 +1242,7 @@ class RaftServer(object):
             "node": lib.raft_get_nodeid(self.raft),
             "state": state2str(lib.raft_get_state(self.raft)),
             "current": lib.raft_get_current_idx(self.raft),
+            "leader": lib.raft_get_leader_id(self.raft),
             "last_log_term": lib.raft_get_last_log_term(self.raft),
             "term": lib.raft_get_current_term(self.raft),
             "committed": lib.raft_get_commit_idx(self.raft),
@@ -1241,7 +1255,7 @@ class RaftServer(object):
             "snapshot": lib.raft_get_snapshot_last_idx(self.raft),
             "removed": getattr(self, 'removed', False),
             "partitioned": partitioned_from,
-            "leader": lib.raft_get_leader_id(self.raft),
+            "voters": get_voting_node_ids(self),
         }
 
 
