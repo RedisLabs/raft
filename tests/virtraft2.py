@@ -241,12 +241,13 @@ def find_leader():
 def get_voting_node_ids(server):
     voting_nodes_ids = []
 
-    for i in range(1, net.server_id + 1):
-        node = lib.raft_get_node(server.raft, i)
+    for i in range(0, lib.raft_get_num_nodes(server.raft)):
+        node = lib.raft_get_node_from_idx(server.raft, i)
         if node == ffi.NULL:
             continue
+
         if lib.raft_node_is_voting(node) != 0:
-            voting_nodes_ids.append(i)
+            voting_nodes_ids.append(lib.raft_node_get_id(node))
 
     return voting_nodes_ids
 
@@ -760,7 +761,7 @@ class RaftServer(object):
         self.raft = lib.raft_new()
         self.udata = ffi.new_handle(self)
         self.removed = False
-        self.old_status = ""
+        self.old_status = None
 
         network.add_server(self)
 
@@ -804,7 +805,7 @@ class RaftServer(object):
         #     self,
         #     connectstatus2str(self.connection_status),
         #     connectstatus2str(new_status)))
-        if new_status == NODE_DISCONNECTING and self.old_status != '':
+        if new_status == NODE_DISCONNECTING and self.old_status is not None:
             self.old_status = self.connection_status
 
         self.connection_status = new_status
@@ -1179,8 +1180,9 @@ class RaftServer(object):
             server = self.network.id2server(change.node_id)
 
             if ety.type == lib.RAFT_LOGTYPE_REMOVE_NODE:
-                if server.old_status != "":
+                if server.old_status is not None:
                     server.set_connection_status(self.old_status)
+                    server.old_status = None
             elif ety.type == lib.RAFT_LOGTYPE_ADD_NONVOTING_NODE:
                 logger.error("POP disconnect {} {}".format(self, ety_idx))
                 server.set_connection_status(NODE_DISCONNECTED)
