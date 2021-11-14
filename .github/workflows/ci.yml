@@ -20,17 +20,5 @@ jobs:
     - name: Run tests
       run:
         make tests_full
-    - name: Set up codecov
-      run: |
-        curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --no-default-keyring --keyring trustedkeys.gpg --import
-        curl -Os https://uploader.codecov.io/latest/linux/codecov
-        chmod +x codecov
-        curl -Os https://uploader.codecov.io/latest/linux/codecov.SHA256SUM
-        curl -Os https://uploader.codecov.io/latest/linux/codecov.SHA256SUM.sig
-        gpgv codecov.SHA256SUM.sig codecov.SHA256SUM
-        shasum -a 256 -c codecov.SHA256SUM
-    - name: Upload data to codecov
-      env:
-        HAS_CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN != '' }}
-      if: env.HAS_CODECOV_TOKEN == 'true'
-      run: ./codecov -t ${CODECOV_TOKEN}
+    - name: Upload to codecov
+      uses: codecov/codecode-action@v2
