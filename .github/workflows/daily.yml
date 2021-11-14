@@ -25,4 +25,4 @@ jobs:
       run:
         make tests_full
     - name: Upload to codecov
-      uses: codecov/codecode-action@v2
+      uses: codecov/codecov-action@v2
