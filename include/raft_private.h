@@ -99,11 +99,9 @@ typedef struct {
     raft_index_t snapshot_last_idx;
     raft_term_t snapshot_last_term;
 
-    /* Previous index/term values stored during snapshot,
-     * which are restored if the operation is cancelled.
-     */
-    raft_index_t saved_snapshot_last_idx;
-    raft_term_t saved_snapshot_last_term;
+    /* Next index/term values stored during snapshot */
+    raft_index_t next_snapshot_last_idx;
+    raft_term_t next_snapshot_last_term;
 
     /* Last included index of the incoming snapshot */
     raft_index_t snapshot_recv_idx;
@@ -171,8 +169,6 @@ void raft_node_set_has_sufficient_logs(raft_node_t* me_);
 int raft_is_single_node_voting_cluster(raft_server_t *me_);
 
 int raft_votes_is_majority(int nnodes, int nvotes);
-
-raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me_);
 
 void raft_node_set_last_ack(raft_node_t* me_, raft_msg_id_t msgid, raft_term_t term);
 

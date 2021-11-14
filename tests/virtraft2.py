@@ -77,7 +77,7 @@ NODE_CONNECTING = 1
 NODE_CONNECTED = 2
 NODE_DISCONNECTING = 3
 
-SNAPSHOT_SIZE = 512 * 1023
+SNAPSHOT_SIZE = 41 * 1023
 
 class ServerDoesNotExist(Exception):
     pass
@@ -1084,7 +1084,7 @@ class RaftServer(object):
         for i in range(len(self.snapshot_buf)):
             assert self.snapshot_buf[i] == leader_snapshot[i]
 
-        e = lib.raft_begin_load_snapshot(self.raft, index, term)
+        e = lib.raft_begin_load_snapshot(self.raft, term, index)
         logger.debug(f"return value from raft_begin_load_snapshot = {e}")
         if e == -1:
             return 0

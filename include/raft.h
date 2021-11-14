@@ -197,7 +197,7 @@ typedef struct
     raft_term_t term;
 
     /** used to identify the sender node. Useful when this message is received
-     * from the nodes that are not part of the configuration yet. **/
+     * from the nodes that are not part of the configuration yet. */
     raft_node_id_t leader_id;
 
     /** id, to make it possible to associate responses with requests. */
@@ -1496,5 +1496,7 @@ raft_node_id_t raft_get_transfer_leader(raft_server_t* me_);
 
 /* cause this server to force an election on its next raft_periodic function call */
 void raft_set_timeout_now(raft_server_t* me_);
+
+raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me_);
 
 #endif /* RAFT_H_ */

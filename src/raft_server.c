@@ -445,6 +445,7 @@ int raft_become_leader(raft_server_t* me_)
         if (me->node == node)
             continue;
 
+        raft_node_set_snapshot_offset(node, 0);
         raft_node_set_next_idx(node, next_idx);
         raft_node_set_match_idx(node, 0);
         raft_send_appendentries(me_, node);
@@ -1330,9 +1331,8 @@ int raft_send_snapshot(raft_server_t* me_, raft_node_t* node)
     if (!me->cb.send_snapshot)
         return 0;
 
-    raft_size_t offset = raft_node_get_snapshot_offset(node);
-
     while (1) {
+        raft_size_t offset = raft_node_get_snapshot_offset(node);
 
         msg_snapshot_t msg = {
             .leader_id = raft_get_nodeid(me_),
@@ -1343,7 +1343,9 @@ int raft_send_snapshot(raft_server_t* me_, raft_node_t* node)
             .chunk.offset = offset
         };
 
-        int e = me->cb.get_snapshot_chunk(me_, me->udata, node, offset, &msg.chunk);
+        raft_snapshot_chunk_t *chunk = &msg.chunk;
+
+        int e = me->cb.get_snapshot_chunk(me_, me->udata, node, offset, chunk);
         if (e != 0) {
             return (e != RAFT_ERR_DONE) ? e : 0;
         }
@@ -1353,10 +1355,14 @@ int raft_send_snapshot(raft_server_t* me_, raft_node_t* node)
             return e;
         }
 
-        offset += msg.chunk.len;
-    }
+        if (chunk->last_chunk) {
+            raft_node_set_snapshot_offset(node, 0);
+            raft_node_set_next_idx(node, me->snapshot_last_idx + 1);
+            return 0;
+        }
 
-    return 0;
+        raft_node_set_snapshot_offset(node, offset + chunk->len);
+    }
 }
 
 int raft_recv_snapshot(raft_server_t* me_,
@@ -1382,8 +1388,8 @@ int raft_recv_snapshot(raft_server_t* me_,
                   req->chunk.len);
 
     resp->msg_id = req->msg_id;
-    resp->offset = req->chunk.len + req->chunk.offset;
     resp->last_chunk = req->chunk.last_chunk;
+    resp->offset = 0;
     resp->success = 0;
 
     e = raft_receive_term(me_, req->term);
@@ -1445,6 +1451,7 @@ int raft_recv_snapshot(raft_server_t* me_,
     }
 
 success:
+    resp->offset = req->chunk.len + req->chunk.offset;
     resp->success = 1;
 out:
     resp->term = me->current_term;
@@ -1490,15 +1497,19 @@ int raft_recv_snapshot_response(raft_server_t* me_,
     }
 
     raft_node_set_last_ack(node, r->msg_id, r->term);
-    raft_node_set_snapshot_offset(node, r->offset);
+
+    if (!r->success) {
+        raft_node_set_snapshot_offset(node, r->offset);
+    }
 
     if (r->success && r->last_chunk) {
         raft_node_set_snapshot_offset(node, 0);
-        raft_node_set_next_idx(node, me->snapshot_last_idx + 1);
-        return 0;
+        raft_node_set_next_idx(node, max(me->snapshot_last_idx + 1,
+                                         raft_node_get_next_idx(node)));
     }
 
-    return raft_send_snapshot(me_, node);
+    /* Send snapshot or appendentries depending on next idx */
+    return raft_send_appendentries(me_, node);
 }
 
 int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
@@ -1744,8 +1755,9 @@ int raft_begin_snapshot(raft_server_t *me_, int flags)
 
     assert(raft_get_commit_idx(me_) == raft_get_last_applied_idx(me_));
 
-    raft_set_snapshot_metadata(me_, ety_term, snapshot_target);
     me->snapshot_in_progress = 1;
+    me->next_snapshot_last_idx = snapshot_target;
+    me->next_snapshot_last_term = ety_term;
     me->snapshot_flags = flags;
 
     raft_log(me_,
@@ -1761,12 +1773,6 @@ int raft_cancel_snapshot(raft_server_t *me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
-    if (!me->snapshot_in_progress)
-        return -1;
-
-    me->snapshot_last_idx = me->saved_snapshot_last_idx;
-    me->snapshot_last_term = me->saved_snapshot_last_term;
-
     me->snapshot_in_progress = 0;
 
     return 0;
@@ -1776,11 +1782,11 @@ int raft_end_snapshot(raft_server_t *me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
-    if (!me->snapshot_in_progress || me->snapshot_last_idx == 0)
+    if (!me->snapshot_in_progress)
         return -1;
 
-    // TODO: What is the purpose of this assert? Looks wrong.
-    // assert(raft_get_num_snapshottable_logs(me_) != 0);
+    me->snapshot_last_idx = me->next_snapshot_last_idx;
+    me->snapshot_last_term = me->next_snapshot_last_term;
 
     /* If needed, remove compacted logs */
     int e = me->log_impl->poll(me->log, me->snapshot_last_idx + 1);
@@ -1805,6 +1811,7 @@ int raft_end_snapshot(raft_server_t *me_)
         if (me->node == node || !raft_node_is_active(node))
             continue;
 
+        raft_node_set_snapshot_offset(node, 0);
         raft_index_t next_idx = raft_node_get_next_idx(node);
 
         /* figure out if the client needs a snapshot sent */
@@ -1838,7 +1845,7 @@ int raft_begin_load_snapshot(
     if (last_included_index < raft_get_current_idx(me_))
         return -1;
 
-    if (last_included_term == me->snapshot_last_term && last_included_index == me->snapshot_last_idx)
+    if (last_included_index <= me->snapshot_last_idx)
         return RAFT_ERR_SNAPSHOT_ALREADY_LOADED;
 
     if (me->current_term < last_included_term) {
@@ -1855,7 +1862,8 @@ int raft_begin_load_snapshot(
         raft_set_commit_idx(me_, last_included_index);
 
     me->last_applied_idx = last_included_index;
-    raft_set_snapshot_metadata(me_, last_included_term, me->last_applied_idx);
+    me->next_snapshot_last_term = last_included_term;
+    me->next_snapshot_last_idx = last_included_index;
 
     /* remove all nodes but self */
     int i, my_node_by_idx = 0;
@@ -1886,6 +1894,9 @@ int raft_end_load_snapshot(raft_server_t *me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
     int i;
+
+    me->snapshot_last_idx = me->next_snapshot_last_idx;
+    me->snapshot_last_term = me->next_snapshot_last_term;
 
     /* Set nodes' voting status as committed */
     for (i = 0; i < me->num_nodes; i++)
