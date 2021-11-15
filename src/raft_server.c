@@ -1597,8 +1597,10 @@ int raft_send_appendentries_all(raft_server_t* me_)
             continue;
 
         e = raft_send_appendentries(me_, me->nodes[i]);
-        if (0 != e)
-            ret = e;
+        if (0 != e) {
+            /* ignore error */
+            ;
+        }
     }
 
     return ret;
