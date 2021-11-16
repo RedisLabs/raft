@@ -1584,11 +1584,10 @@ int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
     return res;
 }
 
-int raft_send_appendentries_all(raft_server_t* me_)
+void raft_send_appendentries_all(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
     int i, e;
-    int ret = 0;
 
     me->timeout_elapsed = 0;
     for (i = 0; i < me->num_nodes; i++)
@@ -1598,12 +1597,10 @@ int raft_send_appendentries_all(raft_server_t* me_)
 
         e = raft_send_appendentries(me_, me->nodes[i]);
         if (0 != e) {
-            /* ignore error */
+            /* ignore error, future log message here? */
             ;
         }
     }
-
-    return ret;
 }
 
 int raft_get_nvotes_for_me(raft_server_t* me_)
