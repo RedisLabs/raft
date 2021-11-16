@@ -1289,10 +1289,6 @@ int raft_end_snapshot(raft_server_t *me_);
  */
 int raft_cancel_snapshot(raft_server_t *me_);
 
-/** Get the entry index of the entry that was snapshotted
- **/
-raft_index_t raft_get_snapshot_entry_idx(raft_server_t *me_);
-
 /** Check is a snapshot is in progress
  **/
 int raft_snapshot_is_in_progress(raft_server_t *me_);
