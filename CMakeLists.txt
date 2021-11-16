@@ -49,6 +49,7 @@ add_custom_target(check ${CMAKE_COMMAND}
 
 # --------------------------- Code Coverage Start ---------------------------- #
 if (${CMAKE_BUILD_TYPE} MATCHES "Coverage")
+    set(BUILD_SHARED_LIBS ON)
     add_compile_options(-fprofile-arcs -ftest-coverage)
     link_libraries(gcov)
 endif ()
@@ -100,7 +101,7 @@ add_custom_command(TARGET raft_cffi
 add_custom_target(tests_full)
 add_dependencies(tests_full check test_fuzzer test_virtraft)
 
-add_library(raft SHARED
+add_library(raft
         src/raft_log.c
         src/raft_server.c
         src/raft_node.c
