@@ -27,7 +27,6 @@ endmacro()
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
-set(BUILD_SHARED_LIBS ON)
 
 enable_testing()
 
@@ -64,32 +63,35 @@ add_custom_command(
         COMMAND lcov --list coverage.info --rc lcov_branch_coverage=1 --rc lcov_excl_br_line='assert'
 )
 
-add_dependencies(lib_coverage check)
+add_dependencies(lib_coverage check test_fuzzer test_virtraft)
 # ---------------------------- Code Coverage End ----------------------------- #
 
 
 # ------------------------------ Python Tests ---------------------------------#
+
+set(LIBPATH PYTHONPATH=${CMAKE_BINARY_DIR}/tests LD_LIBRARY_PATH=${CMAKE_BINARY_DIR})
+
 add_custom_target(test_fuzzer)
 add_custom_command(TARGET test_fuzzer
-                   COMMAND LD_LIBRARY_PATH=${CMAKE_BINARY_DIR} python ${CMAKE_SOURCE_DIR}/tests/log_fuzzer.py
-                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+                   COMMAND ${LIBPATH} python ${CMAKE_SOURCE_DIR}/tests/log_fuzzer.py
+                   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 add_dependencies(test_fuzzer raft_cffi)
 
 add_custom_target(test_virtraft)
 add_custom_command(TARGET test_virtraft
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMAND LD_LIBRARY_PATH=${CMAKE_BINARY_DIR} python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 1 -m 3 $(VIRTRAFT_OPTS)
-        COMMAND LD_LIBRARY_PATH=${CMAKE_BINARY_DIR} python3 tests/virtraft2.py --servers 7 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 1 -m 3 $(VIRTRAFT_OPTS)
-        COMMAND LD_LIBRARY_PATH=${CMAKE_BINARY_DIR} python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 2 -m 3 $(VIRTRAFT_OPTS)
-        COMMAND LD_LIBRARY_PATH=${CMAKE_BINARY_DIR} python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 3 -m 3 $(VIRTRAFT_OPTS)
-        COMMAND LD_LIBRARY_PATH=${CMAKE_BINARY_DIR} python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 4 -m 3 $(VIRTRAFT_OPTS)
-        COMMAND LD_LIBRARY_PATH=${CMAKE_BINARY_DIR} python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 5 -m 3 $(VIRTRAFT_OPTS)
-        COMMAND LD_LIBRARY_PATH=${CMAKE_BINARY_DIR} python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 6 -m 3 $(VIRTRAFT_OPTS))
+        COMMAND ${LIBPATH} python3 ${CMAKE_SOURCE_DIR}/tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 1 -m 3 $(VIRTRAFT_OPTS)
+        COMMAND ${LIBPATH} python3 ${CMAKE_SOURCE_DIR}/tests/virtraft2.py --servers 7 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 1 -m 3 $(VIRTRAFT_OPTS)
+        COMMAND ${LIBPATH} python3 ${CMAKE_SOURCE_DIR}/tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 2 -m 3 $(VIRTRAFT_OPTS)
+        COMMAND ${LIBPATH} python3 ${CMAKE_SOURCE_DIR}/tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 3 -m 3 $(VIRTRAFT_OPTS)
+        COMMAND ${LIBPATH} python3 ${CMAKE_SOURCE_DIR}/tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 4 -m 3 $(VIRTRAFT_OPTS)
+        COMMAND ${LIBPATH} python3 ${CMAKE_SOURCE_DIR}/tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 5 -m 3 $(VIRTRAFT_OPTS)
+        COMMAND ${LIBPATH} python3 ${CMAKE_SOURCE_DIR}/tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 6 -m 3 $(VIRTRAFT_OPTS))
 add_dependencies(test_virtraft raft_cffi)
 
 add_custom_target(raft_cffi)
 add_custom_command(TARGET raft_cffi
-                   COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/raft_cffi_builder.py --libdir ${CMAKE_BINARY_DIR} --includedir ${CMAKE_SOURCE_DIR}/include
+                   COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/raft_cffi_builder.py --libdir ${CMAKE_BINARY_DIR} --includedir ${CMAKE_SOURCE_DIR}/include --tmpdir ${CMAKE_BINARY_DIR}/
                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 # ----------------------------- Python Tests End ----------------------------- #
 
@@ -98,7 +100,7 @@ add_custom_command(TARGET raft_cffi
 add_custom_target(tests_full)
 add_dependencies(tests_full check test_fuzzer test_virtraft)
 
-add_library(raft
+add_library(raft SHARED
         src/raft_log.c
         src/raft_server.c
         src/raft_node.c
