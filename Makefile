@@ -139,6 +139,4 @@ do_infer:
 	infer -- make
 
 clean:
-	@rm -f ffi_tests.* src/*.o bin/* src/*.gcda src/*.gcno *.gcno *.gcda *.gcov tests/*.o tests/*.gcda tests/*.gcno $(RAFT_CFFI_TARGET); \
-	if [ -f "libraft.$(SHAREDEXT)" ]; then rm libraft.$(SHAREDEXT); fi;\
-	if [ -f libraft.a ]; then rm libraft.a; fi;
+	-@rm -f src/*.o bin/* src/*.gcda src/*.gcno *.gcno *.gcda *.gcov tests/*.o tests/*.gcda tests/*.gcno tests/raft_cffi.* $(RAFT_CFFI_TARGET) $(LIBRAFT_SHARED) $(LIBRAFT_STATIC)
