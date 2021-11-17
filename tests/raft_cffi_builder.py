@@ -1,5 +1,6 @@
-import cffi
+import argparse
 import subprocess
+import cffi
 
 def load(fname):
     return '\n'.join(
@@ -7,6 +8,13 @@ def load(fname):
             ["gcc", "-E", fname]).decode('utf-8').split('\n')])
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--libdir', type=str, default='.')
+    parser.add_argument('--libname', type=str, default='raft')
+    parser.add_argument('--includedir', type=str, default='include')
+    parser.add_argument('--tmpdir', type=str, default='.')
+    args = parser.parse_args()
 
     ffibuilder = cffi.FFI()
     ffibuilder.set_source(
@@ -36,10 +44,10 @@ if __name__ == '__main__':
                 return t;
             }
         """,
-        libraries=["raft"],
-        include_dirs=["include"],
+        libraries=[args.libname],
+        include_dirs=[args.includedir],
         extra_compile_args=["-UNDEBUG"],
-        extra_link_args=["-L."]
+        extra_link_args=["-L{}".format(args.libdir)]
         )
 
 
@@ -52,4 +60,4 @@ if __name__ == '__main__':
     ffibuilder.cdef('void *raft_entry_getdata(raft_entry_t *);')
     ffibuilder.cdef('raft_entry_t **raft_entry_array_deepcopy(raft_entry_t **src, int len);')
 
-    ffibuilder.compile(verbose=True)
+    ffibuilder.compile(tmpdir=args.tmpdir, verbose=True)
