@@ -49,7 +49,6 @@ add_custom_target(check ${CMAKE_COMMAND}
 
 # --------------------------- Code Coverage Start ---------------------------- #
 if (${CMAKE_BUILD_TYPE} MATCHES "Coverage")
-    set(BUILD_SHARED_LIBS ON)
     add_compile_options(-fprofile-arcs -ftest-coverage)
     link_libraries(gcov)
 endif ()
@@ -92,7 +91,7 @@ add_dependencies(test_virtraft raft_cffi)
 
 add_custom_target(raft_cffi)
 add_custom_command(TARGET raft_cffi
-                   COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/raft_cffi_builder.py --libdir ${CMAKE_BINARY_DIR} --includedir ${CMAKE_SOURCE_DIR}/include --tmpdir ${CMAKE_BINARY_DIR}/
+                   COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/raft_cffi_builder.py --libname raft_shared --libdir ${CMAKE_BINARY_DIR} --includedir ${CMAKE_SOURCE_DIR}/include --tmpdir ${CMAKE_BINARY_DIR}/
                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 # ----------------------------- Python Tests End ----------------------------- #
 
@@ -101,14 +100,20 @@ add_custom_command(TARGET raft_cffi
 add_custom_target(tests_full)
 add_dependencies(tests_full check test_fuzzer test_virtraft)
 
-add_library(raft
+set(RAFT_SOURCE_FILES
         src/raft_log.c
         src/raft_server.c
         src/raft_node.c
         src/raft_server_properties.c)
 
-target_compile_options(raft PRIVATE -fPIC -g)
+add_library(raft STATIC ${RAFT_SOURCE_FILES})
+target_compile_options(raft PRIVATE -g)
 target_include_directories(raft PRIVATE include)
+
+add_library(raft_shared SHARED ${RAFT_SOURCE_FILES})
+target_include_directories(raft_shared PRIVATE include)
+set_property(TARGET raft_shared PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_compile_options(raft PRIVATE -g)
 
 define_test(test_log)
 define_test(test_log_impl)

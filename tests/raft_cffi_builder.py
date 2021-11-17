@@ -11,6 +11,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--libdir', type=str, default='.')
+    parser.add_argument('--libname', type=str, default='raft')
     parser.add_argument('--includedir', type=str, default='include')
     parser.add_argument('--tmpdir', type=str, default='.')
     args = parser.parse_args()
@@ -43,7 +44,7 @@ if __name__ == '__main__':
                 return t;
             }
         """,
-        libraries=["raft"],
+        libraries=[args.libname],
         include_dirs=[args.includedir],
         extra_compile_args=["-UNDEBUG"],
         extra_link_args=["-L{}".format(args.libdir)]
