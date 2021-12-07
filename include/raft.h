@@ -603,6 +603,18 @@ typedef int (
         raft_node_t* node
     );
 
+/** Callback on each individual entry append
+ * FIXME: FILL IN
+  */
+typedef int (
+*func_appendentry_f
+)   (
+        raft_server_t* raft,
+        void *user_data,
+        raft_entry_t* ety,
+        raft_index_t idx
+    );
+
 typedef struct
 {
     /** Callback for sending request vote messages */
@@ -665,6 +677,12 @@ typedef struct
 
     /** Callback for sending TimeoutNow RPC messages to nodes */
     func_send_timeoutnow_f send_timeoutnow;
+
+    /** Callback for processing private append entries on append **/
+    func_appendentry_f append_entry;
+
+    /** Callback for processing the removal of an appended entry from the log */
+    func_appendentry_f remove_entry;
 } raft_cbs_t;
 
 /** A generic notification callback used to allow Raft to notify caller
