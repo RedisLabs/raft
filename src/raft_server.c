@@ -1276,16 +1276,23 @@ int raft_apply_entry(raft_server_t* me_)
     raft_log(me_, "applying log: %ld, id: %d size: %d",
           log_idx, ety->id, ety->data_len);
 
-    me->last_applied_idx++;
     if (me->cb.applylog)
     {
         int e = me->cb.applylog(me_, me->udata, ety, me->last_applied_idx);
-        assert(e == 0 || e == RAFT_ERR_SHUTDOWN);
-        if (RAFT_ERR_SHUTDOWN == e) {
-            raft_entry_release(ety);
-            return RAFT_ERR_SHUTDOWN;
+        switch (e) {
+            case RAFT_ERR_SHUTDOWN:
+                raft_entry_release(ety);
+                return RAFT_ERR_SHUTDOWN;
+            case RAFT_ERR_RETRY:
+                return RAFT_ERR_RETRY;
+            case 0:
+                break;
+            default:
+                /* unknown return value */
+                assert(0);
         }
     }
+    me->last_applied_idx++;
 
     /* voting cfg change is now complete.
      * TODO: there seem to be a possible off-by-one bug hidden here, requiring
@@ -1774,11 +1781,13 @@ int raft_begin_snapshot(raft_server_t *me_, int flags)
     raft_entry_release(ety);
 
     /* we need to get all the way to the commit idx */
+    /* SJP: this comment is no longer valid under my design change */
     int e = raft_apply_all(me_);
-    if (e != 0)
+    if (e == RAFT_ERR_SHUTDOWN)
         return e;
 
-    assert(raft_get_commit_idx(me_) == raft_get_last_applied_idx(me_));
+    /* SJP: this assertion no longer holds under my design change */
+    // assert(raft_get_commit_idx(me_) == raft_get_last_applied_idx(me_));
 
     me->snapshot_in_progress = 1;
     me->next_snapshot_last_idx = snapshot_target;

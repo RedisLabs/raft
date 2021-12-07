@@ -437,7 +437,7 @@ void TestRaft_user_applylog_error_propogates_to_periodic(
 
     /* let time lapse */
     CuAssertIntEquals(tc, RAFT_ERR_SHUTDOWN, raft_periodic(r, 1));
-    CuAssertIntEquals(tc, 1, raft_get_last_applied_idx(r));
+    CuAssertIntEquals(tc, 0, raft_get_last_applied_idx(r));
 }
 
 void TestRaft_server_apply_entry_increments_last_applied_idx(CuTest* tc)

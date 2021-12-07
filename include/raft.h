@@ -23,6 +23,7 @@ typedef enum {
     RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS=-9,
     RAFT_ERR_DONE=-10,
     RAFT_ERR_STALE_TERM=-11,
+    RAFT_ERR_RETRY=-12,
     RAFT_ERR_LAST=-100,
 } raft_error_e;
 
