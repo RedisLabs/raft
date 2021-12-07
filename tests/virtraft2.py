@@ -1002,7 +1002,7 @@ class RaftServer(object):
                     except Exception as e:
                         ety1 = lib.raft_get_entry_from_idx(self.raft, idx)
                         ety2 = lib.raft_get_entry_from_idx(server.raft, idx)
-                        logger.error('ids', ety1.id, ety2.id)
+                        logger.error('ids: {0} {1}'.format(ety1.id, ety2.id))
                         logger.error('{0}vs{1} idx:{2} terms:{3} {4} ids:{5} {6}'.format(
                             self, server,
                             idx,
