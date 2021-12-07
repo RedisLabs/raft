@@ -1256,6 +1256,7 @@ int raft_apply_entry(raft_server_t* me_)
     if (me->cb.applylog)
     {
         int e = me->cb.applylog(me_, me->udata, ety, me->last_applied_idx);
+        assert(e == 0 || e == RAFT_ERR_SHUTDOWN);
         if (RAFT_ERR_SHUTDOWN == e) {
             raft_entry_release(ety);
             return RAFT_ERR_SHUTDOWN;
