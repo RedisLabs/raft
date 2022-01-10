@@ -125,6 +125,8 @@ test_virtraft: $(RAFT_CFFI_TARGET)
 	python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 5 -m 3 --client_rate 0 $(VIRTRAFT_OPTS)
 	python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 6 -m 3 $(VIRTRAFT_OPTS)
 	python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 6 -m 3 --client_rate 0 $(VIRTRAFT_OPTS)
+	python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 1 -m 3 --auto_flush $(VIRTRAFT_OPTS)
+	python3 tests/virtraft2.py --servers 5 -i 20000 --compaction_rate 50 --drop_rate 5 -P 10 --seed 6 -m 3 --auto_flush $(VIRTRAFT_OPTS)
 
 .PHONY: amalgamation
 amalgamation:
