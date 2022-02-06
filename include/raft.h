@@ -1537,38 +1537,71 @@ void raft_set_timeout_now(raft_server_t* me_);
 
 raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me_);
 
-/* Disable auto flush mode. It means two things :
+/** Disable auto flush mode. Default is enabled.
  *
- * 1 - If the node is leader, libraft will not call raft_log_impl_t's sync()
- * callback. Library user must check the latest log index and verify new entries
- * are written to the disk. After that, it must update persisted index by
- * calling raft_set_persisted_index().
+ * In auto flush mode, after each raft_recv_entry() call, raft_log_impl_t's
+ * sync() is called to verify entry is persisted. Also, appendentries messages
+ * are sent for the entry immediately. It's easy to use library in this mode but
+ * to achieve better performance, we need batching. We can write entries to disk
+ * in another thread and send a single appendentries message for multiple
+ * entries. To do that, we disable auto flush mode. Once we do that, library
+ * user must check the newest log index by calling raft_get_index_to_sync() and
+ * verify new entries upto that index is written to the disk, probably in
+ * another thread. Also, users should call raft_flush() often to update
+ * persisted log index and to send new appendentries messages.
  *
- * This operation can be done async, e.g calling fsync() in another thread and
- * after it's completed, persisted index can be updated.
- *
- * 2 - raft_flush() must be called to send new appendentries messages to
- * followers. This is useful when you call raft_recv_entry() many times and
- * you want to send single appendentries message for the new batch of entries.
- * Also, raft_flush() updates commit index and applies entries. It must be
- * called very often. e.g :
+ * Example :
  *
  * void server_loop() {
  *    while (1) {
  *        HandleNetworkOperations();
  *
- *        for (int i = 0; i < new_requests_count; i++)
- *            raft_recv_entry(raft, new_requests[i]);
+ *         for (int i = 0; i < new_readreq_count; i++)
+ *             raft_queue_read_request(raft, read_requests[i]);
  *
- *        raft_flush();
- *        HandleOtherJobs();
+ *         for (int i = 0; i < new_requests_count; i++)
+ *             raft_recv_entry(raft, new_requests[i]);
+ *
+ *         raft_index_t current_idx = raft_get_index_to_sync(raft);
+ *         if (current_idx != 0) {
+ *              TriggerAsyncWriteForIndex(current_idx);
+ *         }
+ *
+ *        raft_index_t sync_index = GetLastCompletedSyncIndex();
+ *
+ *        // This call will send new appendentries messages if necessary
+ *        raft_flush(sync_index);
  *    }
  * }
  *
  * raft_flush() is no-op if node is follower.
+ *
+ * @param[in] raft The Raft server
+ * @param[in] flush 1 to enable, 0 to disable
+ * @return          0 on success
  */
 int raft_set_auto_flush(raft_server_t* me, int flush);
-int raft_set_persisted_index(raft_server_t *me, raft_index_t index);
-int raft_flush(raft_server_t* me);
+
+/** Returns the latest entry index that needs to be written to the disk.
+ *
+ * This function is only useful when auto flush is disabled. Same index will be
+ * reported once.
+ *
+ * @param[in] raft The Raft server
+ * @return entry index need to be written to the disk.
+ *         '0' if there is no new entry to write to the disk
+ */
+raft_index_t raft_get_index_to_sync(raft_server_t *me);
+
+/** Update persisted index, send messages(e.g appendentries) to the followers.
+ *
+ * raft_flush() is no-op if node is follower.
+ *
+ * @param[in] raft The Raft server
+ * @param[in] sync_index Entry index of the last persisted entry. '0' to skip
+ *                       updating persisted index.
+ * @return    0 on success
+ */
+int raft_flush(raft_server_t* me, raft_index_t sync_index);
 
 #endif /* RAFT_H_ */

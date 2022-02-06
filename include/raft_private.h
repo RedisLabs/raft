@@ -132,9 +132,13 @@ typedef struct {
      * manually. It will trigger sending appendreqs, applying entries etc.
      * Useful for batching, e.g after many raft_recv_entry() calls,
      * one raft_flush() call will trigger sending appendreq for the latest
-     * entries.
-     */
+     * entries. */
     int auto_flush;
+
+    /* Index of the log entry that need to be written to the disk. Only useful
+     * when auto flush is disabled. */
+    raft_index_t next_sync_index;
+
     int timeout_now;
 } raft_server_private_t;
 

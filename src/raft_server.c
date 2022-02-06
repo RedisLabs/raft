@@ -368,8 +368,12 @@ int raft_delete_entry_from_idx(raft_server_t* me_, raft_index_t idx)
     if (idx <= me->voting_cfg_change_log_idx)
         me->voting_cfg_change_log_idx = -1;
 
-    return me->log_impl->pop(me->log, idx,
-            (func_entry_notify_f) raft_handle_remove_cfg_change, me_);
+    int e = me->log_impl->pop(me->log, idx,
+             (func_entry_notify_f) raft_handle_remove_cfg_change, me_);
+    if (e != 0)
+        return e;
+
+    return me->log_impl->sync(me->log);
 }
 
 int raft_election_start(raft_server_t* me_)
@@ -427,7 +431,8 @@ int raft_become_leader(raft_server_t* me_)
         if (0 != e)
             return e;
 
-        raft_set_persisted_index(me_, raft_get_current_idx(me_));
+        raft_node_set_match_idx(me->node, raft_get_current_idx(me_));
+        me->next_sync_index = raft_get_current_idx(me_) + 1;
 
         // Commit noop immediately if this is a single node cluster
         if (raft_is_single_node_voting_cluster(me_)) {
@@ -759,10 +764,10 @@ int raft_recv_appendentries_response(raft_server_t* me_,
     raft_node_set_next_idx(node, r->current_idx + 1);
     raft_node_set_match_idx(node, r->current_idx);
 
-    if (!me->auto_flush)
-        return 0;
+    if (me->auto_flush)
+        return raft_flush(me_, 0);
 
-    return raft_flush(me_);
+    return 0;
 }
 
 static int raft_receive_term(raft_server_t* me_, raft_term_t term)
@@ -939,7 +944,7 @@ int raft_recv_appendentries(
         r->current_idx = ae->prev_log_idx + 1 + i;
     }
 
-    if (ae->n_entries > 0 && me->log_impl->sync) {
+    if (ae->n_entries > 0) {
         e = me->log_impl->sync(me->log);
         if (0 != e)
             goto out;
@@ -1132,22 +1137,19 @@ int raft_recv_entry(raft_server_t* me_,
     if (0 != e)
         return e;
 
+    r->id = ety->id;
+    r->idx = raft_get_current_idx(me_);
+    r->term = me->current_term;
+
     if (me->auto_flush) {
         e = me->log_impl->sync(me->log);
         if (0 != e)
             return e;
 
-        raft_set_persisted_index(me_, raft_get_current_idx(me_));
+        return raft_flush(me_, raft_get_current_idx(me_));
     }
 
-    r->id = ety->id;
-    r->idx = raft_get_current_idx(me_);
-    r->term = me->current_term;
-
-    if (!me->auto_flush)
-        return 0;
-
-    return raft_flush(me_);
+    return 0;
 }
 
 int raft_send_requestvote(raft_server_t* me_, raft_node_t* node)
@@ -1484,10 +1486,10 @@ int raft_recv_snapshot_response(raft_server_t* me_,
                                          raft_node_get_next_idx(node)));
     }
 
-    if (!me->auto_flush)
-        return 0;
+    if (me->auto_flush)
+        return raft_flush(me_, 0);
 
-    return raft_flush(me_);
+    return 0;
 }
 
 int raft_send_appendentries(raft_server_t* me_, raft_node_t* node)
@@ -1681,7 +1683,7 @@ int raft_poll_entry(raft_server_t* me_)
     if (e != 0)
         return e;
 
-    return 0;
+    return me->log_impl->sync(me->log);
 }
 
 int raft_pop_entry(raft_server_t* me_)
@@ -1690,8 +1692,12 @@ int raft_pop_entry(raft_server_t* me_)
 
     raft_index_t cur_idx = me->log_impl->current_idx(me->log);
 
-    return me->log_impl->pop(me->log, cur_idx,
-            (func_entry_notify_f) raft_handle_remove_cfg_change, me_);
+    int e = me->log_impl->pop(me->log, cur_idx,
+               (func_entry_notify_f) raft_handle_remove_cfg_change, me_);
+    if (e != 0)
+        return e;
+
+    return me->log_impl->sync(me->log);
 }
 
 raft_index_t raft_get_first_entry_idx(raft_server_t* me_)
@@ -1773,6 +1779,10 @@ int raft_end_snapshot(raft_server_t *me_)
 
     /* If needed, remove compacted logs */
     int e = me->log_impl->poll(me->log, me->snapshot_last_idx + 1);
+    if (e != 0)
+        return e;
+
+    e = me->log_impl->sync(me->log);
     if (e != 0)
         return e;
 
@@ -1959,10 +1969,10 @@ int raft_queue_read_request(raft_server_t* me_, func_read_request_callback_f cb,
 
     me->need_quorum_round = 1;
 
-    if (!me->auto_flush)
-        return 0;
+    if (me->auto_flush)
+        return raft_flush(me_, 0);
 
-    return raft_flush(me_);
+    return 0;
 }
 
 static void pop_read_queue(raft_server_private_t *me, int can_read)
@@ -2146,11 +2156,16 @@ static int raft_update_commit_idx(raft_server_t* me_)
     return 0;
 }
 
-int raft_set_persisted_index(raft_server_t *me_, raft_index_t index)
+raft_index_t raft_get_index_to_sync(raft_server_t *me_)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
-    raft_node_set_match_idx(me->node, index);
-    return 0;
+
+    raft_index_t idx = raft_get_current_idx(me_);
+    if (me->next_sync_index > idx)
+        return 0;
+
+    me->next_sync_index = idx + 1;
+    return idx;
 }
 
 int raft_set_auto_flush(raft_server_t* me_, int flush)
@@ -2160,12 +2175,16 @@ int raft_set_auto_flush(raft_server_t* me_, int flush)
     return 0;
 }
 
-int raft_flush(raft_server_t* me_)
+int raft_flush(raft_server_t* me_, raft_index_t sync_index)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
 
     if (!raft_is_leader(me_)) {
         return 0;
+    }
+
+    if (sync_index > raft_node_get_match_idx(me->node)) {
+        raft_node_set_match_idx(me->node, sync_index);
     }
 
     int e = raft_update_commit_idx(me_);

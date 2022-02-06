@@ -465,12 +465,10 @@ class Network(object):
                 server.periodic(self.random.randint(1, 100))
 
             if not self.auto_flush:
-                # Pretend like async operation for persisting entries are
-                # completed and call raft_flush() often to trigger sending
-                # appendentries.
-                idx = lib.raft_get_current_idx(server.raft)
-                assert lib.raft_set_persisted_index(server.raft, idx) == 0
-                assert lib.raft_flush(server.raft) == 0
+                # Pretend like async disk write operation is completed. Also,
+                # call raft_flush() often to trigger sending appendentries.
+                idx = lib.raft_get_index_to_sync(server.raft)
+                assert lib.raft_flush(server.raft, idx) == 0
 
         # Deadlock detection
         if self.client_rate != 0 and self.latest_applied_log_idx != 0 and self.latest_applied_log_iteration + 5000 < self.iteration:
