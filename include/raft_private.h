@@ -32,7 +32,7 @@ typedef struct raft_read_request {
     struct raft_read_request *next;
 } raft_read_request_t;
 
-typedef struct {
+struct raft_server {
     /* Persistent state: */
 
     /* the server's best guess of what the current term is
@@ -61,7 +61,7 @@ typedef struct {
     /* amount of time left till timeout */
     int timeout_elapsed;
 
-    raft_node_t* nodes;
+    raft_node_t** nodes;
     int num_nodes;
 
     int election_timeout;
@@ -140,7 +140,7 @@ typedef struct {
     raft_index_t next_sync_index;
 
     int timeout_now;
-} raft_server_private_t;
+};
 
 int raft_election_start(raft_server_t* me);
 
@@ -168,6 +168,27 @@ int raft_apply_entry(raft_server_t* me_);
 void raft_set_last_applied_idx(raft_server_t* me, raft_index_t idx);
 
 void raft_set_state(raft_server_t* me_, int state);
+
+
+struct raft_node
+{
+    void* udata;
+
+    raft_index_t next_idx;
+    raft_index_t match_idx;
+
+    int flags;
+
+    raft_node_id_t id;
+
+    /* Next snapshot offset to send to this node */
+    raft_size_t snapshot_offset;
+
+    /* last AE heartbeat response received */
+    raft_term_t last_acked_term;
+    raft_msg_id_t last_acked_msgid;
+    raft_msg_id_t max_seen_msgid;
+};
 
 raft_node_t* raft_node_new(void* udata, raft_node_id_t id);
 

@@ -4462,7 +4462,6 @@ void Test_reset_transfer_leader(CuTest *tc)
     };
     raft_server_t *r = raft_new();
     raft_set_state(r, RAFT_STATE_LEADER);
-    raft_server_private_t * me = (raft_server_private_t *) r;
 
     raft_set_callbacks(r, &funcs, &state);
 
@@ -4475,12 +4474,12 @@ void Test_reset_transfer_leader(CuTest *tc)
 
     ret = raft_transfer_leader(r, 2, 0);
     CuAssertIntEquals(tc, 0, ret);
-    me->leader_id = 2;
+    r->leader_id = 2;
     raft_reset_transfer_leader(r, 0);
     CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER, state);
 
     /* tests timeout in general, so don't need a separate test for it */
-    me->leader_id = 1;
+    r->leader_id = 1;
     ret = raft_transfer_leader(r, 2, 1);
     CuAssertIntEquals(tc, 0, ret);
     raft_periodic(r, 2);
