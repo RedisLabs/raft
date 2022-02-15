@@ -10,13 +10,6 @@
 #ifndef RAFT_PRIVATE_H_
 #define RAFT_PRIVATE_H_
 
-enum {
-    RAFT_NODE_STATUS_DISCONNECTED,
-    RAFT_NODE_STATUS_CONNECTED,
-    RAFT_NODE_STATUS_CONNECTING,
-    RAFT_NODE_STATUS_DISCONNECTING
-};
-
 struct raft_log_impl;
 
 typedef struct raft_read_request {
@@ -31,21 +24,17 @@ typedef struct raft_read_request {
 } raft_read_request_t;
 
 struct raft_server {
-    /* Persistent state: */
 
-    /* the server's best guess of what the current term is
-     * starts at zero */
+    /* The server's best guess of what the current term is. Starts from zero */
     raft_term_t current_term;
 
     /* The candidate the server voted for in its current term,
-     * or Nil if it hasn't voted for any.  */
+     * or RAFT_NODE_ID_NONE if it hasn't voted for any.  */
     raft_node_id_t voted_for;
 
-    /* log storage engine */
+    /* Log storage engine */
     const struct raft_log_impl *log_impl;
     void *log;
-
-    /* Volatile state: */
 
     /* idx of highest log entry known to be committed */
     raft_index_t commit_idx;
@@ -53,42 +42,38 @@ struct raft_server {
     /* idx of highest log entry applied to state machine */
     raft_index_t last_applied_idx;
 
-    /* follower/leader/candidate indicator */
+    /* Follower/leader/candidate indicator */
     int state;
 
-    /* amount of time left till timeout */
+    /* Amount of time left till timeout */
     int timeout_elapsed;
 
-    raft_node_t** nodes;
+    raft_node_t **nodes;
     int num_nodes;
 
     int election_timeout;
     int election_timeout_rand;
     int request_timeout;
 
-    /* timer interval to check if we still have quorum */
+    /* Timer interval to check if we still have quorum */
     long quorum_timeout;
 
-    /* latest quorum id for the previous quorum_timeout round */
+    /* Latest quorum id for the previous quorum_timeout round */
     raft_msg_id_t last_acked_msg_id;
 
-    /* what this node thinks is the node ID of the current leader or
+    /* What this node thinks is the node ID of the current leader or
      * RAFT_NODE_ID_NONE if there isn't a known current leader. */
     raft_node_id_t leader_id;
 
     /* callbacks */
     raft_cbs_t cb;
-    void* udata;
+    void *udata;
 
     /* my node ID */
-    raft_node_t* node;
+    raft_node_t *node;
 
     /* the log which has a voting cfg change, otherwise -1 */
     raft_index_t voting_cfg_change_log_idx;
-
-    /* Our membership with the cluster is confirmed (ie. configuration log was
-     * committed) */
-    int connected;
 
     int snapshot_in_progress;
     int snapshot_flags;
@@ -107,14 +92,9 @@ struct raft_server {
     /* Current offset of the incoming snapshot */
     raft_size_t snapshot_recv_offset;
 
-    /* Read requests that await a network round trip to confirm
-     * we're still the leader.
-     */
+    /* ID of appendentries messages */
     raft_msg_id_t msg_id;
-    /*
-     * the maximum msg_id we've seen from our current leader.  reset on term change
-     */
-    raft_msg_id_t max_seen_msg_id;
+
     raft_read_request_t *read_queue_head;
     raft_read_request_t *read_queue_tail;
 
@@ -122,15 +102,16 @@ struct raft_server {
      * before processing it */
     int need_quorum_round;
 
-    raft_node_id_t node_transferring_leader_to; // the node we are targeting for leadership
-    long transfer_leader_time; // how long we should wait for leadership transfer to take, before aborting
-    int sent_timeout_now; // if we've already sent a leadership transfer signal
+    /* The node we are targeting for leadership. */
+    raft_node_id_t node_transferring_leader_to;
 
-    /* If this config is off (equals zero), user must call raft_flush()
-     * manually. It will trigger sending appendreqs, applying entries etc.
-     * Useful for batching, e.g after many raft_recv_entry() calls,
-     * one raft_flush() call will trigger sending appendreq for the latest
-     * entries. */
+    /* How long we should wait for leadership transfer to take, before aborting */
+    long transfer_leader_time;
+
+    /* If we've already sent a leadership transfer signal */
+    int sent_timeout_now;
+
+    /* Auto flush configuration. See raft_set_auto_flush() for details. */
     int auto_flush;
 
     /* Index of the log entry that need to be written to the disk. Only useful
@@ -140,37 +121,35 @@ struct raft_server {
     int timeout_now;
 };
 
-int raft_election_start(raft_server_t* me);
+int raft_election_start(raft_server_t *me);
 
-int raft_become_candidate(raft_server_t* me);
+int raft_become_candidate(raft_server_t *me);
 
-int raft_become_precandidate(raft_server_t* me);
+int raft_become_precandidate(raft_server_t *me);
 
-void raft_randomize_election_timeout(raft_server_t* me_);
+void raft_randomize_election_timeout(raft_server_t *me);
 
-void raft_update_quorum_meta(raft_server_t* me_, raft_msg_id_t id);
+void raft_update_quorum_meta(raft_server_t *me, raft_msg_id_t id);
 
-/**
- * @return 0 on error */
-int raft_send_requestvote(raft_server_t* me, raft_node_t* node);
+/** @return 0 on error */
+int raft_send_requestvote(raft_server_t *me, raft_node_t *node);
 
-int raft_send_appendentries(raft_server_t* me, raft_node_t* node);
+int raft_send_appendentries(raft_server_t *me, raft_node_t *node);
 
-int raft_send_appendentries_all(raft_server_t* me_);
+int raft_send_appendentries_all(raft_server_t *me);
 
-/**
- * Apply entry at lastApplied + 1. Entry becomes 'committed'.
- * @return 1 if entry committed, 0 otherwise */
-int raft_apply_entry(raft_server_t* me_);
+/** Apply entry at lastApplied + 1. Entry becomes 'committed'.
+ *  @return 1 if entry committed, 0 otherwise */
+int raft_apply_entry(raft_server_t *me);
 
-void raft_set_last_applied_idx(raft_server_t* me, raft_index_t idx);
+void raft_set_last_applied_idx(raft_server_t *me, raft_index_t idx);
 
-void raft_set_state(raft_server_t* me_, int state);
+void raft_set_state(raft_server_t *me, int state);
 
 
 struct raft_node
 {
-    void* udata;
+    void *udata;
 
     raft_index_t next_idx;
     raft_index_t match_idx;
@@ -188,25 +167,25 @@ struct raft_node
     raft_msg_id_t max_seen_msgid;
 };
 
-raft_node_t* raft_node_new(void* udata, raft_node_id_t id);
+raft_node_t *raft_node_new(void *udata, raft_node_id_t id);
 
-void raft_node_free(raft_node_t* me_);
+void raft_node_free(raft_node_t *me);
 
-void raft_node_set_match_idx(raft_node_t* node, raft_index_t idx);
+void raft_node_set_match_idx(raft_node_t *node, raft_index_t idx);
 
-void raft_node_vote_for_me(raft_node_t* me_, int vote);
+void raft_node_vote_for_me(raft_node_t *me, int vote);
 
-int raft_node_has_vote_for_me(raft_node_t* me_);
+int raft_node_has_vote_for_me(raft_node_t *me);
 
-void raft_node_set_has_sufficient_logs(raft_node_t* me_);
+void raft_node_set_has_sufficient_logs(raft_node_t *me);
 
-int raft_is_single_node_voting_cluster(raft_server_t *me_);
+int raft_is_single_node_voting_cluster(raft_server_t *me);
 
 int raft_votes_is_majority(int nnodes, int nvotes);
 
-void raft_node_set_last_ack(raft_node_t* me_, raft_msg_id_t msgid, raft_term_t term);
+void raft_node_set_last_ack(raft_node_t *me, raft_msg_id_t msgid, raft_term_t term);
 
-raft_msg_id_t raft_node_get_last_acked_msgid(raft_node_t* me_);
+raft_msg_id_t raft_node_get_last_acked_msgid(raft_node_t *me);
 
 /* Heap functions */
 extern void *(*raft_malloc)(size_t size);
@@ -215,17 +194,19 @@ extern void *(*raft_realloc)(void *ptr, size_t size);
 extern void (*raft_free)(void *ptr);
 
 /* update the max_seen_msg_id for this node */
-void raft_node_update_max_seen_msg_id(raft_node_t *me_, raft_msg_id_t msg_id);
+void raft_node_update_max_seen_msg_id(raft_node_t *me, raft_msg_id_t msg_id);
+
 /* get the max message id this server has seen from its the specified node */
-raft_msg_id_t raft_node_get_max_seen_msg_id(raft_node_t *me_);
+raft_msg_id_t raft_node_get_max_seen_msg_id(raft_node_t *me);
+
 /* get the server's current msg_id */
-raft_msg_id_t raft_get_msg_id(raft_server_t* me_);
+raft_msg_id_t raft_get_msg_id(raft_server_t *me);
 
 /* attempt to abort the leadership transfer */
-void raft_reset_transfer_leader(raft_server_t* me_, int timed_out);
+void raft_reset_transfer_leader(raft_server_t *me, int timed_out);
 
-raft_size_t raft_node_get_snapshot_offset(raft_node_t *me_);
+raft_size_t raft_node_get_snapshot_offset(raft_node_t *me);
 
-void raft_node_set_snapshot_offset(raft_node_t *me_, raft_size_t snapshot_offset);
+void raft_node_set_snapshot_offset(raft_node_t *me, raft_size_t snapshot_offset);
 
 #endif /* RAFT_PRIVATE_H_ */

@@ -216,7 +216,6 @@ int raft_set_current_term(raft_server_t* me, const raft_term_t term)
         }
         me->current_term = term;
         me->voted_for = voted_for;
-        me->max_seen_msg_id = 0;
     }
     return 0;
 }
@@ -344,11 +343,6 @@ raft_term_t raft_get_last_log_term(raft_server_t* me)
     }
 
     return 0;
-}
-
-int raft_is_connected(raft_server_t* me)
-{
-    return me->connected;
 }
 
 int raft_snapshot_is_in_progress(raft_server_t *me)
@@ -1474,10 +1468,7 @@ int raft_apply_entry(raft_server_t* me)
         case RAFT_LOGTYPE_ADD_NODE:
             raft_node_set_addition_committed(node, 1);
             raft_node_set_voting_committed(node, 1);
-            /* Membership Change: confirm connection with cluster */
             raft_node_set_has_sufficient_logs(node);
-            if (node_id == raft_get_nodeid(me))
-                me->connected = RAFT_NODE_STATUS_CONNECTED;
             break;
         case RAFT_LOGTYPE_ADD_NONVOTING_NODE:
             raft_node_set_addition_committed(node, 1);
