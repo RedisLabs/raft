@@ -4448,15 +4448,15 @@ void TestRaft_verify_append_entries_fields_are_set(CuTest * tc)
     raft_send_appendentries_all(r);
 }
 
-void cb_notify_transfer_event(raft_server_t *raft, void *udata, raft_transfer_state_e state)
+void cb_notify_transfer_event(raft_server_t *raft, void *udata, raft_leader_transfer_e state)
 {
-    raft_transfer_state_e * data = udata;
+    raft_leader_transfer_e * data = udata;
     *data = state;
 }
 
 void Test_reset_transfer_leader(CuTest *tc)
 {
-    raft_transfer_state_e state;
+    raft_leader_transfer_e state;
     raft_cbs_t funcs = {
             .notify_transfer_event = cb_notify_transfer_event,
     };
@@ -4470,25 +4470,25 @@ void Test_reset_transfer_leader(CuTest *tc)
     int ret = raft_transfer_leader(r, 2, 0);
     CuAssertIntEquals(tc, 0, ret);
     raft_reset_transfer_leader(r, 0);
-    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_UNEXPECTED_LEADER, state);
+    CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_UNEXPECTED_LEADER, state);
 
     ret = raft_transfer_leader(r, 2, 0);
     CuAssertIntEquals(tc, 0, ret);
     r->leader_id = 2;
     raft_reset_transfer_leader(r, 0);
-    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER, state);
+    CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_EXPECTED_LEADER, state);
 
     /* tests timeout in general, so don't need a separate test for it */
     r->leader_id = 1;
     ret = raft_transfer_leader(r, 2, 1);
     CuAssertIntEquals(tc, 0, ret);
     raft_periodic(r, 2);
-    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT, state);
+    CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_TIMEOUT, state);
 }
 
 void Test_transfer_leader_success(CuTest *tc)
 {
-    raft_transfer_state_e state = RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT;
+    raft_leader_transfer_e state = RAFT_LEADER_TRANSFER_TIMEOUT;
     raft_cbs_t funcs = {
             .notify_transfer_event = cb_notify_transfer_event,
     };
@@ -4508,12 +4508,12 @@ void Test_transfer_leader_success(CuTest *tc)
 
     raft_recv_appendentries(r, raft_get_node(r, 2), &ae, &aer);
     CuAssertTrue(tc, 1 == aer.success);
-    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER, state);
+    CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_EXPECTED_LEADER, state);
 }
 
 void Test_transfer_leader_unexpected(CuTest *tc)
 {
-    raft_transfer_state_e state = RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT;
+    raft_leader_transfer_e state = RAFT_LEADER_TRANSFER_TIMEOUT;
     raft_cbs_t funcs = {
             .notify_transfer_event = cb_notify_transfer_event,
     };
@@ -4535,7 +4535,7 @@ void Test_transfer_leader_unexpected(CuTest *tc)
 
     raft_recv_appendentries(r, raft_get_node(r, 2), &ae, &aer);
     CuAssertTrue(tc, 1 == aer.success);
-    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_UNEXPECTED_LEADER, state);
+    CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_UNEXPECTED_LEADER, state);
 }
 
 void Test_transfer_leader_not_leader(CuTest *tc)
