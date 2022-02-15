@@ -38,7 +38,6 @@ export LD_LIBRARY_PATH=$(PWD)
 
 OBJECTS = \
 	$(BUILD_DIR)/raft_server.o \
-	$(BUILD_DIR)/raft_server_properties.o \
 	$(BUILD_DIR)/raft_node.o \
 	$(BUILD_DIR)/raft_log.o
 

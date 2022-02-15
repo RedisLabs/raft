@@ -103,8 +103,7 @@ add_dependencies(tests_full check test_fuzzer test_virtraft)
 set(RAFT_SOURCE_FILES
         src/raft_log.c
         src/raft_server.c
-        src/raft_node.c
-        src/raft_server_properties.c)
+        src/raft_node.c)
 
 add_library(raft STATIC ${RAFT_SOURCE_FILES})
 target_compile_options(raft PRIVATE -g)
