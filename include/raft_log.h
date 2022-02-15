@@ -3,9 +3,9 @@
 
 typedef struct raft_log_t raft_log_t;
 
-raft_log_t* raft_log_new(void);
+raft_log_t *raft_log_new(void);
 
-raft_log_t* raft_log_alloc(raft_index_t initial_size);
+raft_log_t *raft_log_alloc(raft_index_t initial_size);
 
 void raft_log_set_callbacks(raft_log_t *me, raft_log_cbs_t *funcs, void *raft);
 
@@ -22,36 +22,29 @@ void raft_log_clear_entries(raft_log_t *me);
  * @return 0 if unsuccessful; 1 otherwise */
 int raft_log_append_entry(raft_log_t *me, raft_entry_t *c);
 
-/**
- * @return number of entries held within log */
+/** @return number of entries held within log */
 raft_index_t raft_log_count(raft_log_t *me);
 
-/**
- * Delete all logs from this log onwards */
+/** Delete all logs from this log onwards */
 int raft_log_delete(raft_log_t *me, raft_index_t idx);
 
-/**
- * Empty the queue. */
+/** Empty the queue. */
 void raft_log_empty(raft_log_t *me);
 
-/**
- * Remove oldest entry. Set *etyp to oldest entry on success. */
+/** Remove oldest entry. Set *etyp to oldest entry on success. */
 int raft_log_poll(raft_log_t *me, raft_entry_t **etyp);
 
-/** Get an array of entries from this index onwards.
- * This is used for batching.
- */
+/** Get an array of entries from this index onwards. This is used for batching.*/
 raft_entry_t** raft_log_get_from_idx(raft_log_t *me, raft_index_t idx, long *n_etys);
 
 raft_entry_t* raft_log_get_at_idx(raft_log_t *me, raft_index_t idx);
 
-/**
- * @return youngest entry */
+/** @return youngest entry */
 raft_entry_t *raft_log_peektail(raft_log_t *me);
 
 raft_index_t raft_log_get_current_idx(raft_log_t *me);
 
-int raft_log_load_from_snapshot(raft_log_t *me_, raft_index_t idx, raft_term_t term);
+int raft_log_load_from_snapshot(raft_log_t *me, raft_index_t idx, raft_term_t term);
 
 raft_index_t raft_log_get_base(raft_log_t *me);
 
