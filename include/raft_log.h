@@ -1,8 +1,6 @@
 #ifndef RAFT_LOG_H_
 #define RAFT_LOG_H_
 
-#include "raft_types.h"
-
 typedef struct raft_log_t raft_log_t;
 
 raft_log_t* raft_log_new(void);
