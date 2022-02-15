@@ -279,7 +279,7 @@ void TestLog_poll(CuTest * tc)
 
     /* remove 1st */
     ety = NULL;
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertTrue(tc, NULL != ety);
     CuAssertIntEquals(tc, 2, raft_log_count(l));
     CuAssertIntEquals(tc, ety->id, 1);
@@ -291,7 +291,7 @@ void TestLog_poll(CuTest * tc)
 
     /* remove 2nd */
     ety = NULL;
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertTrue(tc, NULL != ety);
     CuAssertIntEquals(tc, 1, raft_log_count(l));
     CuAssertIntEquals(tc, ety->id, 2);
@@ -302,7 +302,7 @@ void TestLog_poll(CuTest * tc)
 
     /* remove 3rd */
     ety = NULL;
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertTrue(tc, NULL != ety);
     CuAssertIntEquals(tc, 0, raft_log_count(l));
     CuAssertIntEquals(tc, ety->id, 3);
@@ -376,10 +376,10 @@ void TestLog_front_pushes_across_boundary(CuTest * tc)
     raft_entry_t* ety;
 
     __LOG_APPEND_ENTRY(l, 1, 0, NULL);
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertIntEquals(tc, ety->id, 1);
     __LOG_APPEND_ENTRY(l, 2, 0, NULL);
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertIntEquals(tc, ety->id, 2);
 }
 
@@ -395,14 +395,14 @@ void TestLog_front_and_back_pushed_across_boundary_with_enlargement_required(CuT
     __LOG_APPEND_ENTRY(l, 1, 0, NULL);
 
     /* poll */
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertIntEquals(tc, ety->id, 1);
 
     /* append */
     __LOG_APPEND_ENTRY(l, 2, 0, NULL);
 
     /* poll */
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertIntEquals(tc, ety->id, 2);
 
     /* append append */
@@ -410,7 +410,7 @@ void TestLog_front_and_back_pushed_across_boundary_with_enlargement_required(CuT
     __LOG_APPEND_ENTRY(l, 4, 0, NULL);
 
     /* poll */
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertIntEquals(tc, ety->id, 3);
 }
 
@@ -427,7 +427,7 @@ void TestLog_delete_after_polling(CuTest * tc)
     CuAssertIntEquals(tc, 1, raft_log_count(l));
 
     /* poll */
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertIntEquals(tc, ety->id, 1);
     CuAssertIntEquals(tc, 0, raft_log_count(l));
 
@@ -463,7 +463,7 @@ void TestLog_delete_after_polling_from_double_append(CuTest * tc)
     CuAssertIntEquals(tc, 2, raft_log_count(l));
 
     /* poll */
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertIntEquals(tc, ety->id, 1);
     CuAssertIntEquals(tc, 1, raft_log_count(l));
 
@@ -499,7 +499,7 @@ void TestLog_get_from_idx_with_base_off_by_one(CuTest * tc)
     CuAssertIntEquals(tc, 2, raft_log_count(l));
 
     /* poll */
-    CuAssertIntEquals(tc, raft_log_poll(l, (void*)&ety), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, &ety), 0);
     CuAssertIntEquals(tc, ety->id, 1);
     CuAssertIntEquals(tc, 1, raft_log_count(l));
 

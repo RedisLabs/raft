@@ -63,15 +63,14 @@ class CoreTestCase(unittest.TestCase):
                 log.append(entry)
 
             elif cmd == 'poll':
-                entry_ptr = self.r.ffi.new('void**')
+                entry_ptr = self.r.ffi.new('raft_entry_t**')
 
                 if log.entries:
                     ret = r.raft_log_poll(l, entry_ptr)
                     assert ret == 0
 
                     ety_expected = log.poll()
-                    ety_actual = self.r.ffi.cast('raft_entry_t**', entry_ptr)[0]
-                    assert ety_actual.id == ety_expected.id
+                    assert entry_ptr[0].id == ety_expected.id
 
             elif isinstance(cmd, int):
                 if log.entries:

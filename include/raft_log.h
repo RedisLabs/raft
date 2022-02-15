@@ -36,7 +36,7 @@ void raft_log_empty(raft_log_t *me);
 
 /**
  * Remove oldest entry. Set *etyp to oldest entry on success. */
-int raft_log_poll(raft_log_t *me, void **etyp);
+int raft_log_poll(raft_log_t *me, raft_entry_t **etyp);
 
 /** Get an array of entries from this index onwards.
  * This is used for batching.
