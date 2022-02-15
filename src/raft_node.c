@@ -22,13 +22,14 @@
 #define RAFT_NODE_VOTING_COMMITTED    (1 << 4)
 #define RAFT_NODE_ADDITION_COMMITTED  (1 << 5)
 
-raft_node_t* raft_node_new(void* udata, raft_node_id_t id)
+raft_node_t *raft_node_new(void *udata, raft_node_id_t id)
 {
     raft_node_t* me;
 
     me = raft_calloc(1, sizeof(*me));
-    if (!me)
+    if (!me) {
         return NULL;
+    }
 
     me->udata = udata;
     me->next_idx = 1;
@@ -43,7 +44,7 @@ void raft_node_free(raft_node_t *me)
     raft_free(me);
 }
 
-raft_index_t raft_node_get_next_idx(raft_node_t* me)
+raft_index_t raft_node_get_next_idx(raft_node_t *me)
 {
     return me->next_idx;
 }
@@ -64,22 +65,23 @@ void raft_node_set_match_idx(raft_node_t *me, raft_index_t idx)
     me->match_idx = idx;
 }
 
-void* raft_node_get_udata(raft_node_t *me)
+void *raft_node_get_udata(raft_node_t *me)
 {
     return me->udata;
 }
 
-void raft_node_set_udata(raft_node_t *me, void* udata)
+void raft_node_set_udata(raft_node_t *me, void *udata)
 {
     me->udata = udata;
 }
 
 void raft_node_vote_for_me(raft_node_t *me, const int vote)
 {
-    if (vote)
+    if (vote) {
         me->flags |= RAFT_NODE_VOTED_FOR_ME;
-    else
+    } else {
         me->flags &= ~RAFT_NODE_VOTED_FOR_ME;
+    }
 }
 
 int raft_node_has_vote_for_me(raft_node_t *me)
@@ -89,13 +91,10 @@ int raft_node_has_vote_for_me(raft_node_t *me)
 
 void raft_node_set_voting(raft_node_t *me, int voting)
 {
-    if (voting)
-    {
+    if (voting) {
         assert(!raft_node_is_voting(me));
         me->flags |= RAFT_NODE_VOTING;
-    }
-    else
-    {
+    } else {
         assert(raft_node_is_voting(me));
         me->flags &= ~RAFT_NODE_VOTING;
     }
@@ -118,10 +117,11 @@ void raft_node_set_has_sufficient_logs(raft_node_t *me)
 
 void raft_node_set_active(raft_node_t *me, int active)
 {
-    if (!active)
+    if (!active) {
         me->flags |= RAFT_NODE_INACTIVE;
-    else
+    } else {
         me->flags &= ~RAFT_NODE_INACTIVE;
+    }
 }
 
 int raft_node_is_active(raft_node_t *me)
@@ -131,10 +131,11 @@ int raft_node_is_active(raft_node_t *me)
 
 void raft_node_set_voting_committed(raft_node_t *me, int voting)
 {
-    if (voting)
+    if (voting) {
         me->flags |= RAFT_NODE_VOTING_COMMITTED;
-    else
+    } else {
         me->flags &= ~RAFT_NODE_VOTING_COMMITTED;
+    }
 }
 
 int raft_node_is_voting_committed(raft_node_t *me)
@@ -144,15 +145,16 @@ int raft_node_is_voting_committed(raft_node_t *me)
 
 raft_node_id_t raft_node_get_id(raft_node_t *me)
 {
-    return me != NULL ? me->id : -1;
+    return me != NULL ? me->id : RAFT_NODE_ID_NONE;
 }
 
 void raft_node_set_addition_committed(raft_node_t *me, int committed)
 {
-    if (committed)
+    if (committed) {
         me->flags |= RAFT_NODE_ADDITION_COMMITTED;
-    else
+    } else {
         me->flags &= ~RAFT_NODE_ADDITION_COMMITTED;
+    }
 }
 
 int raft_node_is_addition_committed(raft_node_t *me)
@@ -173,7 +175,7 @@ raft_msg_id_t raft_node_get_last_acked_msgid(raft_node_t *me)
 
 void raft_node_update_max_seen_msg_id(raft_node_t *me, raft_msg_id_t msg_id)
 {
-    if (msg_id > me->max_seen_msgid) {
+    if (me->max_seen_msgid < msg_id) {
         me->max_seen_msgid = msg_id;
     }
 }
