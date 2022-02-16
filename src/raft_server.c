@@ -109,7 +109,7 @@ raft_server_t *raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     }
 
     me->current_term = 0;
-    me->voted_for = -1;
+    me->voted_for = RAFT_NODE_ID_NONE;
     me->timeout_elapsed = 0;
     me->request_timeout = 200;
     me->election_timeout = 1000;
@@ -1024,14 +1024,12 @@ int raft_recv_appendentries_response(raft_server_t *me,
 
 static int raft_receive_term(raft_server_t *me, raft_term_t term)
 {
-    int e;
-
     if (term < me->current_term) {
         return RAFT_ERR_STALE_TERM;
     }
 
     if (term > me->current_term) {
-        e = raft_set_current_term(me, term);
+        int e = raft_set_current_term(me, term);
         if (e != 0) {
             return e;
         }
@@ -1080,7 +1078,7 @@ int raft_recv_appendentries(raft_server_t *me,
         raft_node_update_max_seen_msg_id(node, ae->msg_id);
     }
 
-    /* update current leader because ae->term is up to date */
+    /* update current leader because ae->term is up-to-date */
     raft_accept_leader(me, ae->leader_id);
     raft_reset_transfer_leader(me, 0);
 
@@ -1139,8 +1137,8 @@ int raft_recv_appendentries(raft_server_t *me,
 
     /* Synchronize msg_id to leader. Not really needed for raft, but needed for
      * virtraft for msg_id to be increasing cluster wide so that can verify
-     * read_queue correctness easily. Otherwise, it be fine for msg_id to be
-     * unique to  each raft_server_t. */
+     * read_queue correctness easily. Otherwise, it'd be fine for msg_id to be
+     * unique to each raft_server_t. */
     if (me->msg_id < ae->msg_id) {
         me->msg_id = ae->msg_id;
     }
@@ -1848,7 +1846,7 @@ int raft_get_nvotes_for_me(raft_server_t *me)
 
 int raft_vote(raft_server_t *me, raft_node_t *node)
 {
-    return raft_vote_for_nodeid(me, node ? raft_node_get_id(node) : -1);
+    return raft_vote_for_nodeid(me, raft_node_get_id(node));
 }
 
 int raft_vote_for_nodeid(raft_server_t *me, raft_node_id_t nodeid)
@@ -2058,11 +2056,7 @@ int raft_begin_load_snapshot(raft_server_t *me,
                              raft_term_t last_included_term,
                              raft_index_t last_included_index)
 {
-    if (last_included_index == -1) {
-        return -1;
-    }
-
-    if (last_included_index == 0 || last_included_term == 0) {
+    if (last_included_index <= 0 || last_included_term == 0) {
         return -1;
     }
 
@@ -2242,7 +2236,7 @@ void raft_process_read_queue(raft_server_t *me)
 
     /* As a leader we can process requests that fulfill these conditions:
      * 1) Heartbeat acknowledged by majority
-     * 2) We're on the same term (note: is this needed or over cautious?)
+     * 2) We're on the same term (note: is this needed or overcautious?)
      */
     if (!raft_is_leader(me)) {
         return;

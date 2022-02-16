@@ -35,9 +35,9 @@ void raft_log_empty(raft_log_t *me);
 int raft_log_poll(raft_log_t *me, raft_entry_t **etyp);
 
 /** Get an array of entries from this index onwards. This is used for batching.*/
-raft_entry_t** raft_log_get_from_idx(raft_log_t *me, raft_index_t idx, long *n_etys);
+raft_entry_t **raft_log_get_from_idx(raft_log_t *me, raft_index_t idx, long *n_etys);
 
-raft_entry_t* raft_log_get_at_idx(raft_log_t *me, raft_index_t idx);
+raft_entry_t *raft_log_get_at_idx(raft_log_t *me, raft_index_t idx);
 
 /** @return youngest entry */
 raft_entry_t *raft_log_peektail(raft_log_t *me);

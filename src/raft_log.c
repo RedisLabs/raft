@@ -31,7 +31,7 @@ struct raft_log_t
     /* we compact the log, and thus need to increment the Base Log Index */
     raft_index_t base;
 
-    raft_entry_t** entries;
+    raft_entry_t **entries;
 
     /* callbacks */
     raft_log_cbs_t cb;
@@ -95,7 +95,7 @@ raft_log_t* raft_log_alloc(raft_index_t initial_size)
     }
 
     me->cap = initial_size;
-    me->entries = raft_calloc(1, sizeof(raft_entry_t*) * me->cap);
+    me->entries = raft_calloc(1, sizeof(*me->entries) * me->cap);
     if (!me->entries) {
         raft_free(me);
         return NULL;
@@ -164,7 +164,7 @@ int raft_log_append_entry(raft_log_t *me, raft_entry_t *ety)
     return 0;
 }
 
-raft_entry_t** raft_log_get_from_idx(raft_log_t *me, raft_index_t idx, long *n_etys)
+raft_entry_t **raft_log_get_from_idx(raft_log_t *me, raft_index_t idx, long *n_etys)
 {
     raft_index_t i;
 
