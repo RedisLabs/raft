@@ -24,7 +24,7 @@
 
 raft_node_t *raft_node_new(void *udata, raft_node_id_t id)
 {
-    raft_node_t* me;
+    raft_node_t *me;
 
     me = raft_calloc(1, sizeof(*me));
     if (!me) {

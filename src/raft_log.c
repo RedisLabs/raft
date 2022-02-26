@@ -87,7 +87,7 @@ int raft_log_load_from_snapshot(raft_log_t *me, raft_index_t idx, raft_term_t te
     return 0;
 }
 
-raft_log_t* raft_log_alloc(raft_index_t initial_size)
+raft_log_t *raft_log_alloc(raft_index_t initial_size)
 {
     raft_log_t *me = raft_calloc(1, sizeof(*me));
     if (!me) {
@@ -106,7 +106,7 @@ raft_log_t* raft_log_alloc(raft_index_t initial_size)
     return me;
 }
 
-raft_log_t* raft_log_new(void)
+raft_log_t *raft_log_new(void)
 {
     return raft_log_alloc(INITIAL_CAPACITY);
 }
@@ -117,7 +117,7 @@ void raft_log_set_callbacks(raft_log_t *me, raft_log_cbs_t *funcs, void *raft)
     me->cb = *funcs;
 }
 
-void raft_log_clear(raft_log_t* me)
+void raft_log_clear(raft_log_t *me)
 {
     me->count = 0;
     me->back = 0;

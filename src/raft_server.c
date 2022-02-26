@@ -117,8 +117,8 @@ raft_server_t *raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     me->auto_flush = 1;
 
     raft_update_quorum_meta(me, me->msg_id);
-
     raft_randomize_election_timeout(me);
+
     me->log_impl = log_impl;
     me->log = me->log_impl->init(me, log_arg);
     if (!me->log) {
@@ -725,8 +725,7 @@ int raft_become_leader(raft_server_t *me)
 
 int raft_become_precandidate(raft_server_t *me)
 {
-    raft_log(me,
-             "becoming pre-candidate, next term : %ld", me->current_term + 1);
+    raft_log(me, "becoming pre-candidate, next term: %ld", me->current_term + 1);
 
     if (me->cb.notify_state_event) {
         me->cb.notify_state_event(me, me->udata, RAFT_STATE_PRECANDIDATE);
@@ -2248,7 +2247,7 @@ void raft_process_read_queue(raft_server_t *me)
     }
 
     if (raft_get_num_voting_nodes(me) > 1) {
-        raft_entry_t *ety = raft_get_entry_from_idx(me, raft_get_commit_idx(me));
+        raft_entry_t *ety = raft_get_entry_from_idx(me, me->commit_idx);
         if (!ety) {
             return;
         }
@@ -2274,8 +2273,10 @@ void raft_process_read_queue(raft_server_t *me)
      * Note that this also implies a single node because adding nodes would
      * bump the log and commit index.
      */
-    if (!me->commit_idx && !me->last_applied_idx && raft_get_current_idx(me) == 1)
+    raft_index_t idx = raft_get_current_idx(me);
+    if (!me->commit_idx && !me->last_applied_idx && idx == 1) {
         last_applied_idx = 1;
+    }
 
     while (me->read_queue_head &&
             me->read_queue_head->msg_id <= last_acked_msgid &&
