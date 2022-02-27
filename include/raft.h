@@ -1382,7 +1382,7 @@ raft_index_t raft_get_first_entry_idx(raft_server_t *me);
  **/
 int raft_begin_load_snapshot(raft_server_t *me,
                              raft_term_t last_included_term,
-		                     raft_index_t last_included_index);
+                             raft_index_t last_included_index);
 
 /** Stop loading snapshot.
  *

@@ -890,10 +890,10 @@ int raft_periodic(raft_server_t *me, int msec_since_last_period)
             }
 
             raft_update_quorum_meta(me, quorum_id);
-	    }
+        }
     } else if (me->timeout_elapsed >= me->election_timeout_rand ||
                me->timeout_now) {
-        
+
         int e = raft_election_start(me);
         if (e != 0) {
             return e;
