@@ -30,17 +30,17 @@ typedef int raft_node_id_t;
 typedef unsigned long raft_msg_id_t;
 
 typedef enum {
-    RAFT_ERR_NOT_LEADER=-2,
-    RAFT_ERR_ONE_VOTING_CHANGE_ONLY=-3,
-    RAFT_ERR_SHUTDOWN=-4,
-    RAFT_ERR_NOMEM=-5,
-    RAFT_ERR_SNAPSHOT_IN_PROGRESS=-6,
-    RAFT_ERR_SNAPSHOT_ALREADY_LOADED=-7,
-    RAFT_ERR_INVALID_NODEID=-8,
-    RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS=-9,
-    RAFT_ERR_DONE=-10,
-    RAFT_ERR_STALE_TERM=-11,
-    RAFT_ERR_LAST=-100,
+    RAFT_ERR_NOT_LEADER                  = -2,
+    RAFT_ERR_ONE_VOTING_CHANGE_ONLY      = -3,
+    RAFT_ERR_SHUTDOWN                    = -4,
+    RAFT_ERR_NOMEM                       = -5,
+    RAFT_ERR_SNAPSHOT_IN_PROGRESS        = -6,
+    RAFT_ERR_SNAPSHOT_ALREADY_LOADED     = -7,
+    RAFT_ERR_INVALID_NODEID              = -8,
+    RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS = -9,
+    RAFT_ERR_DONE                        = -10,
+    RAFT_ERR_STALE_TERM                  = -11,
+    RAFT_ERR_LAST                        = -100,
 } raft_error_e;
 
 typedef enum {
@@ -98,12 +98,11 @@ typedef enum {
      * A no-op entry appended automatically when a leader begins a new term,
      * in order to determine the current commit index.
      */
-    RAFT_LOGTYPE_NUM=100,
+    RAFT_LOGTYPE_NUM = 100,
 } raft_logtype_e;
 
 /** Entry that is stored in the server's entry log. */
-typedef struct raft_entry
-{
+typedef struct raft_entry {
     /** the entry's term at the point it was created */
     raft_term_t term;
 
@@ -134,8 +133,7 @@ typedef struct raft_entry
  * applied to the FSM. */
 typedef raft_entry_t msg_entry_t;
 
-typedef struct
-{
+typedef struct {
     /** chunk offset */
     raft_size_t offset;
 
@@ -151,8 +149,7 @@ typedef struct
 
 /** Entry message response.
  * Indicates to client if entry was committed or not. */
-typedef struct
-{
+typedef struct {
     /** the entry's unique ID */
     raft_entry_id_t id;
 
@@ -166,8 +163,7 @@ typedef struct
 /** Vote request message.
  * Sent to nodes when a server wants to become leader.
  * This message could force a leader/candidate to become a follower. */
-typedef struct
-{
+typedef struct {
     /** 1 if this is a prevote message, 0 otherwise */
     int prevote;
 
@@ -189,8 +185,7 @@ typedef struct
 
 /** Vote request response message.
  * Indicates if node has accepted the server's vote request. */
-typedef struct
-{
+typedef struct {
     /** 1 if this is a prevote message, 0 otherwise */
     int prevote;
 
@@ -204,8 +199,7 @@ typedef struct
     int vote_granted;
 } msg_requestvote_response_t;
 
-typedef struct
-{
+typedef struct {
     /** currentTerm, for follower to update itself */
     raft_term_t term;
 
@@ -227,8 +221,7 @@ typedef struct
 
 } msg_snapshot_t;
 
-typedef struct
-{
+typedef struct {
     /** the msg_id this response refers to */
     raft_msg_id_t msg_id;
 
@@ -249,8 +242,7 @@ typedef struct
  * This message is used to tell nodes if it's safe to apply entries to the FSM.
  * Can be sent without any entries as a keep alive message.
  * This message could force a leader/candidate to become a follower. */
-typedef struct
-{
+typedef struct {
     /** used to identify the sender node. Useful when this message is received
      * from the nodes that are not part of the configuration yet. **/
     raft_node_id_t leader_id;
@@ -283,8 +275,7 @@ typedef struct
 /** Appendentries response message.
  * Can be sent without any entries as a keep alive message.
  * This message could force a leader/candidate to become a follower. */
-typedef struct
-{
+typedef struct {
     /** the msg_id this response refers to */
     raft_msg_id_t msg_id;
 
@@ -648,8 +639,7 @@ typedef int (
     raft_node_t *node
     );
 
-typedef struct
-{
+typedef struct {
     /** Callback for sending request vote messages */
     func_send_requestvote_f send_requestvote;
 
@@ -757,8 +747,7 @@ typedef void (
  * losing entries that have been appended to it.
  */
 
-typedef struct raft_log_impl
-{
+typedef struct raft_log_impl {
     /** Log implementation construction, called exactly once when Raft
      * initializes.
      *
@@ -772,7 +761,7 @@ typedef struct raft_log_impl
      *      in advance and passing a handle to it as arg.  The init function
      *      can then simply return arg.
      */
-    void *(*init) (void *raft, void *arg);
+    void *(*init)(void *raft, void *arg);
 
     /** Log implementation destruction, called exactly once when Raft
      * shuts down.
@@ -781,7 +770,7 @@ typedef struct raft_log_impl
      *
      * @param[in] log The log handle.
      */
-    void (*free) (void *log);
+    void (*free)(void *log);
 
     /** Reset log.  All entries should be deleted, and the log is configured
      * such that the next appended log entry would be assigned with the
@@ -798,7 +787,7 @@ typedef struct raft_log_impl
      * @param[in] term Term of last applied entry, if reset is called after
      *  a snapshot.
      */
-    void (*reset) (void *log, raft_index_t first_idx, raft_term_t term);
+    void (*reset)(void *log, raft_index_t first_idx, raft_term_t term);
 
     /** Append an entry to the log.
      * @param[in] entry Entry to append.
@@ -820,7 +809,7 @@ typedef struct raft_log_impl
      * 2. Consider an async option to make it possible to implement
      *    I/O in a background thread.
      */
-    int (*append) (void *log, raft_entry_t *entry);
+    int (*append)(void *log, raft_entry_t *entry);
 
     /** Remove entries from the start of the log, as necessary when compacting
      * the log and deleting the oldest entries.
@@ -830,7 +819,7 @@ typedef struct raft_log_impl
      *  0 on success;
      *  -1 on error (e.g. log is empty).
      */
-    int (*poll) (void *log, raft_index_t first_idx);
+    int (*poll)(void *log, raft_index_t first_idx);
 
     /** Remove entries from the end of the log, as necessary when rolling back
      * append operations that have not been committed.
@@ -843,7 +832,7 @@ typedef struct raft_log_impl
      *  0 on success;
      *  -1 on error.
      */
-    int (*pop) (void *log, raft_index_t from_idx, func_entry_notify_f cb, void *cb_arg);
+    int (*pop)(void *log, raft_index_t from_idx, func_entry_notify_f cb, void *cb_arg);
 
     /** Get a single entry from the log.
      *
@@ -856,7 +845,7 @@ typedef struct raft_log_impl
      *  Caller must use raft_entry_release() when no longer requiring the
      *  entry.
      */
-    raft_entry_t *(*get) (void *log, raft_index_t idx);
+    raft_entry_t *(*get)(void *log, raft_index_t idx);
 
     /** Get a batch of entries from the log.
      *
@@ -871,32 +860,32 @@ typedef struct raft_log_impl
      *  Caller must use raft_entry_release_list() when no longer requiring
      *    the returned entries.
      */
-    int (*get_batch) (void *log, raft_index_t idx, int entries_n, raft_entry_t **entries);
+    int (*get_batch)(void *log, raft_index_t idx, int entries_n, raft_entry_t **entries);
 
     /** Get first entry's index.
      * @return
      *  Index of first entry.
      */
-    raft_index_t (*first_idx) (void *log);
+    raft_index_t (*first_idx)(void *log);
 
     /** Get current (latest) entry's index.
      * @return
      *  Index of latest entry.
      */
-    raft_index_t (*current_idx) (void *log);
+    raft_index_t (*current_idx)(void *log);
 
     /** Get number of entries in the log.
      * @return
      *  Number of entries.
      */
-    raft_index_t (*count) (void *log);
+    raft_index_t (*count)(void *log);
 
     /** Persist log file to the disk. Usually, implemented as calling fsync()
      * for the log file.
      * @return 0 on success
      *        -1 on error
      */
-    int (*sync) (void *log);
+    int (*sync)(void *log);
 } raft_log_impl_t;
 
 /** Log Implementation callbacks structure for the default in-memory
@@ -953,7 +942,10 @@ void raft_set_callbacks(raft_server_t *me, raft_cbs_t *funcs, void *user_data);
  * @return
  *  node if it was successfully added;
  *  NULL if the node already exists */
-raft_node_t *raft_add_node(raft_server_t *me, void *user_data, raft_node_id_t id, int is_self);
+raft_node_t *raft_add_node(raft_server_t *me,
+                           void *user_data,
+                           raft_node_id_t id,
+                           int is_self);
 
 /** Add a node which does not participate in voting.
  * If a node already exists the call will fail.
@@ -961,7 +953,10 @@ raft_node_t *raft_add_node(raft_server_t *me, void *user_data, raft_node_id_t id
  * @return
  *  node if it was successfully added;
  *  NULL if the node already exists */
-raft_node_t *raft_add_non_voting_node(raft_server_t *me, void *udata, raft_node_id_t id, int is_self);
+raft_node_t *raft_add_non_voting_node(raft_server_t *me,
+                                      void *udata,
+                                      raft_node_id_t id,
+                                      int is_self);
 
 /** Remove node.
  * @param node The node to be removed. */
@@ -1531,7 +1526,7 @@ int raft_queue_read_request(raft_server_t *me, func_read_request_callback_f cb, 
 void raft_process_read_queue(raft_server_t *me);
 
 /* Invoke a leadership transfer to targeted node
- * 
+ *
  * @param[in] node_id Targeted node
  * @param[in] timeout Milliseconds before this transfer is aborted.
  *                    If '0', default election timeout will be used.

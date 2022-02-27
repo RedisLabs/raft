@@ -147,8 +147,7 @@ void raft_set_last_applied_idx(raft_server_t *me, raft_index_t idx);
 void raft_set_state(raft_server_t *me, int state);
 
 
-struct raft_node
-{
+struct raft_node {
     void *udata;
 
     raft_index_t next_idx;

@@ -17,8 +17,7 @@
 
 #define INITIAL_CAPACITY 10
 
-struct raft_log_t
-{
+struct raft_log_t {
     /* capacity of the array */
     raft_index_t cap;
 
@@ -36,7 +35,7 @@ struct raft_log_t
     /* callbacks */
     raft_log_cbs_t cb;
 
-    void* raft;
+    void *raft;
 };
 
 static raft_index_t mod(raft_index_t a, raft_index_t b)
@@ -150,7 +149,7 @@ int raft_log_append_entry(raft_log_t *me, raft_entry_t *ety)
     me->entries[me->back] = ety;
 
     if (me->cb.log_offer) {
-        void* ud = raft_get_udata(me->raft);
+        void *ud = raft_get_udata(me->raft);
         e = me->cb.log_offer(me->raft, ud, me->entries[me->back], idx);
         if (e != 0) {
             return e;
