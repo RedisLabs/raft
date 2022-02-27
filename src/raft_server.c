@@ -525,6 +525,7 @@ void raft_remove_node(raft_server_t *me, raft_node_t *node)
     }
 
     assert(found);
+    (void) found;
 
     void *dst = &me->nodes[i];
     void *src = &me->nodes[i + 1];
@@ -1217,6 +1218,8 @@ int raft_recv_requestvote(raft_server_t *me,
                           msg_requestvote_t *vr,
                           msg_requestvote_response_t *r)
 {
+    (void) node;
+
     int e = 0;
 
     r->prevote = vr->prevote;
