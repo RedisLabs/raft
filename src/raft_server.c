@@ -2159,10 +2159,11 @@ static int raft_update_commit_idx(raft_server_t* me_)
 raft_index_t raft_get_index_to_sync(raft_server_t *me_)
 {
     raft_server_private_t* me = (raft_server_private_t*) me_;
-
     raft_index_t idx = raft_get_current_idx(me_);
-    if (me->next_sync_index > idx)
+
+    if (!raft_is_leader(me_) || idx < me->next_sync_index) {
         return 0;
+    }
 
     me->next_sync_index = idx + 1;
     return idx;

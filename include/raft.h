@@ -1550,7 +1550,7 @@ raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me_);
  * another thread. Also, users should call raft_flush() often to update
  * persisted log index and to send new appendentries messages.
  *
- * Example :
+ * Example:
  *
  * void server_loop() {
  *    while (1) {
@@ -1586,6 +1586,10 @@ int raft_set_auto_flush(raft_server_t* me, int flush);
  *
  * This function is only useful when auto flush is disabled. Same index will be
  * reported once.
+ *
+ * If the node is not the leader, it returns zero. For followers, disk flush is
+ * synchronous. sync() callback is called when an appendentries message
+ * received. So, this function does not makes sense if the node is a follower.
  *
  * @param[in] raft The Raft server
  * @return entry index need to be written to the disk.
