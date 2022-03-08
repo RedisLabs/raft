@@ -643,10 +643,7 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
             raft_update_quorum_meta(me_, quorum_id);
 	    }
     }
-    else if ((me->election_timeout_rand <= me->timeout_elapsed || me->timeout_now) &&
-        /* Don't become the leader when building snapshots or bad things will
-         * happen when we get a client request */
-        !raft_snapshot_is_in_progress(me_))
+    else if ((me->election_timeout_rand <= me->timeout_elapsed || me->timeout_now))
     {
         int e = raft_election_start(me_);
         if (0 != e)
