@@ -113,7 +113,7 @@ typedef struct raft_entry
     unsigned int data_len;
 
     /** data */
-    char data[0];
+    char data[];
 } raft_entry_t;
 
 /** Message sent from client to server.

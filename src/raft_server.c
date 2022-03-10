@@ -264,7 +264,10 @@ void raft_remove_node(raft_server_t* me_, raft_node_t* node)
             break;
         }
     }
+
     assert(found);
+    (void) found;
+
     memmove(&me->nodes[i], &me->nodes[i + 1], sizeof(*me->nodes) * (me->num_nodes - i - 1));
     me->num_nodes--;
 
@@ -970,6 +973,7 @@ int raft_recv_requestvote(raft_server_t* me_,
                           msg_requestvote_t* vr,
                           msg_requestvote_response_t *r)
 {
+    (void) node;
     raft_server_private_t* me = (raft_server_private_t*)me_;
     int e = 0;
 
