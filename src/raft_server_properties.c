@@ -232,11 +232,6 @@ raft_term_t raft_get_last_log_term(raft_server_t* me_)
     return 0;
 }
 
-int raft_is_connected(raft_server_t* me_)
-{
-    return ((raft_server_private_t*)me_)->connected;
-}
-
 int raft_snapshot_is_in_progress(raft_server_t *me_)
 {
     return ((raft_server_private_t*)me_)->snapshot_in_progress;
