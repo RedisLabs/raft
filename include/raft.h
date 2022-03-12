@@ -960,6 +960,10 @@ void raft_set_election_timeout(raft_server_t* me, int msec);
  * @param[in] msec Request timeout in milliseconds */
 void raft_set_request_timeout(raft_server_t* me, int msec);
 
+/** Enable/disable library log.
+ * @param enable 0 to disable*/
+void raft_set_log_enabled(raft_server_t* me_, int enable);
+
 /** Process events that are dependent on time passing.
  * @param[in] msec_elapsed Time in milliseconds since the last call
  * @return

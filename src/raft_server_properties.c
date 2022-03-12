@@ -29,6 +29,12 @@ void raft_set_request_timeout(raft_server_t* me_, int millisec)
     me->request_timeout = millisec;
 }
 
+void raft_set_log_enabled(raft_server_t* me_, int enable)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    me->log_enabled = enable;
+}
+
 raft_node_id_t raft_get_nodeid(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
