@@ -40,10 +40,10 @@ typedef enum {
 } raft_state_e;
 
 typedef enum {
-    RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT,
-    RAFT_STATE_LEADERSHIP_TRANSFER_UNEXPECTED_LEADER,
-    RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER,
-} raft_transfer_state_e;
+    RAFT_LEADER_TRANSFER_TIMEOUT,
+    RAFT_LEADER_TRANSFER_UNEXPECTED_LEADER,
+    RAFT_LEADER_TRANSFER_EXPECTED_LEADER,
+} raft_leader_transfer_e;
 
 /** Allow entries to apply while taking a snapshot */
 #define RAFT_SNAPSHOT_NONBLOCKING_APPLY     1
@@ -169,9 +169,6 @@ typedef struct
 
     /** term of candidate's last log entry */
     raft_term_t last_log_term;
-
-    /** tell nodes that they should allow a vote, even with a healthy leader */
-    int transfer_leader;
 } msg_requestvote_t;
 
 /** Vote request response message.
@@ -581,15 +578,15 @@ typedef void (
  *
  * @param[in] raft The Raft server making this callback
  * @param[in] user_data User data that is passed from Raft server
- * @param[in] state the leadership transfer result
+ * @param[in] result the leadership transfer result
  */
 typedef void (
-        *func_transfer_event_f
+*func_transfer_event_f
 )   (
-        raft_server_t* raft,
-        void *user_data,
-        raft_transfer_state_e state
-);
+    raft_server_t* raft,
+    void *user_data,
+    raft_leader_transfer_e result
+    );
 
 /** Callback for sending TimeoutNow RPC messages
  * @param[in] raft The Raft server making this callback
@@ -599,8 +596,8 @@ typedef void (
 typedef int (
 *func_send_timeoutnow_f
 )   (
-        raft_server_t* raft,
-        raft_node_t* node
+    raft_server_t* raft,
+    raft_node_t* node
     );
 
 /** Callback to skip sending msg_appendentries to the node
@@ -1532,8 +1529,8 @@ int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, long timeou
 /* get the targeted node_id if a leadership transfer is in progress, or RAFT_NODE_ID_NONE if not */
 raft_node_id_t raft_get_transfer_leader(raft_server_t* me_);
 
-/* cause this server to force an election on its next raft_periodic function call */
-void raft_set_timeout_now(raft_server_t* me_);
+/* cause this server to force an election. */
+int raft_timeout_now(raft_server_t* me_);
 
 raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me_);
 

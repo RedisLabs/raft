@@ -299,10 +299,3 @@ raft_node_id_t raft_get_transfer_leader(raft_server_t* me_)
     return me->node_transferring_leader_to;
 }
 
-/* Forces the raft server to invoke an election on the next raft_periodic function call */
-void raft_set_timeout_now(raft_server_t* me_)
-{
-    raft_server_private_t* me = (raft_server_private_t*) me_;
-
-    me->timeout_now = 1;
-}

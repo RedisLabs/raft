@@ -221,7 +221,7 @@ void TestRaft_election_start_does_not_increment_term(CuTest * tc)
     raft_add_node(r, NULL, 1, 1);
     raft_set_callbacks(r, &generic_funcs, NULL);
     raft_set_current_term(r, 1);
-    raft_election_start(r);
+    raft_election_start(r, 0);
     CuAssertTrue(tc, 1 == raft_get_current_term(r));
 }
 
@@ -3670,7 +3670,7 @@ void TestRaft_leader_recv_requestvote_responds_without_granting(CuTest * tc)
     raft_set_request_timeout(r, 500);
     CuAssertTrue(tc, 0 == raft_get_timeout_elapsed(r));
 
-    raft_election_start(r);
+    raft_election_start(r, 0);
 
     msg_requestvote_response_t rvr = {
         .prevote = 1,
@@ -3967,8 +3967,8 @@ void TestRaft_single_node_commits_noop(CuTest * tc)
 
 /*
  * tests:
- * 1) if requestvote transfer_leader flag is not set, will not accept a request vote, as not timed out
- * 2) if requestvote transfer_leader flag is set, will accept a request vote, even though not timed out
+ * 1) if requestvote prevote flag is set, will not accept a request vote, as not timed out
+ * 2) if requestvote prevote flag is not set, will accept a request vote, even though not timed out
  */
 void TestRaft_server_recv_requestvote_with_transfer_node(CuTest * tc)
 {
@@ -3991,17 +3991,16 @@ void TestRaft_server_recv_requestvote_with_transfer_node(CuTest * tc)
             .term = 2,
             .candidate_id = 2,
             .last_log_idx = 0,
-            .last_log_term = 1,
-            .transfer_leader = 0,
+            .last_log_term = 1
     };
     msg_requestvote_response_t rvr;
 
-    /* test #1: try to request a vote without transfer leader flag */
+    /* test #1: try to request a vote with prevote flag */
     raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
     CuAssertTrue(tc, 1 != rvr.vote_granted);
 
-    /* test #2: try to request a vote with the transfer leader flag */
-    rv.transfer_leader = 1;
+    /* test #2: try to request a vote without the prevote flag */
+    rv.prevote = 0;
     raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
     CuAssertTrue(tc, 1 == rvr.vote_granted);
 }
@@ -4019,21 +4018,12 @@ void TestRaft_targeted_node_becomes_candidate_when_before_real_timeout_occurs(Cu
     };
 
     raft_server_t *r = raft_new();
-    raft_set_callbacks(r, &funcs, NULL);
-
-    raft_set_timeout_now(r);
-
-    /*  1 second election timeout */
-    raft_set_election_timeout(r, 1000);
-
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
+    raft_set_callbacks(r, &funcs, NULL);
 
-    /* i.e. not a timeout, only 1 out of 1000 */
-    raft_periodic(r, 1);
-
-    /* is a candidate now */
-    CuAssertTrue(tc, 1 == raft_is_precandidate(r));
+    raft_timeout_now(r);
+    CuAssertTrue(tc, 1 == raft_is_candidate(r));
 }
 
 void quorum_msg_id_correctness_cb(void* arg, int can_read)
@@ -4448,15 +4438,15 @@ void TestRaft_verify_append_entries_fields_are_set(CuTest * tc)
     raft_send_appendentries_all(r);
 }
 
-void cb_notify_transfer_event(raft_server_t *raft, void *udata, raft_transfer_state_e state)
+void cb_notify_transfer_event(raft_server_t *raft, void *udata, raft_leader_transfer_e state)
 {
-    raft_transfer_state_e * data = udata;
+    raft_leader_transfer_e * data = udata;
     *data = state;
 }
 
 void Test_reset_transfer_leader(CuTest *tc)
 {
-    raft_transfer_state_e state;
+    raft_leader_transfer_e state;
     raft_cbs_t funcs = {
             .notify_transfer_event = cb_notify_transfer_event,
     };
@@ -4471,25 +4461,25 @@ void Test_reset_transfer_leader(CuTest *tc)
     int ret = raft_transfer_leader(r, 2, 0);
     CuAssertIntEquals(tc, 0, ret);
     raft_reset_transfer_leader(r, 0);
-    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_UNEXPECTED_LEADER, state);
+    CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_UNEXPECTED_LEADER, state);
 
     ret = raft_transfer_leader(r, 2, 0);
     CuAssertIntEquals(tc, 0, ret);
     me->leader_id = 2;
     raft_reset_transfer_leader(r, 0);
-    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER, state);
+    CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_EXPECTED_LEADER, state);
 
     /* tests timeout in general, so don't need a separate test for it */
     me->leader_id = 1;
     ret = raft_transfer_leader(r, 2, 1);
     CuAssertIntEquals(tc, 0, ret);
     raft_periodic(r, 2);
-    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT, state);
+    CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_TIMEOUT, state);
 }
 
 void Test_transfer_leader_success(CuTest *tc)
 {
-    raft_transfer_state_e state = RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT;
+    raft_leader_transfer_e state = RAFT_LEADER_TRANSFER_TIMEOUT;
     raft_cbs_t funcs = {
             .notify_transfer_event = cb_notify_transfer_event,
     };
@@ -4509,12 +4499,12 @@ void Test_transfer_leader_success(CuTest *tc)
 
     raft_recv_appendentries(r, raft_get_node(r, 2), &ae, &aer);
     CuAssertTrue(tc, 1 == aer.success);
-    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER, state);
+    CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_EXPECTED_LEADER, state);
 }
 
 void Test_transfer_leader_unexpected(CuTest *tc)
 {
-    raft_transfer_state_e state = RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT;
+    raft_leader_transfer_e state = RAFT_LEADER_TRANSFER_TIMEOUT;
     raft_cbs_t funcs = {
             .notify_transfer_event = cb_notify_transfer_event,
     };
@@ -4536,7 +4526,7 @@ void Test_transfer_leader_unexpected(CuTest *tc)
 
     raft_recv_appendentries(r, raft_get_node(r, 2), &ae, &aer);
     CuAssertTrue(tc, 1 == aer.success);
-    CuAssertIntEquals(tc, RAFT_STATE_LEADERSHIP_TRANSFER_UNEXPECTED_LEADER, state);
+    CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_UNEXPECTED_LEADER, state);
 }
 
 void Test_transfer_leader_not_leader(CuTest *tc)

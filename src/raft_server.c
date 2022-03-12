@@ -376,7 +376,7 @@ int raft_delete_entry_from_idx(raft_server_t* me_, raft_index_t idx)
     return me->log_impl->sync(me->log);
 }
 
-int raft_election_start(raft_server_t* me_)
+int raft_election_start(raft_server_t* me_, int skip_precandidate)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
@@ -389,7 +389,8 @@ int raft_election_start(raft_server_t* me_)
     me->timeout_elapsed = 0;
     raft_randomize_election_timeout(me_);
 
-    return raft_become_precandidate(me_);
+    return skip_precandidate ? raft_become_candidate(me_):
+                               raft_become_precandidate(me_);
 }
 
 void raft_accept_leader(raft_server_t* me_, raft_node_id_t leader)
@@ -643,12 +644,11 @@ int raft_periodic(raft_server_t* me_, int msec_since_last_period)
             raft_update_quorum_meta(me_, quorum_id);
 	    }
     }
-    else if ((me->election_timeout_rand <= me->timeout_elapsed || me->timeout_now))
+    else if (me->election_timeout_rand <= me->timeout_elapsed)
     {
-        int e = raft_election_start(me_);
+        int e = raft_election_start(me_, 0);
         if (0 != e)
             return e;
-        me->timeout_now = 0;
     }
 
     if (me->last_applied_idx < raft_get_commit_idx(me_) &&
@@ -976,7 +976,6 @@ int raft_recv_requestvote(raft_server_t* me_,
 
     /* Reject request if we have a leader, during prevote */
     if (vr->prevote &&
-        !vr->transfer_leader &&
         me->leader_id != RAFT_NODE_ID_NONE &&
         me->leader_id != vr->candidate_id &&
         me->timeout_elapsed < me->election_timeout) {
@@ -1175,7 +1174,6 @@ int raft_send_requestvote(raft_server_t* me_, raft_node_t* node)
     rv.last_log_idx = raft_get_current_idx(me_);
     rv.last_log_term = raft_get_last_log_term(me_);
     rv.candidate_id = raft_get_nodeid(me_);
-    rv.transfer_leader = me->timeout_now;
 
     if (me->cb.send_requestvote)
         e = me->cb.send_requestvote(me_, me->udata, node, &rv);
@@ -2053,8 +2051,8 @@ void raft_process_read_queue(raft_server_t* me_)
 }
 
 /* invoke a leadership transfer
- * node_id = targeted node we are transfering to
- * timeout = how long this should be allowed to take in milliseconds, as calculated by calls to raft_periodic)
+ * node_id = targeted node we are transferring to
+ * timeout = how long this should be allowed to take in milliseconds, as calculated by calls to raft_periodic
  * return an error if leadership transfer is already in progress of the targeted node_id is unknown
  */
 int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, long timeout)
@@ -2069,25 +2067,40 @@ int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, long timeou
         return RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS;
     }
 
-    raft_node_t * target = raft_get_node(me_, node_id);
-    if (target == NULL) {
+    raft_node_t *target = raft_get_node(me_, node_id);
+    if (target == NULL || target == me->node) {
         return RAFT_ERR_INVALID_NODEID;
     }
 
     if (me->cb.send_timeoutnow &&
-    raft_get_current_idx(me_) == raft_node_get_match_idx(target)) {
+        raft_get_current_idx(me_) == raft_node_get_match_idx(target)) {
         me->cb.send_timeoutnow(me_, target);
         me->sent_timeout_now = 1;
     }
 
     me->node_transferring_leader_to = node_id;
-    if (timeout == 0) {
-        me->transfer_leader_time = me->election_timeout;
-    } else {
-        me->transfer_leader_time = timeout;
-    }
+    me->transfer_leader_time = (timeout != 0) ? timeout : me->election_timeout;
 
     return 0;
+}
+
+/* Forces the raft server to invoke an election as part of leader transfer
+ * operation. */
+int raft_timeout_now(raft_server_t* me_)
+{
+    if (raft_is_leader(me_)) {
+        return 0;
+    }
+
+    /* Starting an election but pre-candidate round will be skipped. This node
+     * becomes candidate immediately. It means the term will be incremented and
+     * appendentries RPCs from the prior leader will be rejected. Otherwise,
+     * in pre-candidate round, this node would have to accept RPCs from the
+     * prior leader and abort the election. Also, by skipping pre-candidate
+     * round, leader transfer operation can be completed faster and cluster will
+     * experience less downtime.
+     */
+    return raft_election_start(me_, 1);
 }
 
 /* Stop trying to transfer leader to a targeted node
@@ -2096,24 +2109,28 @@ int raft_transfer_leader(raft_server_t* me_, raft_node_id_t node_id, long timeou
  */
 void raft_reset_transfer_leader(raft_server_t* me_, int timed_out)
 {
+    raft_leader_transfer_e result;
     raft_server_private_t* me = (raft_server_private_t*) me_;
 
-    if (me->node_transferring_leader_to != RAFT_NODE_ID_NONE) {
-        if (me->cb.notify_transfer_event) {
-            raft_transfer_state_e state = RAFT_STATE_LEADERSHIP_TRANSFER_EXPECTED_LEADER;
-            if (me->node_transferring_leader_to != me->leader_id) {
-                state = RAFT_STATE_LEADERSHIP_TRANSFER_UNEXPECTED_LEADER;
-            }
-            if (timed_out) {
-                state = RAFT_STATE_LEADERSHIP_TRANSFER_TIMEOUT;
-            }
-            me->cb.notify_transfer_event(me_, raft_get_udata(me_), state);
-        }
-
-        me->node_transferring_leader_to = RAFT_NODE_ID_NONE;
-        me->transfer_leader_time = 0;
-        me->sent_timeout_now = 0;
+    if (me->node_transferring_leader_to == RAFT_NODE_ID_NONE)  {
+        return;
     }
+
+    if (timed_out) {
+        result = RAFT_LEADER_TRANSFER_TIMEOUT;
+    } else {
+        result = (me->node_transferring_leader_to == me->leader_id) ?
+                    RAFT_LEADER_TRANSFER_EXPECTED_LEADER :
+                    RAFT_LEADER_TRANSFER_UNEXPECTED_LEADER;
+    }
+
+    if (me->cb.notify_transfer_event) {
+        me->cb.notify_transfer_event(me_, me->udata, result);
+    }
+
+    me->node_transferring_leader_to = RAFT_NODE_ID_NONE;
+    me->transfer_leader_time = 0;
+    me->sent_timeout_now = 0;
 }
 
 static int index_cmp(const void *a, const void *b)
