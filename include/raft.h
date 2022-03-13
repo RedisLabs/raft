@@ -1340,12 +1340,6 @@ int raft_snapshot_is_in_progress(raft_server_t *me_);
  **/
 int raft_is_apply_allowed(raft_server_t* me_);
 
-/** Remove the first log entry.
- * This should be used for compacting logs.
- * @return 0 on success
- **/
-int raft_poll_entry(raft_server_t* me_);
-
 /** Get last applied entry
  **/
 raft_entry_t *raft_get_last_applied_entry(raft_server_t *me_);
