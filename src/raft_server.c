@@ -1254,10 +1254,7 @@ int raft_apply_entry(raft_server_t* me_)
         case RAFT_LOGTYPE_ADD_NODE:
             raft_node_set_addition_committed(node, 1);
             raft_node_set_voting_committed(node, 1);
-            /* Membership Change: confirm connection with cluster */
             raft_node_set_has_sufficient_logs(node);
-            if (node_id == raft_get_nodeid(me_))
-                me->connected = RAFT_NODE_STATUS_CONNECTED;
             break;
         case RAFT_LOGTYPE_ADD_NONVOTING_NODE:
             raft_node_set_addition_committed(node, 1);

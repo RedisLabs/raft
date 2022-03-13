@@ -12,13 +12,6 @@
 
 #include "raft_types.h"
 
-enum {
-    RAFT_NODE_STATUS_DISCONNECTED,
-    RAFT_NODE_STATUS_CONNECTED,
-    RAFT_NODE_STATUS_CONNECTING,
-    RAFT_NODE_STATUS_DISCONNECTING
-};
-
 struct raft_log_impl;
 
 typedef struct raft_read_request {
@@ -87,10 +80,6 @@ typedef struct {
 
     /* the log which has a voting cfg change, otherwise -1 */
     raft_index_t voting_cfg_change_log_idx;
-
-    /* Our membership with the cluster is confirmed (ie. configuration log was
-     * committed) */
-    int connected;
 
     int snapshot_in_progress;
     int snapshot_flags;
