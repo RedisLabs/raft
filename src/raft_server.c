@@ -1669,20 +1669,6 @@ int raft_entry_is_cfg_change(raft_entry_t* ety)
         RAFT_LOGTYPE_REMOVE_NODE == ety->type);
 }
 
-int raft_poll_entry(raft_server_t* me_)
-{
-    raft_server_private_t* me = (raft_server_private_t*)me_;
-
-    /* We should never drop uncommitted entries */
-    assert(me->log_impl->first_idx(me->log) <= raft_get_commit_idx(me_));
-
-    int e = me->log_impl->poll(me->log, me->log_impl->first_idx(me->log));
-    if (e != 0)
-        return e;
-
-    return me->log_impl->sync(me->log);
-}
-
 int raft_pop_entry(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
