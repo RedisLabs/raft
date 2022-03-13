@@ -129,6 +129,8 @@ typedef struct {
     raft_index_t next_sync_index;
 
     int timeout_now;
+
+    int log_enabled;
 } raft_server_private_t;
 
 int raft_election_start(raft_server_t* me);

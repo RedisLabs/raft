@@ -56,7 +56,7 @@ static void raft_log_node(raft_server_t *me_,
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
-    if (me->cb.log == NULL)
+    if (!me->log_enabled || me->cb.log == NULL)
         return;
 
     char buf[1024];
