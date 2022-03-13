@@ -76,6 +76,7 @@ static int __ensurecapacity(log_private_t * me)
 
 int log_load_from_snapshot(log_t *me_, raft_index_t idx, raft_term_t term)
 {
+    (void) term;
     log_private_t* me = (log_private_t*)me_;
 
     log_clear_entries(me_);
@@ -351,6 +352,8 @@ static void __log_free(void *log)
 
 static void __log_reset(void *log, raft_index_t first_idx, raft_term_t term)
 {
+    (void) term;
+
     log_clear_entries(log);
     log_clear(log);
 
@@ -426,6 +429,7 @@ static raft_index_t __log_count(void *log)
 
 static int __log_sync(void *log)
 {
+    (void) log;
     return 0;
 }
 
