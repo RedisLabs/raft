@@ -56,7 +56,7 @@ static void raft_log_node(raft_server_t *me_,
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
 
-    if (me->cb.log == NULL)
+    if (!me->log_enabled || me->cb.log == NULL)
         return;
 
     char buf[1024];
@@ -264,7 +264,10 @@ void raft_remove_node(raft_server_t* me_, raft_node_t* node)
             break;
         }
     }
+
     assert(found);
+    (void) found;
+
     memmove(&me->nodes[i], &me->nodes[i + 1], sizeof(*me->nodes) * (me->num_nodes - i - 1));
     me->num_nodes--;
 
@@ -967,6 +970,7 @@ int raft_recv_requestvote(raft_server_t* me_,
                           msg_requestvote_t* vr,
                           msg_requestvote_response_t *r)
 {
+    (void) node;
     raft_server_private_t* me = (raft_server_private_t*)me_;
     int e = 0;
 
@@ -1252,10 +1256,7 @@ int raft_apply_entry(raft_server_t* me_)
         case RAFT_LOGTYPE_ADD_NODE:
             raft_node_set_addition_committed(node, 1);
             raft_node_set_voting_committed(node, 1);
-            /* Membership Change: confirm connection with cluster */
             raft_node_set_has_sufficient_logs(node);
-            if (node_id == raft_get_nodeid(me_))
-                me->connected = RAFT_NODE_STATUS_CONNECTED;
             break;
         case RAFT_LOGTYPE_ADD_NONVOTING_NODE:
             raft_node_set_addition_committed(node, 1);
@@ -1665,20 +1666,6 @@ int raft_entry_is_cfg_change(raft_entry_t* ety)
         RAFT_LOGTYPE_ADD_NODE == ety->type ||
         RAFT_LOGTYPE_ADD_NONVOTING_NODE == ety->type ||
         RAFT_LOGTYPE_REMOVE_NODE == ety->type);
-}
-
-int raft_poll_entry(raft_server_t* me_)
-{
-    raft_server_private_t* me = (raft_server_private_t*)me_;
-
-    /* We should never drop uncommitted entries */
-    assert(me->log_impl->first_idx(me->log) <= raft_get_commit_idx(me_));
-
-    int e = me->log_impl->poll(me->log, me->log_impl->first_idx(me->log));
-    if (e != 0)
-        return e;
-
-    return me->log_impl->sync(me->log);
 }
 
 int raft_pop_entry(raft_server_t* me_)

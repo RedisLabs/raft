@@ -29,6 +29,12 @@ void raft_set_request_timeout(raft_server_t* me_, int millisec)
     me->request_timeout = millisec;
 }
 
+void raft_set_log_enabled(raft_server_t* me_, int enable)
+{
+    raft_server_private_t* me = (raft_server_private_t*)me_;
+    me->log_enabled = enable;
+}
+
 raft_node_id_t raft_get_nodeid(raft_server_t* me_)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
@@ -232,11 +238,6 @@ raft_term_t raft_get_last_log_term(raft_server_t* me_)
     return 0;
 }
 
-int raft_is_connected(raft_server_t* me_)
-{
-    return ((raft_server_private_t*)me_)->connected;
-}
-
 int raft_snapshot_is_in_progress(raft_server_t *me_)
 {
     return ((raft_server_private_t*)me_)->snapshot_in_progress;
@@ -270,8 +271,6 @@ void raft_set_snapshot_metadata(raft_server_t *me_, raft_term_t term, raft_index
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
     me->last_applied_idx = idx;
-    me->next_snapshot_last_term = me->snapshot_last_term;
-    me->next_snapshot_last_idx = me->snapshot_last_idx;
     me->snapshot_last_term = term;
     me->snapshot_last_idx = idx;
 }

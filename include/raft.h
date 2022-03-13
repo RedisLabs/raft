@@ -113,7 +113,7 @@ typedef struct raft_entry
     unsigned int data_len;
 
     /** data */
-    char data[0];
+    char data[];
 } raft_entry_t;
 
 /** Message sent from client to server.
@@ -957,6 +957,10 @@ void raft_set_election_timeout(raft_server_t* me, int msec);
  * @param[in] msec Request timeout in milliseconds */
 void raft_set_request_timeout(raft_server_t* me, int msec);
 
+/** Enable/disable library log.
+ * @param enable 0 to disable*/
+void raft_set_log_enabled(raft_server_t* me_, int enable);
+
 /** Process events that are dependent on time passing.
  * @param[in] msec_elapsed Time in milliseconds since the last call
  * @return
@@ -1336,12 +1340,6 @@ int raft_snapshot_is_in_progress(raft_server_t *me_);
  * RAFT_SNAPSHOT_NONBLOCKING_APPLY specified).
  **/
 int raft_is_apply_allowed(raft_server_t* me_);
-
-/** Remove the first log entry.
- * This should be used for compacting logs.
- * @return 0 on success
- **/
-int raft_poll_entry(raft_server_t* me_);
 
 /** Get last applied entry
  **/
