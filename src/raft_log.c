@@ -78,14 +78,14 @@ int raft_log_load_from_snapshot(raft_log_t *me, raft_index_t idx, raft_term_t te
 {
     (void) term;
 
-    log_clear_entries(me);
+    raft_log_clear_entries(me);
     raft_log_clear(me);
     me->base = idx;
 
     return 0;
 }
 
-raft_log_t*raft_log_alloc(raft_index_t initial_size)
+raft_log_t *raft_log_alloc(raft_index_t initial_size)
 {
     raft_log_t *me = raft_calloc(1, sizeof(*me));
     if (!me)
@@ -100,7 +100,7 @@ raft_log_t*raft_log_alloc(raft_index_t initial_size)
     return (raft_log_t*)me;
 }
 
-raft_log_t*raft_log_new(void)
+raft_log_t *raft_log_new(void)
 {
     return raft_log_alloc(INITIAL_CAPACITY);
 }
@@ -119,7 +119,7 @@ void raft_log_clear(raft_log_t *me)
     me->base = 0;
 }
 
-void log_clear_entries(raft_log_t* me)
+void raft_log_clear_entries(raft_log_t* me)
 {
     raft_index_t i;
 
@@ -318,7 +318,7 @@ raft_index_t raft_log_get_base(raft_log_t *me)
  *      log implementations.
  */
 
-void *log_init(void *raft, void *arg)
+static void *log_init(void *raft, void *arg)
 {
     raft_log_t *log = raft_log_new();
     if (arg) {
@@ -336,7 +336,7 @@ static void log_reset(void *log, raft_index_t first_idx, raft_term_t term)
 {
     (void) term;
 
-    log_clear_entries(log);
+    raft_log_clear_entries(log);
     raft_log_clear(log);
 
     assert(first_idx >= 1);

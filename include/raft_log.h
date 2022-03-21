@@ -5,9 +5,9 @@
 
 typedef struct raft_log raft_log_t;
 
-raft_log_t*raft_log_new(void);
+raft_log_t* raft_log_new(void);
 
-raft_log_t*raft_log_alloc(raft_index_t initial_size);
+raft_log_t* raft_log_alloc(raft_index_t initial_size);
 
 void raft_log_set_callbacks(raft_log_t* me, raft_log_cbs_t* funcs, void* raft);
 
@@ -15,7 +15,7 @@ void raft_log_free(raft_log_t* me);
 
 void raft_log_clear(raft_log_t* me);
 
-void log_clear_entries(raft_log_t* me);
+void raft_log_clear_entries(raft_log_t* me);
 
 /**
  * Add entry to log.
