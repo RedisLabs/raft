@@ -128,12 +128,10 @@ typedef struct {
      * when auto flush is disabled. */
     raft_index_t next_sync_index;
 
-    int timeout_now;
-
     int log_enabled;
 } raft_server_private_t;
 
-int raft_election_start(raft_server_t* me);
+int raft_election_start(raft_server_t* me, int skip_precandidate);
 
 int raft_become_candidate(raft_server_t* me);
 
