@@ -55,7 +55,7 @@ raft_node_t* raft_node_new(void* udata, raft_node_id_t id)
     me->match_idx = 0;
     me->id = id;
     me->flags = RAFT_NODE_VOTING;
-    return (raft_node_t*)me;
+    return me;
 }
 
 void raft_node_free(raft_node_t* me)

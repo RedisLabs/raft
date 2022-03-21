@@ -91,13 +91,13 @@ raft_log_t *raft_log_alloc(raft_index_t initial_size)
     if (!me)
         return NULL;
     me->size = initial_size;
-    raft_log_clear((raft_log_t *) me);
+    raft_log_clear(me);
     me->entries = raft_calloc(1, sizeof(raft_entry_t *) * me->size);
     if (!me->entries) {
         raft_free(me);
         return NULL;
     }
-    return (raft_log_t*)me;
+    return me;
 }
 
 raft_log_t *raft_log_new(void)
@@ -186,7 +186,7 @@ raft_entry_t**raft_log_get_from_idx(raft_log_t *me, raft_index_t idx, long *n_et
     return &me->entries[i];
 }
 
-raft_entry_t*raft_log_get_at_idx(raft_log_t *me, raft_index_t idx)
+raft_entry_t* raft_log_get_at_idx(raft_log_t *me, raft_index_t idx)
 {
     raft_index_t i;
 
