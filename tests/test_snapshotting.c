@@ -319,7 +319,7 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
         .send_appendentries = __raft_send_appendentries,
     };
 
-    void *r = raft_new();
+    raft_server_t *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
     msg_entry_response_t cr;
@@ -366,8 +366,7 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
     CuAssertIntEquals(tc, 0, raft_periodic(r, 1000));
     CuAssertIntEquals(tc, 2, raft_get_log_count(r));
     CuAssertIntEquals(tc, 4, raft_get_commit_idx(r));
-    raft_server_private_t *r_p = (raft_server_private_t *) r;
-    CuAssertIntEquals(tc, 3, r_p->log_impl->first_idx(r_p->log));
+    CuAssertIntEquals(tc, 3, r->log_impl->first_idx(r->log));
     CuAssertIntEquals(tc, 2, raft_get_num_snapshottable_logs(r));
     CuAssertIntEquals(tc, 0, raft_begin_snapshot(r, 0));
     CuAssertIntEquals(tc, 0, raft_end_snapshot(r));

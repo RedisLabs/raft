@@ -25,7 +25,7 @@ typedef struct raft_read_request {
     struct raft_read_request *next;
 } raft_read_request_t;
 
-typedef struct {
+struct raft_server {
     /* Persistent state: */
 
     /* the server's best guess of what the current term is
@@ -129,7 +129,7 @@ typedef struct {
     raft_index_t next_sync_index;
 
     int log_enabled;
-} raft_server_private_t;
+};
 
 int raft_election_start(raft_server_t* me, int skip_precandidate);
 
