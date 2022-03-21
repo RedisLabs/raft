@@ -137,9 +137,9 @@ int raft_become_candidate(raft_server_t* me);
 
 int raft_become_precandidate(raft_server_t* me);
 
-void raft_randomize_election_timeout(raft_server_t* me_);
+void raft_randomize_election_timeout(raft_server_t* me);
 
-void raft_update_quorum_meta(raft_server_t* me_, raft_msg_id_t id);
+void raft_update_quorum_meta(raft_server_t* me, raft_msg_id_t id);
 
 /**
  * @return 0 on error */
@@ -147,36 +147,36 @@ int raft_send_requestvote(raft_server_t* me, raft_node_t* node);
 
 int raft_send_appendentries(raft_server_t* me, raft_node_t* node);
 
-int raft_send_appendentries_all(raft_server_t* me_);
+int raft_send_appendentries_all(raft_server_t* me);
 
 /**
  * Apply entry at lastApplied + 1. Entry becomes 'committed'.
  * @return 1 if entry committed, 0 otherwise */
-int raft_apply_entry(raft_server_t* me_);
+int raft_apply_entry(raft_server_t* me);
 
 void raft_set_last_applied_idx(raft_server_t* me, raft_index_t idx);
 
-void raft_set_state(raft_server_t* me_, int state);
+void raft_set_state(raft_server_t* me, int state);
 
 raft_node_t* raft_node_new(void* udata, raft_node_id_t id);
 
-void raft_node_free(raft_node_t* me_);
+void raft_node_free(raft_node_t* me);
 
 void raft_node_set_match_idx(raft_node_t* node, raft_index_t idx);
 
-void raft_node_vote_for_me(raft_node_t* me_, int vote);
+void raft_node_vote_for_me(raft_node_t* me, int vote);
 
-int raft_node_has_vote_for_me(raft_node_t* me_);
+int raft_node_has_vote_for_me(raft_node_t* me);
 
-void raft_node_set_has_sufficient_logs(raft_node_t* me_);
+void raft_node_set_has_sufficient_logs(raft_node_t* me);
 
-int raft_is_single_node_voting_cluster(raft_server_t *me_);
+int raft_is_single_node_voting_cluster(raft_server_t *me);
 
 int raft_votes_is_majority(int nnodes, int nvotes);
 
-void raft_node_set_last_ack(raft_node_t* me_, raft_msg_id_t msgid, raft_term_t term);
+void raft_node_set_last_ack(raft_node_t* me, raft_msg_id_t msgid, raft_term_t term);
 
-raft_msg_id_t raft_node_get_last_acked_msgid(raft_node_t* me_);
+raft_msg_id_t raft_node_get_last_acked_msgid(raft_node_t* me);
 
 /* Heap functions */
 extern void *(*raft_malloc)(size_t size);
@@ -185,17 +185,17 @@ extern void *(*raft_realloc)(void *ptr, size_t size);
 extern void (*raft_free)(void *ptr);
 
 /* update the max_seen_msg_id for this node */
-void raft_node_update_max_seen_msg_id(raft_node_t *me_, raft_msg_id_t msg_id);
+void raft_node_update_max_seen_msg_id(raft_node_t *me, raft_msg_id_t msg_id);
 /* get the max message id this server has seen from its the specified node */
-raft_msg_id_t raft_node_get_max_seen_msg_id(raft_node_t *me_);
+raft_msg_id_t raft_node_get_max_seen_msg_id(raft_node_t *me);
 /* get the server's current msg_id */
-raft_msg_id_t raft_get_msg_id(raft_server_t* me_);
+raft_msg_id_t raft_get_msg_id(raft_server_t* me);
 
 /* attempt to abort the leadership transfer */
-void raft_reset_transfer_leader(raft_server_t* me_, int timed_out);
+void raft_reset_transfer_leader(raft_server_t* me, int timed_out);
 
-raft_size_t raft_node_get_snapshot_offset(raft_node_t *me_);
+raft_size_t raft_node_get_snapshot_offset(raft_node_t *me);
 
-void raft_node_set_snapshot_offset(raft_node_t *me_, raft_size_t snapshot_offset);
+void raft_node_set_snapshot_offset(raft_node_t *me, raft_size_t snapshot_offset);
 
 #endif /* RAFT_PRIVATE_H_ */
