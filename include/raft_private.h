@@ -54,7 +54,7 @@ typedef struct {
     /* amount of time left till timeout */
     int timeout_elapsed;
 
-    raft_node_t* nodes;
+    raft_node_t** nodes;
     int num_nodes;
 
     int election_timeout;

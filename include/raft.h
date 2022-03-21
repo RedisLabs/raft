@@ -288,7 +288,7 @@ typedef struct
 } msg_appendentries_response_t;
 
 typedef void* raft_server_t;
-typedef void* raft_node_t;
+typedef struct raft_node raft_node_t;
 
 /** Callback for sending request vote messages.
  * @param[in] raft The Raft server making this callback
