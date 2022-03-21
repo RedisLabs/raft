@@ -847,7 +847,7 @@ class RaftServer(object):
         log_cbs.log_pop = self.raft_logentry_pop
 
         lib.raft_set_callbacks(self.raft, cbs, self.udata)
-        lib.log_set_callbacks(lib.raft_get_log(self.raft), log_cbs, self.raft)
+        lib.raft_log_set_callbacks(lib.raft_get_log(self.raft), log_cbs, self.raft)
         lib.raft_set_election_timeout(self.raft, 500)
         lib.raft_set_auto_flush(self.raft, network.auto_flush)
 
