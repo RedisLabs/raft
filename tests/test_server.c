@@ -1585,7 +1585,7 @@ void TestRaft_follower_recv_appendentries_partial_failures(
     void *r = raft_new();
     __raft_error_t error = {};
     raft_set_callbacks(r, &funcs, &error);
-    log_set_callbacks(raft_get_log(r), &log_funcs, r);
+    raft_log_set_callbacks(raft_get_log(r), &log_funcs, r);
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -3761,7 +3761,7 @@ void TestRaft_leader_recv_entry_add_nonvoting_node_remove_and_revert(CuTest *tc)
 
     int has_sufficient_logs_flag = 0;
     raft_set_callbacks(r, &funcs, &has_sufficient_logs_flag);
-    log_set_callbacks(raft_get_log(r), &log_funcs, r);
+    raft_log_set_callbacks(raft_get_log(r), &log_funcs, r);
 
     /* I'm the leader */
     raft_set_state(r, RAFT_STATE_LEADER);
@@ -3807,7 +3807,7 @@ void TestRaft_leader_recv_appendentries_response_set_has_sufficient_logs_after_v
 
     int has_sufficient_logs_flag = 0;
     raft_set_callbacks(r, &funcs, &has_sufficient_logs_flag);
-    log_set_callbacks(raft_get_log(r), &log_funcs, r);
+    raft_log_set_callbacks(raft_get_log(r), &log_funcs, r);
 
     /* I'm the leader */
     raft_set_state(r, RAFT_STATE_LEADER);
@@ -4452,7 +4452,6 @@ void Test_reset_transfer_leader(CuTest *tc)
     };
     raft_server_t *r = raft_new();
     raft_set_state(r, RAFT_STATE_LEADER);
-    raft_server_private_t * me = (raft_server_private_t *) r;
 
     raft_set_callbacks(r, &funcs, &state);
 
@@ -4465,12 +4464,12 @@ void Test_reset_transfer_leader(CuTest *tc)
 
     ret = raft_transfer_leader(r, 2, 0);
     CuAssertIntEquals(tc, 0, ret);
-    me->leader_id = 2;
+    r->leader_id = 2;
     raft_reset_transfer_leader(r, 0);
     CuAssertIntEquals(tc, RAFT_LEADER_TRANSFER_EXPECTED_LEADER, state);
 
     /* tests timeout in general, so don't need a separate test for it */
-    me->leader_id = 1;
+    r->leader_id = 1;
     ret = raft_transfer_leader(r, 2, 1);
     CuAssertIntEquals(tc, 0, ret);
     raft_periodic(r, 2);
