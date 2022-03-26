@@ -102,16 +102,9 @@ struct raft_server {
      * we're still the leader.
      */
     raft_msg_id_t msg_id;
-    /*
-     * the maximum msg_id we've seen from our current leader.  reset on term change
-     */
-    raft_msg_id_t max_seen_msg_id;
+
     raft_read_request_t *read_queue_head;
     raft_read_request_t *read_queue_tail;
-
-    /* Do we need quorum ? e.g Leader received a read request, need quorum round
-     * before processing it */
-    int need_quorum_round;
 
     raft_node_id_t node_transferring_leader_to; // the node we are targeting for leadership
     long transfer_leader_time; // how long we should wait for leadership transfer to take, before aborting
@@ -174,9 +167,11 @@ int raft_is_single_node_voting_cluster(raft_server_t *me);
 
 int raft_votes_is_majority(int nnodes, int nvotes);
 
-void raft_node_set_last_ack(raft_node_t* me, raft_msg_id_t msgid, raft_term_t term);
+void raft_node_set_match_msgid(raft_node_t *me, raft_msg_id_t msgid);
+raft_msg_id_t raft_node_get_match_msgid(raft_node_t *me);
 
-raft_msg_id_t raft_node_get_last_acked_msgid(raft_node_t* me);
+void raft_node_set_next_msgid(raft_node_t *me, raft_msg_id_t msgid);
+raft_msg_id_t raft_node_get_next_msgid(raft_node_t *me);
 
 /* Heap functions */
 extern void *(*raft_malloc)(size_t size);
