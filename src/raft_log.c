@@ -208,7 +208,7 @@ raft_index_t raft_log_count(raft_log_t *me)
     return me->count;
 }
 
-static int log_delete(raft_log_t* me, raft_index_t idx, func_entry_notify_f cb, void *cb_arg)
+static int log_delete(raft_log_t* me, raft_index_t idx, raft_entry_notify_f cb, void *cb_arg)
 {
     if (0 == idx)
         return -1;
@@ -376,7 +376,7 @@ static int log_get_batch(void *log, raft_index_t idx, int entries_n, raft_entry_
     return (int) n;
 }
 
-static int log_pop(void *log, raft_index_t from_idx, func_entry_notify_f cb, void *cb_arg)
+static int log_pop(void *log, raft_index_t from_idx, raft_entry_notify_f cb, void *cb_arg)
 {
     return log_delete(log, from_idx, cb, cb_arg);
 }

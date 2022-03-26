@@ -19,7 +19,7 @@ typedef struct raft_read_request {
     raft_term_t read_term;
 
     raft_msg_id_t msg_id;
-    func_read_request_callback_f cb;
+    raft_read_request_callback_f cb;
     void *cb_arg;
 
     struct raft_read_request *next;
