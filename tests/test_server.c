@@ -4541,6 +4541,33 @@ void Test_transfer_leader_not_leader(CuTest *tc)
     CuAssertIntEquals(tc, RAFT_ERR_NOT_LEADER, ret);
 }
 
+void Test_transfer_automatic(CuTest *tc)
+{
+    raft_leader_transfer_e state = RAFT_LEADER_TRANSFER_TIMEOUT;
+    raft_cbs_t funcs = {
+        .notify_transfer_event = cb_notify_transfer_event,
+    };
+    raft_server_t *r = raft_new();
+    raft_set_callbacks(r, &funcs, &state);
+
+    raft_node_t *n1 = raft_add_node(r, NULL, 100, 1);
+    raft_set_state(r, RAFT_STATE_LEADER);
+
+    raft_node_t *n2 = raft_add_node(r, NULL, 2, 0);
+    raft_node_set_match_idx(n2, 5);
+
+    raft_node_t *n3 = raft_add_node(r, NULL, 3, 0);
+    raft_node_set_match_idx(n3, 8);
+
+    raft_node_t *n4 = raft_add_node(r, NULL, 3, 0);
+    raft_node_set_match_idx(n3, 6);
+
+    int ret = raft_transfer_leader(r, RAFT_NODE_ID_NONE, 0);
+    CuAssertIntEquals(tc, 0, ret);
+
+    CuAssertIntEquals(tc, 3, raft_get_transfer_leader(r));
+}
+
 int main(void)
 {
     CuString *output = CuStringNew();
@@ -4684,6 +4711,7 @@ int main(void)
     SUITE_ADD_TEST(suite, Test_transfer_leader_success);
     SUITE_ADD_TEST(suite, Test_transfer_leader_unexpected);
     SUITE_ADD_TEST(suite, Test_transfer_leader_not_leader);
+    SUITE_ADD_TEST(suite, Test_transfer_automatic);
     CuSuiteRun(suite);
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);

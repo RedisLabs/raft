@@ -1951,11 +1951,6 @@ void raft_process_read_queue(raft_server_t* me)
     }
 }
 
-/* invoke a leadership transfer
- * node_id = targeted node we are transferring to
- * timeout = how long this should be allowed to take in milliseconds, as calculated by calls to raft_periodic
- * return an error if leadership transfer is already in progress of the targeted node_id is unknown
- */
 int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout)
 {
     if (me->state != RAFT_STATE_LEADER) {
@@ -1966,7 +1961,26 @@ int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout
         return RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS;
     }
 
-    raft_node_t *target = raft_get_node(me, node_id);
+    raft_node_t *target = NULL;
+
+    if (node_id != RAFT_NODE_ID_NONE) {
+        target = raft_get_node(me, node_id);
+    } else {
+        /* Find the most up-to-date node. As we need to replicate less entries
+         * to this node, it is the best candidate for leader transfer. */
+        raft_index_t max = 0;
+
+        for (int i = 0; i < raft_get_num_nodes(me); i++) {
+            raft_node_t *node = raft_get_node_from_idx(me, i);
+            raft_index_t match = raft_node_get_match_idx(node);
+
+            if (node != me->node && match > max) {
+                target = node;
+                max = match;
+            }
+        }
+    }
+
     if (target == NULL || target == me->node) {
         return RAFT_ERR_INVALID_NODEID;
     }
@@ -1977,7 +1991,7 @@ int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout
         me->sent_timeout_now = 1;
     }
 
-    me->node_transferring_leader_to = node_id;
+    me->node_transferring_leader_to = raft_node_get_id(target);
     me->transfer_leader_time = (timeout != 0) ? timeout : me->election_timeout;
 
     return 0;

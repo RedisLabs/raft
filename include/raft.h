@@ -1517,10 +1517,14 @@ int raft_queue_read_request(raft_server_t* me, raft_read_request_callback_f cb, 
  */
 void raft_process_read_queue(raft_server_t* me);
 
-/*
- * invoke a leadership transfer to targeted node
- * node_id = targeted node
- * timeout = timeout in ms before this transfer is aborted.  if 0, use default election timeout
+/** Invoke a leadership transfer to targeted node
+ *
+ * @param[in] node_id targeted node, RAFT_NODE_ID_NONE for automatic target
+ *                    selection. Node with the most entries will be selected.
+ * @param[in] timeout timeout in ms before this transfer is aborted.
+ *                    if 0, use default election timeout
+ * @return  an error if leadership transfer is already in progress or
+ *          the targeted node_id is unknown
  */
 int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout);
 
