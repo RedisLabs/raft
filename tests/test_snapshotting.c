@@ -45,7 +45,7 @@ static int __raft_applylog(
 static int __raft_send_requestvote(raft_server_t* raft,
                             void* udata,
                             raft_node_t* node,
-                            msg_requestvote_t* msg)
+                            raft_requestvote_req_t* msg)
 {
     return 0;
 }
@@ -53,7 +53,7 @@ static int __raft_send_requestvote(raft_server_t* raft,
 static int __raft_send_appendentries(raft_server_t* raft,
                               void* udata,
                               raft_node_t* node,
-                              msg_appendentries_t* msg)
+                              raft_appendentries_req_t* msg)
 {
     return 0;
 }
@@ -61,16 +61,16 @@ static int __raft_send_appendentries(raft_server_t* raft,
 static int __raft_send_appendentries_capture(raft_server_t* raft,
                               void* udata,
                               raft_node_t* node,
-                              msg_appendentries_t* msg)
+                              raft_appendentries_req_t* msg)
 {
-    *((msg_appendentries_t*)udata) = *msg;
+    *((raft_appendentries_req_t*)udata) = *msg;
     return 0;
 }
 
 static int __raft_send_snapshot_increment(raft_server_t* raft,
         void* udata,
         raft_node_t* node,
-        msg_snapshot_t *msg)
+        raft_snapshot_req_t *msg)
 {
     int *counter = udata;
 
@@ -122,7 +122,7 @@ struct test_data
 static int test_send_snapshot_increment(raft_server_t* raft,
                                           void* udata,
                                           raft_node_t* node,
-                                          msg_snapshot_t *msg)
+                                          raft_snapshot_req_t *msg)
 {
     struct test_data *t = udata;
 
@@ -208,7 +208,7 @@ void TestRaft_leader_begin_snapshot_fails_if_no_logs_to_compact(CuTest * tc)
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    msg_entry_response_t cr;
+    raft_entry_resp_t cr;
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -218,7 +218,7 @@ void TestRaft_leader_begin_snapshot_fails_if_no_logs_to_compact(CuTest * tc)
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* entry message */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "entry");
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
 
     /* receive entry */
     raft_recv_entry(r, ety, &cr);
@@ -241,7 +241,7 @@ void TestRaft_leader_will_not_apply_entry_if_snapshot_is_in_progress(CuTest * tc
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    msg_entry_response_t cr;
+    raft_entry_resp_t cr;
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -251,7 +251,7 @@ void TestRaft_leader_will_not_apply_entry_if_snapshot_is_in_progress(CuTest * tc
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* entry message */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "entry");
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
 
     /* receive entry */
     raft_recv_entry(r, ety, &cr);
@@ -293,7 +293,7 @@ void TestRaft_leader_snapshot_begin_fails_if_less_than_2_logs_to_compact(CuTest 
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    msg_entry_response_t cr;
+    raft_entry_resp_t cr;
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -303,7 +303,7 @@ void TestRaft_leader_snapshot_begin_fails_if_less_than_2_logs_to_compact(CuTest 
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* entry message */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "entry");
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
 
     /* receive entry */
     raft_recv_entry(r, ety, &cr);
@@ -322,7 +322,7 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
     raft_server_t *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    msg_entry_response_t cr;
+    raft_entry_resp_t cr;
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -333,7 +333,7 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* entry message */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "entry");
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
 
     /* receive entry */
     raft_recv_entry(r, ety, &cr);
@@ -387,7 +387,7 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted2(CuTest * tc)
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    msg_entry_response_t cr;
+    raft_entry_resp_t cr;
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -398,7 +398,7 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted2(CuTest * tc)
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* entry message */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "entry");
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
 
     /* receive entry */
     raft_recv_entry(r, ety, &cr);
@@ -428,7 +428,7 @@ void TestRaft_joinee_needs_to_get_snapshot(CuTest * tc)
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    msg_entry_response_t cr;
+    raft_entry_resp_t cr;
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -438,7 +438,7 @@ void TestRaft_joinee_needs_to_get_snapshot(CuTest * tc)
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* entry message */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "entry");
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
 
     /* receive entry */
     raft_recv_entry(r, ety, &cr);
@@ -469,7 +469,7 @@ void TestRaft_follower_load_from_snapshot(CuTest * tc)
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* entry message */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "entry");
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
 
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
     CuAssertIntEquals(tc, 0, raft_begin_load_snapshot(r, 5, 5));
@@ -623,7 +623,7 @@ void TestRaft_leader_sends_snapshot_when_node_next_index_was_compacted(CuTest* t
         .send_appendentries = __raft_send_appendentries_capture,
     };
 
-    msg_appendentries_t ae;
+    raft_appendentries_req_t ae;
     raft_set_callbacks(r, &funcs, &ae);
 
     /* node wants an entry just one after the snapshot index */
@@ -644,7 +644,7 @@ void TestRaft_recv_entry_fails_if_snapshot_in_progress(CuTest* tc)
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    msg_entry_response_t cr;
+    raft_entry_resp_t cr;
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -654,7 +654,7 @@ void TestRaft_recv_entry_fails_if_snapshot_in_progress(CuTest* tc)
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* entry message */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "entry");
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
 
     /* receive entry */
     raft_recv_entry(r, ety, &cr);
@@ -679,7 +679,7 @@ void TestRaft_recv_entry_succeeds_if_snapshot_nonblocking_apply_is_set(CuTest* t
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    msg_entry_response_t cr;
+    raft_entry_resp_t cr;
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -689,7 +689,7 @@ void TestRaft_recv_entry_succeeds_if_snapshot_nonblocking_apply_is_set(CuTest* t
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* entry message */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "entry");
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
 
     /* receive entry */
     raft_recv_entry(r, ety, &cr);
@@ -722,10 +722,10 @@ void TestRaft_follower_recv_appendentries_is_successful_when_previous_log_idx_eq
     CuAssertIntEquals(tc, 0, raft_begin_load_snapshot(r, 2, 2));
     CuAssertIntEquals(tc, 0, raft_end_load_snapshot(r));
 
-    msg_appendentries_t ae;
-    msg_appendentries_response_t aer;
+    raft_appendentries_req_t ae;
+    raft_appendentries_resp_t aer;
 
-    memset(&ae, 0, sizeof(msg_appendentries_t));
+    memset(&ae, 0, sizeof(raft_appendentries_req_t));
     ae.term = 3;
     ae.prev_log_idx = 2;
     ae.prev_log_term = 2;
@@ -765,7 +765,7 @@ void TestRaft_leader_sends_appendentries_with_correct_prev_log_idx_when_snapshot
 
     /* receive appendentries messages */
     raft_send_appendentries(r, p);
-    msg_appendentries_t* ae = sender_poll_msg_data(sender);
+    raft_appendentries_req_t* ae = sender_poll_msg_data(sender);
     CuAssertTrue(tc, NULL != ae);
     CuAssertIntEquals(tc, 2, ae->prev_log_term);
     CuAssertIntEquals(tc, 4, ae->prev_log_idx);
@@ -780,7 +780,7 @@ void TestRaft_cancel_snapshot_restores_state(CuTest* tc)
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    msg_entry_response_t cr;
+    raft_entry_resp_t cr;
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -790,7 +790,7 @@ void TestRaft_cancel_snapshot_restores_state(CuTest* tc)
     CuAssertIntEquals(tc, 0, raft_get_log_count(r));
 
     /* single entry */
-    msg_entry_t *ety = __MAKE_ENTRY(1, 1, "entry");
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
     raft_recv_entry(r, ety, &cr);
 
     ety = __MAKE_ENTRY(2, 1, "entry");
@@ -869,7 +869,7 @@ void TestRaft_leader_sends_snapshot_if_log_was_compacted(CuTest* tc)
     raft_node_set_match_idx(node, 1);
     raft_node_set_next_idx(node, 2);
 
-    msg_appendentries_response_t aer;
+    raft_appendentries_resp_t aer;
     aer.term = 1;
     aer.success = 0;
     aer.current_idx = 1;
@@ -895,7 +895,7 @@ void TestRaft_clear_snapshot_on_leader_change(CuTest * tc)
     raft_set_callbacks(r, &funcs, &data);
     raft_add_node(r, NULL, 1, 1);
 
-    msg_snapshot_t msg = {
+    raft_snapshot_req_t msg = {
         .leader_id = 2,
         .snapshot_index = 1,
         .snapshot_term = 1,
@@ -905,7 +905,7 @@ void TestRaft_clear_snapshot_on_leader_change(CuTest * tc)
         .chunk.last_chunk = 0,
     };
 
-    msg_snapshot_response_t resp = {0};
+    raft_snapshot_resp_t resp = {0};
 
     raft_recv_snapshot(r, NULL, &msg, &resp);
     CuAssertIntEquals(tc, 1, data.store_chunk);
@@ -935,7 +935,7 @@ void TestRaft_reject_wrong_offset(CuTest * tc)
     raft_set_callbacks(r, &funcs, &data);
     raft_add_node(r, NULL, 1, 1);
 
-    msg_snapshot_t msg = {
+    raft_snapshot_req_t msg = {
         .leader_id = 2,
         .snapshot_index = 1,
         .snapshot_term = 1,
@@ -946,7 +946,7 @@ void TestRaft_reject_wrong_offset(CuTest * tc)
         .chunk.last_chunk = 0,
     };
 
-    msg_snapshot_response_t resp = {0};
+    raft_snapshot_resp_t resp = {0};
 
     raft_recv_snapshot(r, NULL, &msg, &resp);
     CuAssertIntEquals(tc, 1, data.store_chunk);
@@ -975,7 +975,7 @@ void TestRaft_set_last_chunk_on_duplicate(CuTest * tc)
     raft_set_callbacks(r, &funcs, &data);
     raft_add_node(r, NULL, 1, 1);
 
-    msg_snapshot_t msg = {
+    raft_snapshot_req_t msg = {
         .term = 1,
         .leader_id = 2,
         .snapshot_index = 5,
@@ -987,13 +987,13 @@ void TestRaft_set_last_chunk_on_duplicate(CuTest * tc)
         .chunk.last_chunk = 1,
     };
 
-    msg_snapshot_response_t resp = {0};
+    raft_snapshot_resp_t resp = {0};
 
     raft_recv_snapshot(r, NULL, &msg, &resp);
     CuAssertIntEquals(tc, 1, data.store_chunk);
     CuAssertIntEquals(tc, 1, data.load);
 
-    msg_snapshot_t msg2 = {
+    raft_snapshot_req_t msg2 = {
         .term = 1,
         .leader_id = 2,
         .snapshot_index = 4,

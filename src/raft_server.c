@@ -349,7 +349,7 @@ int raft_delete_entry_from_idx(raft_server_t* me, raft_index_t idx)
         me->voting_cfg_change_log_idx = -1;
 
     int e = me->log_impl->pop(me->log, idx,
-             (func_entry_notify_f) raft_handle_remove_cfg_change, me);
+             (raft_entry_notify_f) raft_handle_remove_cfg_change, me);
     if (e != 0)
         return e;
 
@@ -643,7 +643,7 @@ int raft_voting_change_is_in_progress(raft_server_t* me)
 
 int raft_recv_appendentries_response(raft_server_t* me,
                                      raft_node_t* node,
-                                     msg_appendentries_response_t* r)
+                                     raft_appendentries_resp_t* r)
 {
     raft_log_node(me, raft_node_get_id(node),
           "received appendentries response %s ci:%ld rci:%ld msgid:%lu",
@@ -755,12 +755,10 @@ static int raft_receive_term(raft_server_t* me, raft_term_t term)
     return 0;
 }
 
-int raft_recv_appendentries(
-    raft_server_t* me,
-    raft_node_t* node,
-    msg_appendentries_t* ae,
-    msg_appendentries_response_t *r
-    )
+int raft_recv_appendentries(raft_server_t* me,
+                            raft_node_t* node,
+                            raft_appendentries_req_t* ae,
+                            raft_appendentries_resp_t* r)
 {
     int e = 0;
 
@@ -926,8 +924,8 @@ out:
 
 int raft_recv_requestvote(raft_server_t* me,
                           raft_node_t* node,
-                          msg_requestvote_t* vr,
-                          msg_requestvote_response_t *r)
+                          raft_requestvote_req_t* vr,
+                          raft_requestvote_resp_t* r)
 {
     (void) node;
     int e = 0;
@@ -1011,7 +1009,7 @@ int raft_votes_is_majority(const int num_nodes, const int nvotes)
 
 int raft_recv_requestvote_response(raft_server_t* me,
                                    raft_node_t* node,
-                                   msg_requestvote_response_t* r)
+                                   raft_requestvote_resp_t* r)
 {
     raft_log_node(me, raft_node_get_id(node),
              "node responded to requestvote status:%s pv:%d rt:%ld ct:%ld rt:%ld",
@@ -1062,8 +1060,8 @@ int raft_recv_requestvote_response(raft_server_t* me,
 }
 
 int raft_recv_entry(raft_server_t* me,
-                    msg_entry_t* ety,
-                    msg_entry_response_t *r)
+                    raft_entry_req_t* ety,
+                    raft_entry_resp_t* r)
 {
     if (raft_entry_is_voting_cfg_change(ety))
     {
@@ -1108,7 +1106,7 @@ int raft_recv_entry(raft_server_t* me,
 
 int raft_send_requestvote(raft_server_t* me, raft_node_t* node)
 {
-    msg_requestvote_t rv;
+    raft_requestvote_req_t rv;
     int e = 0;
 
     assert(node);
@@ -1254,7 +1252,7 @@ int raft_send_snapshot(raft_server_t* me, raft_node_t* node)
     while (1) {
         raft_size_t offset = raft_node_get_snapshot_offset(node);
 
-        msg_snapshot_t msg = {
+        raft_snapshot_req_t msg = {
             .leader_id = raft_get_nodeid(me),
             .snapshot_index = me->snapshot_last_idx,
             .snapshot_term = me->snapshot_last_term,
@@ -1287,8 +1285,8 @@ int raft_send_snapshot(raft_server_t* me, raft_node_t* node)
 
 int raft_recv_snapshot(raft_server_t* me,
                        raft_node_t* node,
-                       msg_snapshot_t *req,
-                       msg_snapshot_response_t *resp)
+                       raft_snapshot_req_t *req,
+                       raft_snapshot_resp_t *resp)
 {
     int e = 0;
 
@@ -1379,7 +1377,7 @@ out:
 
 int raft_recv_snapshot_response(raft_server_t* me,
                                 raft_node_t* node,
-                                msg_snapshot_response_t *r)
+                                raft_snapshot_resp_t *r)
 {
     raft_log_node(me, raft_node_get_id(node),
                   "recv snapshot response: ci:%lu comi:%lu mi:%lu t:%ld o:%llu s:%d lc:%d",
@@ -1456,7 +1454,7 @@ int raft_send_appendentries(raft_server_t* me, raft_node_t* node)
         }
     }
 
-    msg_appendentries_t ae = {
+    raft_appendentries_req_t ae = {
         .term = me->current_term,
         .leader_id = raft_get_nodeid(me),
         .leader_commit = raft_get_commit_idx(me),
@@ -1561,7 +1559,7 @@ int raft_vote_for_nodeid(raft_server_t* me, const raft_node_id_t nodeid)
 }
 
 int raft_msg_entry_response_committed(raft_server_t* me,
-                                      const msg_entry_response_t* r)
+                                      const raft_entry_resp_t* r)
 {
     raft_entry_t* ety = raft_get_entry_from_idx(me, r->idx);
     if (!ety)
@@ -1609,7 +1607,7 @@ int raft_pop_entry(raft_server_t* me)
     raft_index_t cur_idx = me->log_impl->current_idx(me->log);
 
     int e = me->log_impl->pop(me->log, cur_idx,
-               (func_entry_notify_f) raft_handle_remove_cfg_change, me);
+               (raft_entry_notify_f) raft_handle_remove_cfg_change, me);
     if (e != 0)
         return e;
 
@@ -1850,7 +1848,7 @@ void raft_entry_release_list(raft_entry_t **ety_list, size_t len)
     }
 }
 
-int raft_queue_read_request(raft_server_t* me, func_read_request_callback_f cb, void *cb_arg)
+int raft_queue_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg)
 {
     raft_read_request_t *req = raft_malloc(sizeof(raft_read_request_t));
 
