@@ -4056,7 +4056,7 @@ void TestRaft_quorum_msg_id_correctness(CuTest * tc)
     CuAssertIntEquals(tc, 0, val);
 
     // Second node acknowledges reaq req
-    raft_node_set_last_ack(raft_get_node(r, 2), 1, 1);
+    raft_node_set_match_msgid(raft_get_node(r, 2), 1);
     raft_periodic(r, 200);
 
     CuAssertIntEquals(tc, 1, val);
@@ -4072,12 +4072,12 @@ void TestRaft_quorum_msg_id_correctness(CuTest * tc)
     CuAssertIntEquals(tc, 0, val);
 
     // Second node acknowledges read req,
-    raft_node_set_last_ack(raft_get_node(r, 2), 2, 1);
+    raft_node_set_match_msgid(raft_get_node(r, 2), 2);
     raft_periodic(r, 200);
     CuAssertIntEquals(tc, 0, val);
 
     // Third node acknowledges read req
-    raft_node_set_last_ack(raft_get_node(r, 3), 2, 1);
+    raft_node_set_match_msgid(raft_get_node(r, 3), 2);
     raft_periodic(r, 200);
     CuAssertIntEquals(tc, 1, val);
 }
@@ -4186,7 +4186,7 @@ void TestRaft_leader_steps_down_if_there_is_no_quorum(CuTest * tc)
     raft_periodic(r, quorum_timeout + 1);
     CuAssertTrue(tc, !raft_is_leader(r));
 
-    raft_node_set_last_ack(raft_get_node(r, 2), 1, 1);
+    raft_node_set_match_msgid(raft_get_node(r, 2), 1);
     raft_become_leader(r);
     raft_periodic(r, 200);
     CuAssertTrue(tc, raft_is_leader(r));
@@ -4196,7 +4196,7 @@ void TestRaft_leader_steps_down_if_there_is_no_quorum(CuTest * tc)
     CuAssertTrue(tc, raft_is_leader(r));
 
     // If there is an ack from the follower, leader won't step down.
-    raft_node_set_last_ack(raft_get_node(r, 2), 2, 1);
+    raft_node_set_match_msgid(raft_get_node(r, 2), 2);
     raft_periodic(r, quorum_timeout);
     CuAssertTrue(tc, raft_is_leader(r));
 

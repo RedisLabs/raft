@@ -850,6 +850,7 @@ class RaftServer(object):
         lib.raft_log_set_callbacks(lib.raft_get_log(self.raft), log_cbs, self.raft)
         lib.raft_set_election_timeout(self.raft, 500)
         lib.raft_set_auto_flush(self.raft, network.auto_flush)
+        lib.raft_set_log_enabled(self.raft, 1)
 
         self.fsm_dict = {}
         self.fsm_log = []

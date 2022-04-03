@@ -534,7 +534,7 @@ static raft_msg_id_t quorum_msg_id(raft_server_t* me)
         if (me->node == node) {
             msg_ids[num_voters++] = me->msg_id;
         } else {
-            msg_ids[num_voters++] = raft_node_get_last_acked_msgid(node);
+            msg_ids[num_voters++] = raft_node_get_match_msgid(node);
         }
     }
 
@@ -657,7 +657,7 @@ int raft_recv_appendentries_response(raft_server_t* me,
     if (!raft_is_leader(me))
         return RAFT_ERR_NOT_LEADER;
 
-    if (raft_node_get_last_acked_msgid(node) > r->msg_id) {
+    if (raft_node_get_match_msgid(node) > r->msg_id) {
         // this was received out of order and is now irrelevant.
         return 0;
     }
@@ -676,8 +676,9 @@ int raft_recv_appendentries_response(raft_server_t* me,
     else if (me->current_term != r->term)
         return 0;
 
-    // if we got here, it means that the follower has acked us as a leader, even if it cant accept the append_entry
-    raft_node_set_last_ack(node, r->msg_id, r->term);
+    /* If we got here, it means that the follower has acked us as a leader,
+     * even if it cant accept the append_entry */
+    raft_node_set_match_msgid(node, r->msg_id);
 
     raft_index_t match_idx = raft_node_get_match_idx(node);
 
@@ -762,15 +763,11 @@ int raft_recv_appendentries(raft_server_t* me,
 {
     int e = 0;
 
-    if (0 < ae->n_entries)
-    {
-        raft_log_node(
-            me, ae->leader_id,
-            "recvd appendentries li:%d t:%ld ci:%ld lc:%ld pli:%ld plt:%ld #%d",
-            ae->leader_id, ae->term, raft_get_current_idx(me),
-            ae->leader_commit, ae->prev_log_idx, ae->prev_log_term,
-            ae->n_entries);
-    }
+    raft_log_node(me, ae->leader_id,
+        "recv appendentries li:%d t:%ld ci:%ld lc:%ld pli:%ld plt:%ld msgid:%ld #%d",
+        ae->leader_id, ae->term, raft_get_current_idx(me),
+        ae->leader_commit, ae->prev_log_idx, ae->prev_log_term,
+        ae->msg_id, ae->n_entries);
 
     r->msg_id = ae->msg_id;
     r->success = 0;
@@ -786,10 +783,6 @@ int raft_recv_appendentries(raft_server_t* me,
         }
 
         goto out;
-    }
-
-    if (node != NULL) {
-        raft_node_update_max_seen_msg_id(node, ae->msg_id);
     }
 
     /* update current leader because ae->term is up to date */
@@ -849,11 +842,13 @@ int raft_recv_appendentries(raft_server_t* me,
 
     r->success = 1;
     r->current_idx = ae->prev_log_idx;
-    /* synchronize msg_id to leader.  not really needed for raft, but needed for virtraft for msg_id to be increasing
-     * cluster wide so that can verify read_queue correctness easily.  Otherwise, it be fine for msg_id to be unique to
-     * each raft_server_t.
+
+    /* Synchronize msg_id to leader. Not really needed for raft, but needed for
+     * virtraft for msg_id to be increasing cluster wide so that can verify
+     * read_queue correctness easily. Otherwise, it'd be fine for msg_id to be
+     * unique to each raft_server_t.
      */
-    if (ae->msg_id > me->msg_id) {
+    if (me->msg_id < ae->msg_id) {
         me->msg_id = ae->msg_id;
     }
 
@@ -916,6 +911,12 @@ int raft_recv_appendentries(raft_server_t* me,
     }
 
 out:
+    /* 'node' might be created after processing this message, fetching again. */
+    node = raft_get_node(me, ae->leader_id);
+    if (node != NULL) {
+        raft_node_update_max_seen_msg_id(node, ae->msg_id);
+    }
+
     r->term = me->current_term;
     if (0 == r->success)
         r->current_idx = raft_get_current_idx(me);
@@ -1320,10 +1321,6 @@ int raft_recv_snapshot(raft_server_t* me,
         goto out;
     }
 
-    if (node != NULL) {
-        raft_node_update_max_seen_msg_id(node, req->msg_id);
-    }
-
     raft_accept_leader(me, req->leader_id);
     raft_reset_transfer_leader(me, 0);
 
@@ -1372,6 +1369,12 @@ success:
 out:
     resp->term = me->current_term;
 
+    /* 'node' might be created after processing this message, fetching again. */
+    node = raft_get_node(me, req->leader_id);
+    if (node != NULL) {
+        raft_node_update_max_seen_msg_id(node, req->msg_id);
+    }
+
     return e;
 }
 
@@ -1392,7 +1395,7 @@ int raft_recv_snapshot_response(raft_server_t* me,
     if (!raft_is_leader(me))
         return RAFT_ERR_NOT_LEADER;
 
-    if (raft_node_get_last_acked_msgid(node) > r->msg_id) {
+    if (raft_node_get_match_msgid(node) > r->msg_id) {
         return 0;
     }
 
@@ -1410,7 +1413,7 @@ int raft_recv_snapshot_response(raft_server_t* me,
         return 0;
     }
 
-    raft_node_set_last_ack(node, r->msg_id, r->term);
+    raft_node_set_match_msgid(node, r->msg_id);
 
     if (!r->success) {
         raft_node_set_snapshot_offset(node, r->offset);
@@ -1497,6 +1500,7 @@ int raft_send_appendentries(raft_server_t* me, raft_node_t* node)
     int res = me->cb.send_appendentries(me, me->udata, node, &ae);
     if (!res) {
         raft_node_set_next_idx(node, next_idx + ae.n_entries);
+        raft_node_set_next_msgid(node, ae.msg_id + 1);
     }
     raft_entry_release_list(ae.entries, ae.n_entries);
     raft_free(ae.entries);
@@ -1865,8 +1869,6 @@ int raft_queue_read_request(raft_server_t* me, raft_read_request_callback_f cb, 
         me->read_queue_tail->next = req;
     me->read_queue_tail = req;
 
-    me->need_quorum_round = 1;
-
     if (me->auto_flush)
         return raft_flush(me, 0);
 
@@ -2102,7 +2104,7 @@ int raft_set_auto_flush(raft_server_t* me, int flush)
 int raft_flush(raft_server_t* me, raft_index_t sync_index)
 {
     if (!raft_is_leader(me)) {
-        return 0;
+        goto out;
     }
 
     if (sync_index > raft_node_get_match_idx(me->node)) {
@@ -2114,19 +2116,19 @@ int raft_flush(raft_server_t* me, raft_index_t sync_index)
         return e;
     }
 
+    raft_msg_id_t last = me->read_queue_tail ? me->read_queue_tail->msg_id : 0;
+
     for (int i = 0; i < me->num_nodes; i++)
     {
         if (me->node == me->nodes[i])
             continue;
 
-        if (!me->need_quorum_round &&
+        if (raft_node_get_next_msgid(me->nodes[i]) >= last &&
             raft_node_get_next_idx(me->nodes[i]) > raft_get_current_idx(me))
             continue;
 
         raft_send_appendentries(me, me->nodes[i]);
     }
-
-    me->need_quorum_round = 0;
 
     if (me->last_applied_idx < raft_get_commit_idx(me)) {
         e = raft_apply_all(me);
@@ -2135,7 +2137,7 @@ int raft_flush(raft_server_t* me, raft_index_t sync_index)
         }
     }
 
+out:
     raft_process_read_queue(me);
-
     return 0;
 }

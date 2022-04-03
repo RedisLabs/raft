@@ -90,7 +90,6 @@ int raft_set_current_term(raft_server_t* me, const raft_term_t term)
         }
         me->current_term = term;
         me->voted_for = voted_for;
-        me->max_seen_msg_id = 0;
     }
     return 0;
 }
