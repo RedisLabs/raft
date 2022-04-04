@@ -113,9 +113,9 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     me->node_transferring_leader_to = RAFT_NODE_ID_NONE;
     me->auto_flush = 1;
 
-    raft_update_quorum_meta((raft_server_t*)me, me->msg_id);
+    raft_update_quorum_meta(me, me->msg_id);
 
-    raft_randomize_election_timeout((raft_server_t*)me);
+    raft_randomize_election_timeout(me);
     me->log_impl = log_impl;
     me->log = me->log_impl->init(me, log_arg);
     if (!me->log) {
@@ -124,13 +124,13 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     }
 
     me->voting_cfg_change_log_idx = -1;
-    raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
+    raft_set_state(me, RAFT_STATE_FOLLOWER);
     me->leader_id = RAFT_NODE_ID_NONE;
 
     me->snapshot_in_progress = 0;
-    raft_set_snapshot_metadata((raft_server_t*)me, 0, 0);
+    raft_set_snapshot_metadata(me, 0, 0);
 
-    return (raft_server_t*)me;
+    return me;
 }
 
 raft_server_t* raft_new(void)
@@ -140,7 +140,7 @@ raft_server_t* raft_new(void)
 
 void raft_set_callbacks(raft_server_t* me, raft_cbs_t* funcs, void* udata)
 {
-    memcpy(&me->cb, funcs, sizeof(raft_cbs_t));
+    me->cb = *funcs;
     me->udata = udata;
 }
 
@@ -157,7 +157,7 @@ void raft_clear(raft_server_t* me)
     me->timeout_elapsed = 0;
     raft_randomize_election_timeout(me);
     me->voting_cfg_change_log_idx = -1;
-    raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
+    raft_set_state(me, RAFT_STATE_FOLLOWER);
     me->leader_id = RAFT_NODE_ID_NONE;
     me->commit_idx = 0;
     me->last_applied_idx = 0;
@@ -1748,7 +1748,7 @@ int raft_begin_load_snapshot(
         me->current_term = last_included_term;
     }
 
-    raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
+    raft_set_state(me, RAFT_STATE_FOLLOWER);
     me->leader_id = RAFT_NODE_ID_NONE;
 
     me->log_impl->reset(me->log, last_included_index + 1, last_included_term);
