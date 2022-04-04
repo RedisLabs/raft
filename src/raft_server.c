@@ -1090,9 +1090,11 @@ int raft_recv_entry(raft_server_t* me,
     if (0 != e)
         return e;
 
-    r->id = ety->id;
-    r->idx = raft_get_current_idx(me);
-    r->term = me->current_term;
+    if (r) {
+        r->id = ety->id;
+        r->idx = raft_get_current_idx(me);
+        r->term = me->current_term;
+    }
 
     if (me->auto_flush) {
         e = me->log_impl->sync(me->log);

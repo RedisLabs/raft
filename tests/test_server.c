@@ -2717,7 +2717,6 @@ void TestRaft_leader_append_entry_to_log_increases_idxno(CuTest * tc)
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    raft_entry_resp_t cr;
     raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "entry");
 
     raft_add_node(r, NULL, 1, 1);
@@ -2725,7 +2724,7 @@ void TestRaft_leader_append_entry_to_log_increases_idxno(CuTest * tc)
     raft_set_state(r, RAFT_STATE_LEADER);
     CuAssertTrue(tc, 0 == raft_get_log_count(r));
 
-    raft_recv_entry(r, ety, &cr);
+    raft_recv_entry(r, ety, NULL);
     CuAssertTrue(tc, 1 == raft_get_log_count(r));
 }
 
