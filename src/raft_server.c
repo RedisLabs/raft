@@ -106,7 +106,7 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
         return NULL;
 
     me->current_term = 0;
-    me->voted_for = -1;
+    me->voted_for = RAFT_NODE_ID_NONE;
     me->timeout_elapsed = 0;
     me->request_timeout = 200;
     me->election_timeout = 1000;
@@ -153,7 +153,7 @@ void raft_destroy(raft_server_t* me)
 void raft_clear(raft_server_t* me)
 {
     me->current_term = 0;
-    me->voted_for = -1;
+    me->voted_for = RAFT_NODE_ID_NONE;
     me->timeout_elapsed = 0;
     raft_randomize_election_timeout(me);
     me->voting_cfg_change_log_idx = -1;
@@ -957,9 +957,12 @@ int raft_recv_requestvote(raft_server_t* me,
         goto done;
     }
 
-    if (me->current_term == vr->term &&
-        (me->voted_for != -1 && me->voted_for != vr->candidate_id)) {
-        goto done;
+    if (me->current_term == vr->term) {
+        /* If already voted for some other node for this term, return failure */
+        if (me->voted_for != RAFT_NODE_ID_NONE &&
+            me->voted_for != vr->candidate_id) {
+            goto done;
+        }
     }
 
     /* Below we check if log is more up-to-date... */
@@ -1548,7 +1551,7 @@ int raft_get_nvotes_for_me(raft_server_t* me)
 
 int raft_vote(raft_server_t* me, raft_node_t* node)
 {
-    return raft_vote_for_nodeid(me, node ? raft_node_get_id(node) : -1);
+    return raft_vote_for_nodeid(me, raft_node_get_id(node));
 }
 
 int raft_vote_for_nodeid(raft_server_t* me, const raft_node_id_t nodeid)

@@ -33,8 +33,6 @@ void raft_set_log_enabled(raft_server_t* me, int enable)
 
 raft_node_id_t raft_get_nodeid(raft_server_t* me)
 {
-    if (!me->node)
-        return -1;
     return raft_node_get_id(me->node);
 }
 
@@ -81,15 +79,14 @@ int raft_set_current_term(raft_server_t* me, const raft_term_t term)
 {
     if (me->current_term < term)
     {
-        int voted_for = -1;
         if (me->cb.persist_term)
         {
-            int e = me->cb.persist_term(me, me->udata, term, voted_for);
+            int e = me->cb.persist_term(me, me->udata, term, RAFT_NODE_ID_NONE);
             if (0 != e)
                 return e;
         }
         me->current_term = term;
-        me->voted_for = voted_for;
+        me->voted_for = RAFT_NODE_ID_NONE;
     }
     return 0;
 }
