@@ -618,12 +618,9 @@ int raft_periodic(raft_server_t* me, int msec_since_last_period)
             return e;
     }
 
-    if (me->last_applied_idx < raft_get_commit_idx(me) &&
-            raft_is_apply_allowed(me))
-    {
-        int e = raft_apply_all(me);
-        if (0 != e)
-            return e;
+    int e = raft_apply_all(me);
+    if (e != 0) {
+        return e;
     }
 
     raft_process_read_queue(me);
@@ -1585,7 +1582,7 @@ int raft_apply_all(raft_server_t* me)
     if (!raft_is_apply_allowed(me))
         return 0;
 
-    while (raft_get_last_applied_idx(me) < raft_get_commit_idx(me))
+    while (me->commit_idx > me->last_applied_idx)
     {
         int e = raft_apply_entry(me);
         if (0 != e)
@@ -2133,11 +2130,9 @@ int raft_flush(raft_server_t* me, raft_index_t sync_index)
         raft_send_appendentries(me, me->nodes[i]);
     }
 
-    if (me->last_applied_idx < raft_get_commit_idx(me)) {
-        e = raft_apply_all(me);
-        if (e != 0) {
-            return e;
-        }
+    e = raft_apply_all(me);
+    if (e != 0) {
+        return e;
     }
 
 out:
