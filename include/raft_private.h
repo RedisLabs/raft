@@ -49,7 +49,7 @@ struct raft_server {
     raft_index_t last_applied_idx;
 
     /* follower/leader/candidate indicator */
-    int state;
+    raft_state_e state;
 
     /* amount of time left till timeout */
     int timeout_elapsed;

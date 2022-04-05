@@ -240,6 +240,19 @@ void TestRaft_set_state(CuTest * tc)
     void *r = raft_new();
     raft_set_state(r, RAFT_STATE_LEADER);
     CuAssertTrue(tc, RAFT_STATE_LEADER == raft_get_state(r));
+    CuAssertStrEquals(tc, "leader", raft_get_state_str(r));
+
+    raft_set_state(r, RAFT_STATE_CANDIDATE);
+    CuAssertTrue(tc, RAFT_STATE_CANDIDATE == raft_get_state(r));
+    CuAssertStrEquals(tc, "candidate", raft_get_state_str(r));
+
+    raft_set_state(r, RAFT_STATE_PRECANDIDATE);
+    CuAssertTrue(tc, RAFT_STATE_PRECANDIDATE == raft_get_state(r));
+    CuAssertStrEquals(tc, "pre-candidate", raft_get_state_str(r));
+
+    raft_set_state(r, RAFT_STATE_FOLLOWER);
+    CuAssertTrue(tc, RAFT_STATE_FOLLOWER == raft_get_state(r));
+    CuAssertStrEquals(tc, "follower", raft_get_state_str(r));
 }
 
 void TestRaft_server_starts_as_follower(CuTest * tc)
