@@ -32,8 +32,7 @@ typedef enum {
 } raft_membership_e;
 
 typedef enum {
-    RAFT_STATE_NONE,
-    RAFT_STATE_FOLLOWER,
+    RAFT_STATE_FOLLOWER = 1,
     RAFT_STATE_PRECANDIDATE,
     RAFT_STATE_CANDIDATE,
     RAFT_STATE_LEADER,
@@ -1248,6 +1247,9 @@ raft_node_id_t raft_node_get_id(raft_node_t* me);
 /** Tell if we are a leader, candidate or follower.
  * @return get state of type raft_state_e. */
 int raft_get_state(raft_server_t* me);
+
+/* @return state string */
+const char *raft_get_state_str(raft_server_t* me);
 
 /** Get the most recent log's term
  * @return the last log term */

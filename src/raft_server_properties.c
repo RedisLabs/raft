@@ -139,6 +139,22 @@ int raft_get_state(raft_server_t* me)
     return me->state;
 }
 
+const char *raft_get_state_str(raft_server_t* me)
+{
+    switch (me->state) {
+        case RAFT_STATE_FOLLOWER:
+            return "follower";
+        case RAFT_STATE_PRECANDIDATE:
+            return "pre-candidate";
+        case RAFT_STATE_CANDIDATE:
+            return "candidate";
+        case RAFT_STATE_LEADER:
+            return "leader";
+        default:
+            return "unknown";
+    }
+}
+
 raft_node_t* raft_get_node(raft_server_t *me, raft_node_id_t nodeid)
 {
     int i;
