@@ -106,16 +106,16 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
         return NULL;
 
     me->current_term = 0;
-    me->voted_for = -1;
+    me->voted_for = RAFT_NODE_ID_NONE;
     me->timeout_elapsed = 0;
     me->request_timeout = 200;
     me->election_timeout = 1000;
     me->node_transferring_leader_to = RAFT_NODE_ID_NONE;
     me->auto_flush = 1;
 
-    raft_update_quorum_meta((raft_server_t*)me, me->msg_id);
+    raft_update_quorum_meta(me, me->msg_id);
 
-    raft_randomize_election_timeout((raft_server_t*)me);
+    raft_randomize_election_timeout(me);
     me->log_impl = log_impl;
     me->log = me->log_impl->init(me, log_arg);
     if (!me->log) {
@@ -124,13 +124,13 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     }
 
     me->voting_cfg_change_log_idx = -1;
-    raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
+    raft_set_state(me, RAFT_STATE_FOLLOWER);
     me->leader_id = RAFT_NODE_ID_NONE;
 
     me->snapshot_in_progress = 0;
-    raft_set_snapshot_metadata((raft_server_t*)me, 0, 0);
+    raft_set_snapshot_metadata(me, 0, 0);
 
-    return (raft_server_t*)me;
+    return me;
 }
 
 raft_server_t* raft_new(void)
@@ -140,7 +140,7 @@ raft_server_t* raft_new(void)
 
 void raft_set_callbacks(raft_server_t* me, raft_cbs_t* funcs, void* udata)
 {
-    memcpy(&me->cb, funcs, sizeof(raft_cbs_t));
+    me->cb = *funcs;
     me->udata = udata;
 }
 
@@ -153,11 +153,11 @@ void raft_destroy(raft_server_t* me)
 void raft_clear(raft_server_t* me)
 {
     me->current_term = 0;
-    me->voted_for = -1;
+    me->voted_for = RAFT_NODE_ID_NONE;
     me->timeout_elapsed = 0;
     raft_randomize_election_timeout(me);
     me->voting_cfg_change_log_idx = -1;
-    raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
+    raft_set_state(me, RAFT_STATE_FOLLOWER);
     me->leader_id = RAFT_NODE_ID_NONE;
     me->commit_idx = 0;
     me->last_applied_idx = 0;
@@ -618,12 +618,9 @@ int raft_periodic(raft_server_t* me, int msec_since_last_period)
             return e;
     }
 
-    if (me->last_applied_idx < raft_get_commit_idx(me) &&
-            raft_is_apply_allowed(me))
-    {
-        int e = raft_apply_all(me);
-        if (0 != e)
-            return e;
+    int e = raft_apply_all(me);
+    if (e != 0) {
+        return e;
     }
 
     raft_process_read_queue(me);
@@ -957,9 +954,12 @@ int raft_recv_requestvote(raft_server_t* me,
         goto done;
     }
 
-    if (me->current_term == vr->term &&
-        (me->voted_for != -1 && me->voted_for != vr->candidate_id)) {
-        goto done;
+    if (me->current_term == vr->term) {
+        /* If already voted for some other node for this term, return failure */
+        if (me->voted_for != RAFT_NODE_ID_NONE &&
+            me->voted_for != vr->candidate_id) {
+            goto done;
+        }
     }
 
     /* Below we check if log is more up-to-date... */
@@ -1189,11 +1189,7 @@ int raft_apply_entry(raft_server_t* me)
         }
     }
 
-    /* voting cfg change is now complete.
-     * TODO: there seem to be a possible off-by-one bug hidden here, requiring
-     * checking log_idx >= voting_cfg_change_log_idx rather than plain ==.
-     */
-    if (log_idx >= me->voting_cfg_change_log_idx)
+    if (log_idx == me->voting_cfg_change_log_idx)
         me->voting_cfg_change_log_idx = -1;
 
     if (!raft_entry_is_cfg_change(ety))
@@ -1550,7 +1546,7 @@ int raft_get_nvotes_for_me(raft_server_t* me)
 
 int raft_vote(raft_server_t* me, raft_node_t* node)
 {
-    return raft_vote_for_nodeid(me, node ? raft_node_get_id(node) : -1);
+    return raft_vote_for_nodeid(me, raft_node_get_id(node));
 }
 
 int raft_vote_for_nodeid(raft_server_t* me, const raft_node_id_t nodeid)
@@ -1584,7 +1580,7 @@ int raft_apply_all(raft_server_t* me)
     if (!raft_is_apply_allowed(me))
         return 0;
 
-    while (raft_get_last_applied_idx(me) < raft_get_commit_idx(me))
+    while (me->commit_idx > me->last_applied_idx)
     {
         int e = raft_apply_entry(me);
         if (0 != e)
@@ -1754,7 +1750,7 @@ int raft_begin_load_snapshot(
         me->current_term = last_included_term;
     }
 
-    raft_set_state((raft_server_t*)me, RAFT_STATE_FOLLOWER);
+    raft_set_state(me, RAFT_STATE_FOLLOWER);
     me->leader_id = RAFT_NODE_ID_NONE;
 
     me->log_impl->reset(me->log, last_included_index + 1, last_included_term);
@@ -2132,11 +2128,9 @@ int raft_flush(raft_server_t* me, raft_index_t sync_index)
         raft_send_appendentries(me, me->nodes[i]);
     }
 
-    if (me->last_applied_idx < raft_get_commit_idx(me)) {
-        e = raft_apply_all(me);
-        if (e != 0) {
-            return e;
-        }
+    e = raft_apply_all(me);
+    if (e != 0) {
+        return e;
     }
 
 out:
