@@ -13,37 +13,9 @@
 #include "raft.h"
 #include "raft_private.h"
 
-void raft_set_election_timeout(raft_server_t* me, int millisec)
-{
-    me->election_timeout = millisec;
-
-    raft_update_quorum_meta(me, me->last_acked_msg_id);
-    raft_randomize_election_timeout(me);
-}
-
-void raft_set_request_timeout(raft_server_t* me, int millisec)
-{
-    me->request_timeout = millisec;
-}
-
-void raft_set_log_enabled(raft_server_t* me, int enable)
-{
-    me->log_enabled = enable;
-}
-
 raft_node_id_t raft_get_nodeid(raft_server_t* me)
 {
     return raft_node_get_id(me->node);
-}
-
-int raft_get_election_timeout(raft_server_t* me)
-{
-    return me->election_timeout;
-}
-
-int raft_get_request_timeout(raft_server_t* me)
-{
-    return me->request_timeout;
 }
 
 int raft_get_num_nodes(raft_server_t* me)
@@ -239,8 +211,8 @@ int raft_snapshot_is_in_progress(raft_server_t *me)
 
 int raft_is_apply_allowed(raft_server_t* me)
 {
-    return (!raft_snapshot_is_in_progress(me) ||
-            (me->snapshot_flags & RAFT_SNAPSHOT_NONBLOCKING_APPLY));
+    return !me->disable_apply &&
+           (!raft_snapshot_is_in_progress(me) || me->nonblocking_apply);
 }
 
 raft_entry_t *raft_get_last_applied_entry(raft_server_t *me)

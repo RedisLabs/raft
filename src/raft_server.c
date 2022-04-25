@@ -1633,7 +1633,7 @@ raft_index_t raft_get_num_snapshottable_logs(raft_server_t *me)
     return raft_get_commit_idx(me) - me->log_impl->first_idx(me->log) + 1;
 }
 
-int raft_begin_snapshot(raft_server_t *me, int flags)
+int raft_begin_snapshot(raft_server_t *me)
 {
     if (raft_get_num_snapshottable_logs(me) == 0)
         return -1;
@@ -1658,7 +1658,6 @@ int raft_begin_snapshot(raft_server_t *me, int flags)
     me->snapshot_in_progress = 1;
     me->next_snapshot_last_idx = snapshot_target;
     me->next_snapshot_last_term = ety_term;
-    me->snapshot_flags = flags;
 
     raft_log(me,
         "begin snapshot sli:%ld slt:%ld slogs:%ld",
@@ -2093,12 +2092,6 @@ raft_index_t raft_get_index_to_sync(raft_server_t *me)
     return idx;
 }
 
-int raft_set_auto_flush(raft_server_t* me, int flush)
-{
-    me->auto_flush = flush ? 1 : 0;
-    return 0;
-}
-
 int raft_flush(raft_server_t* me, raft_index_t sync_index)
 {
     if (!raft_is_leader(me)) {
@@ -2137,3 +2130,57 @@ out:
     raft_process_read_queue(me);
     return 0;
 }
+
+int raft_config(raft_server_t *me, int set, const char *config, ...)
+{
+    int ret = 0;
+    va_list va;
+
+    va_start(va, config);
+
+    if (strcmp(config, "election-timeout") == 0) {
+        if (set) {
+            me->election_timeout = va_arg(va, int);
+            raft_update_quorum_meta(me, me->last_acked_msg_id);
+            raft_randomize_election_timeout(me);
+        } else {
+            *(va_arg(va, int*)) = me->election_timeout;
+        }
+    } else if (strcmp(config, "request-timeout") == 0) {
+        if (set) {
+            me->request_timeout = va_arg(va, int);
+        } else {
+            *(va_arg(va, int*)) = me->request_timeout;
+        }
+    } else if (strcmp(config, "auto-flush") == 0) {
+        if (set) {
+            me->auto_flush = (va_arg(va, int)) ? 1 : 0;
+        } else {
+            *(va_arg(va, int*)) = me->auto_flush;
+        }
+    } else if (strcmp(config, "log-enabled") == 0) {
+        if (set) {
+            me->log_enabled = (va_arg(va, int)) ? 1 : 0;
+        } else {
+            *(va_arg(va, int*)) = me->log_enabled;
+        }
+    } else if (strcmp(config, "nonblocking-apply") == 0) {
+        if (set) {
+            me->nonblocking_apply = (va_arg(va, int)) ? 1 : 0;
+        } else {
+            *(va_arg(va, int*)) = me->nonblocking_apply;
+        }
+    } else if (strcmp(config, "disable-apply") == 0) {
+        if (set) {
+            me->disable_apply = (va_arg(va, int)) ? 1 : 0;
+        } else {
+            *(va_arg(va, int*)) = me->disable_apply;
+        }
+    } else {
+        ret = RAFT_ERR_NOTFOUND;
+    }
+
+    va_end(va);
+    return ret;
+}
+
