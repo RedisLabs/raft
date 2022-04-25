@@ -2053,7 +2053,7 @@ static int index_cmp(const void *a, const void *b)
     return va > vb ? -1 : 1;
 }
 
-static int raft_update_commit_idx(raft_server_t* me)
+static void raft_update_commit_idx(raft_server_t* me)
 {
     raft_index_t indexes[me->num_nodes];
     int num_voters = 0;
@@ -2077,8 +2077,6 @@ static int raft_update_commit_idx(raft_server_t* me)
 
         raft_entry_release(ety);
     }
-
-    return 0;
 }
 
 raft_index_t raft_get_index_to_sync(raft_server_t *me)
@@ -2109,10 +2107,7 @@ int raft_flush(raft_server_t* me, raft_index_t sync_index)
         raft_node_set_match_idx(me->node, sync_index);
     }
 
-    int e = raft_update_commit_idx(me);
-    if (e != 0) {
-        return e;
-    }
+    raft_update_commit_idx(me);
 
     raft_msg_id_t last = me->read_queue_tail ? me->read_queue_tail->msg_id : 0;
 
@@ -2128,7 +2123,7 @@ int raft_flush(raft_server_t* me, raft_index_t sync_index)
         raft_send_appendentries(me, me->nodes[i]);
     }
 
-    e = raft_apply_all(me);
+    int e = raft_apply_all(me);
     if (e != 0) {
         return e;
     }
