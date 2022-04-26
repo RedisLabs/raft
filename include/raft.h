@@ -44,6 +44,15 @@ typedef enum {
     RAFT_LEADER_TRANSFER_EXPECTED_LEADER,
 } raft_leader_transfer_e;
 
+typedef enum {
+    RAFT_CONFIG_ELECTION_TIMEOUT = 1,
+    RAFT_CONFIG_REQUEST_TIMEOUT,
+    RAFT_CONFIG_AUTO_FLUSH,
+    RAFT_CONFIG_LOG_ENABLED,
+    RAFT_CONFIG_NONBLOCKING_APPLY,
+    RAFT_CONFIG_DISABLE_APPLY,
+} raft_config_e;
+
 #define RAFT_NODE_ID_NONE                   (-1)
 
 typedef enum {
@@ -1595,31 +1604,32 @@ raft_index_t raft_get_index_to_sync(raft_server_t *me);
  * auto-flush         : See raft_flush().
  * log-enabled        : Enable / disable library logs.
  * non-blocking-apply : See raft_begin_snapshot().
- * disabled-apply     : Skip applying entries. Useful for testing.
+ * disable-apply      : Skip applying entries. Useful for testing.
  *
- * | Name               | Type | Valid values     | Default value     |
- * | ------------------ | ---- | ---------------- | ----------------- |
- * | election-timeout   | int  | Positive integer | 1000 milliseconds |
- * | request-timeout    | int  | Positive integer | 200 milliseconds  |
- * | auto-flush         | int  | 0 or 1           | 0                 |
- * | log-enabled        | int  | 0 or 1           | 0                 |
- * | nonblocking-apply  | int  | 0 or 1           | 0                 |
- * | disable-apply      | int  | 0 or 1           | 0                 |
+ *
+ * | Enum                          | Type | Valid values     | Default value   |
+ * | ----------------------------- | ---- | ---------------- | --------------- |
+ * | RAFT_CONFIG_ELECTION_TIMEOUT  | int  | Positive integer | 1000 millis     |
+ * | RAFT_CONFIG_REQUEST_TIMEOUT   | int  | Positive integer | 200 millis      |
+ * | RAFT_CONFIG_AUTO_FLUSH        | int  | 0 or 1           | 0               |
+ * | RAFT_CONFIG_LOG_ENABLED       | int  | 0 or 1           | 0               |
+ * | RAFT_CONFIG_NONBLOCKING_APPLY | int  | 0 or 1           | 0               |
+ * | RAFT_CONFIG_DISABLE_APPLY     | int  | 0 or 1           | 0               |
  *
  * Example:
  *
  * - Set
- *      raft_config(raft, 1, "election-timeout", 4000);
+ *      raft_config(raft, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 4000);
  *
  * - Get
  *      int election_timeout;
- *      raft_config(raft, 0, "election-timeout", &election_timeout)
+ *      raft_config(raft, 0, RAFT_CONFIG_ELECTION_TIMEOUT, &election_timeout);
  *
  * @param set     1 to set the value, 0 to get the current value.
- * @param config  Config name.
+ * @param config  Config enum.
  * @param ...     Value to set or destination variable to get the config.
  * @return        0 on success, RAFT_ERR_NOTFOUND if config is missing.
  */
-int raft_config(raft_server_t *me, int set, const char *config, ...);
+int raft_config(raft_server_t *me, int set, raft_config_e config, ...);
 
 #endif /* RAFT_H_ */

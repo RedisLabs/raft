@@ -698,7 +698,7 @@ void TestRaft_recv_entry_succeeds_if_snapshot_nonblocking_apply_is_set(CuTest* t
     CuAssertIntEquals(tc, 2, raft_get_log_count(r));
 
     raft_set_commit_idx(r, 1);
-    raft_config(r, 1, "nonblocking-apply", 1);
+    raft_config(r, 1, RAFT_CONFIG_NONBLOCKING_APPLY, 1);
 
     CuAssertIntEquals(tc, 0, raft_begin_snapshot(r));
 

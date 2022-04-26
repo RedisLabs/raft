@@ -849,11 +849,11 @@ class RaftServer(object):
         lib.raft_set_callbacks(self.raft, cbs, self.udata)
         lib.raft_log_set_callbacks(lib.raft_get_log(self.raft), log_cbs, self.raft)
 
-        lib.raft_config(self.raft, 1, "election-timeout".encode('utf-8'),
+        lib.raft_config(self.raft, 1, lib.RAFT_CONFIG_ELECTION_TIMEOUT,
                         ffi.cast("int", 500))
-        lib.raft_config(self.raft, 1, "log-enabled".encode('utf-8'),
+        lib.raft_config(self.raft, 1, lib.RAFT_CONFIG_LOG_ENABLED,
                         ffi.cast("int", 1))
-        lib.raft_config(self.raft, 1, "auto-flush".encode('utf-8'),
+        lib.raft_config(self.raft, 1, lib.RAFT_CONFIG_AUTO_FLUSH,
                         ffi.cast("int", network.auto_flush))
 
         self.fsm_dict = {}

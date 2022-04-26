@@ -266,7 +266,7 @@ void TestRaft_server_starts_with_election_timeout_of_1000ms(CuTest * tc)
     void *r = raft_new();
 
     int election_timeout;
-    raft_config(r, 0, "election-timeout", &election_timeout);
+    raft_config(r, 0, RAFT_CONFIG_ELECTION_TIMEOUT, &election_timeout);
 
     CuAssertTrue(tc, 1000 == election_timeout);
 }
@@ -276,7 +276,7 @@ void TestRaft_server_starts_with_request_timeout_of_200ms(CuTest * tc)
     void *r = raft_new();
 
     int request_timeout;
-    raft_config(r, 0, "request-timeout", &request_timeout);
+    raft_config(r, 0, RAFT_CONFIG_REQUEST_TIMEOUT, &request_timeout);
 
     CuAssertTrue(tc, 200 == request_timeout);
 }
@@ -488,7 +488,7 @@ void TestRaft_server_periodic_elapses_election_timeout(CuTest * tc)
 {
     void *r = raft_new();
     /* we don't want to set the timeout to zero */
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     CuAssertTrue(tc, 0 == raft_get_timeout_elapsed(r));
 
     raft_periodic(r, 0);
@@ -511,7 +511,7 @@ void TestRaft_server_election_timeout_does_not_promote_us_to_leader_if_there_is_
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
 
     /* clock over (ie. 1000 + 1), causing new election */
     raft_periodic(r, 1001);
@@ -523,7 +523,7 @@ void TestRaft_server_election_timeout_does_not_promote_us_to_leader_if_we_are_no
 {
     void *r = raft_new();
     raft_add_non_voting_node(r, NULL, 1, 1);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
 
     /* clock over (ie. 1000 + 1), causing new election */
     raft_periodic(r, 1001);
@@ -537,7 +537,7 @@ void TestRaft_server_election_timeout_does_not_start_election_if_there_are_no_vo
     void *r = raft_new();
     raft_add_non_voting_node(r, NULL, 1, 1);
     raft_add_non_voting_node(r, NULL, 2, 0);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
 
     /* clock over (ie. 1000 + 1), causing new election */
     raft_periodic(r, 1001);
@@ -549,7 +549,7 @@ void TestRaft_server_election_timeout_does_promote_us_to_leader_if_there_is_only
 {
     void *r = raft_new();
     raft_add_node(r, NULL, 1, 1);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     raft_term_t old_term = raft_get_current_term(r);
 
     /* clock over (ie. 1000 + 1), causing new election */
@@ -570,7 +570,7 @@ void TestRaft_server_election_timeout_does_promote_us_to_leader_if_there_is_only
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_non_voting_node(r, NULL, 2, 0);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
 
     /* clock over (ie. 1000 + 1), causing new election */
     raft_periodic(r, 1001);
@@ -582,7 +582,7 @@ void TestRaft_server_recv_entry_auto_commits_if_we_are_the_only_node(CuTest * tc
 {
     void *r = raft_new();
     raft_add_node(r, NULL, 1, 1);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     raft_become_leader(r);
     CuAssertTrue(tc, 0 == raft_get_commit_idx(r));
 
@@ -600,8 +600,8 @@ void TestRaft_server_recv_entry_fails_if_there_is_already_a_voting_change(CuTest
 {
     void *r = raft_new();
     raft_add_node(r, NULL, 1, 1);
-    raft_config(r, 1, "auto-flush", 0);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_AUTO_FLUSH, 0);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     raft_become_leader(r);
     CuAssertTrue(tc, 0 == raft_get_commit_idx(r));
 
@@ -882,7 +882,7 @@ void TestRaft_server_recv_requestvote_reset_timeout(
     raft_add_node(r, NULL, 2, 0);
     raft_set_current_term(r, 1);
 
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     raft_periodic(r, 900);
 
     memset(&rv, 0, sizeof(raft_requestvote_req_t));
@@ -1009,7 +1009,7 @@ void TestRaft_server_recv_requestvote_ignore_if_master_is_fresh(CuTest * tc)
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_set_current_term(r, 1);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
 
     raft_appendentries_req_t ae = { 0 };
     raft_appendentries_resp_t aer;
@@ -1042,7 +1042,7 @@ void TestRaft_server_recv_prevote_ignore_if_candidate(CuTest * tc)
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_set_current_term(r, 1);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
 
     raft_become_candidate(r);
 
@@ -1065,7 +1065,7 @@ void TestRaft_server_recv_reqvote_ignore_if_not_candidate(CuTest * tc)
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_set_current_term(r, 1);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
 
     raft_become_precandidate(r);
 
@@ -1087,7 +1087,7 @@ void TestRaft_server_recv_reqvote_always_update_term(CuTest * tc)
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_set_current_term(r, 1);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
 
     raft_become_precandidate(r);
 
@@ -1814,7 +1814,7 @@ void TestRaft_follower_becomes_precandidate_when_election_timeout_occurs(
     raft_set_callbacks(r, &funcs, NULL);
 
     /*  1 second election timeout */
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
@@ -2054,7 +2054,7 @@ void TestRaft_follower_becoming_candidate_resets_election_timeout(CuTest * tc)
     raft_add_node(r, NULL, 2, 0);
     raft_set_callbacks(r, &funcs, NULL);
 
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     CuAssertTrue(tc, 0 == raft_get_timeout_elapsed(r));
 
     raft_periodic(r, 900);
@@ -2076,7 +2076,7 @@ void TestRaft_follower_recv_appendentries_resets_election_timeout(
     void *r = raft_new();
     raft_set_callbacks(r, &funcs, NULL);
 
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 1);
 
@@ -2141,7 +2141,7 @@ void TestRaft_candidate_election_timeout_and_no_leader_results_in_new_election(
 
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
 
     /* server wants to be leader, so becomes candidate */
     raft_become_candidate(r);
@@ -3255,7 +3255,7 @@ void TestRaft_leader_recv_entry_resets_election_timeout(
 {
     void *r = raft_new();
     raft_add_node(r, NULL, 1, 1);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     raft_set_state(r, RAFT_STATE_LEADER);
 
     raft_periodic(r, 900);
@@ -3642,8 +3642,8 @@ void TestRaft_leader_sends_empty_appendentries_every_request_timeout(
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_add_node(r, NULL, 3, 0);
-    raft_config(r, 1, "election-timeout", 1000);
-    raft_config(r, 1, "request-timeout", 500);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
+    raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, 500);
     CuAssertTrue(tc, 0 == raft_get_timeout_elapsed(r));
 
     /* candidate to leader */
@@ -3686,8 +3686,8 @@ void TestRaft_leader_recv_requestvote_responds_without_granting(CuTest * tc)
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_add_node(r, NULL, 3, 0);
-    raft_config(r, 1, "election-timeout", 1000);
-    raft_config(r, 1, "request-timeout", 500);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
+    raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, 500);
     CuAssertTrue(tc, 0 == raft_get_timeout_elapsed(r));
 
     raft_election_start(r, 0);
@@ -3739,8 +3739,8 @@ void T_estRaft_leader_recv_requestvote_responds_with_granting_if_term_is_higher(
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_add_node(r, NULL, 3, 0);
-    raft_config(r, 1, "election-timeout", 1000);
-    raft_config(r, 1, "request-timeout", 500);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
+    raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, 500);
     CuAssertTrue(tc, 0 == raft_get_timeout_elapsed(r));
 
     raft_election_start(r);
@@ -3901,7 +3901,7 @@ void TestRaft_read_action_callback(
     raft_add_node(r, NULL, 3, 0);
 
     raft_set_current_term(r, 1);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     raft_become_leader(r);
 
     __RAFT_APPEND_ENTRY(r, 1, 1, "aaa");
@@ -4002,7 +4002,7 @@ void TestRaft_server_recv_requestvote_with_transfer_node(CuTest * tc)
     raft_add_node(r, NULL, 2, 0);
     raft_add_node(r, NULL, 3, 0);
     raft_set_current_term(r, 1);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     raft_set_state(r, RAFT_STATE_LEADER);
 
     /* setup requestvote struct */
@@ -4061,8 +4061,8 @@ void TestRaft_quorum_msg_id_correctness(CuTest * tc)
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_set_current_term(r, 1);
-    raft_config(r, 1, "election-timeout", 10000);
-    raft_config(r, 1, "request-timeout", 10000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 10000);
+    raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, 10000);
     raft_become_leader(r);
 
     __RAFT_APPEND_ENTRY(r, 1, 1, "aaa");
@@ -4187,12 +4187,12 @@ void TestRaft_leader_steps_down_if_there_is_no_quorum(CuTest * tc)
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_set_current_term(r, 1);
-    raft_config(r, 1, "election-timeout", 1000);
-    raft_config(r, 1, "request-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
+    raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, 1000);
 
     // Quorum timeout is twice the election timeout.
     int election_timeout;
-    raft_config(r, 0, "election-timeout", &election_timeout);
+    raft_config(r, 0, RAFT_CONFIG_ELECTION_TIMEOUT, &election_timeout);
 
     int quorum_timeout = election_timeout * 2;
 
@@ -4217,7 +4217,7 @@ void TestRaft_leader_steps_down_if_there_is_no_quorum(CuTest * tc)
     // Trigger new round of append entries
 
     int request_timeout;
-    raft_config(r, 0, "request-timeout", &request_timeout);
+    raft_config(r, 0, RAFT_CONFIG_REQUEST_TIMEOUT, &request_timeout);
 
     raft_periodic(r, request_timeout + 1);
     CuAssertTrue(tc, raft_is_leader(r));
@@ -4408,7 +4408,7 @@ void TestRaft_removed_node_starts_election(CuTest * tc)
     CuAssertIntEquals(r, raft_get_num_nodes(r), 2);
 
     raft_become_follower(r);
-    raft_config(r, 1, "election-timeout", 1000);
+    raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     raft_periodic(r, 2000);
     raft_become_candidate(r);
 
@@ -4600,36 +4600,36 @@ void TestRaft_config(CuTest *tc)
     int val;
     raft_server_t *r = raft_new();
 
-    CuAssertIntEquals(tc, 0, raft_config(r, 1, "election-timeout", 566));
-    CuAssertIntEquals(tc, 0, raft_config(r, 0, "election-timeout", &val));
+    CuAssertIntEquals(tc, 0, raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 566));
+    CuAssertIntEquals(tc, 0, raft_config(r, 0, RAFT_CONFIG_ELECTION_TIMEOUT, &val));
     CuAssertIntEquals(tc, 566, val);
 
-    CuAssertIntEquals(tc, 0, raft_config(r, 1, "request-timeout", 755));
-    CuAssertIntEquals(tc, 0, raft_config(r, 0, "request-timeout", &val));
+    CuAssertIntEquals(tc, 0, raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, 755));
+    CuAssertIntEquals(tc, 0, raft_config(r, 0, RAFT_CONFIG_REQUEST_TIMEOUT, &val));
     CuAssertIntEquals(tc, 755, val);
 
-    CuAssertIntEquals(tc, 0, raft_config(r, 1, "auto-flush", 8218318312));
-    CuAssertIntEquals(tc, 0, raft_config(r, 0, "auto-flush", &val));
+    CuAssertIntEquals(tc, 0, raft_config(r, 1, RAFT_CONFIG_AUTO_FLUSH, 8218318312));
+    CuAssertIntEquals(tc, 0, raft_config(r, 0, RAFT_CONFIG_AUTO_FLUSH, &val));
     CuAssertIntEquals(tc, 1, val);
 
-    CuAssertIntEquals(tc, 0, raft_config(r, 1, "log-enabled", 1));
-    CuAssertIntEquals(tc, 0, raft_config(r, 0, "log-enabled", &val));
+    CuAssertIntEquals(tc, 0, raft_config(r, 1, RAFT_CONFIG_LOG_ENABLED, 1));
+    CuAssertIntEquals(tc, 0, raft_config(r, 0, RAFT_CONFIG_LOG_ENABLED, &val));
     CuAssertIntEquals(tc, 1, val);
 
-    CuAssertIntEquals(tc, 0, raft_config(r, 1, "nonblocking-apply", 1));
-    CuAssertIntEquals(tc, 0, raft_config(r, 0, "nonblocking-apply", &val));
+    CuAssertIntEquals(tc, 0, raft_config(r, 1, RAFT_CONFIG_NONBLOCKING_APPLY, 1));
+    CuAssertIntEquals(tc, 0, raft_config(r, 0, RAFT_CONFIG_NONBLOCKING_APPLY, &val));
     CuAssertIntEquals(tc, 1, val);
 
-    CuAssertIntEquals(tc, 0, raft_config(r, 1, "disable-apply", 1));
-    CuAssertIntEquals(tc, 0, raft_config(r, 0, "disable-apply", &val));
+    CuAssertIntEquals(tc, 0, raft_config(r, 1, RAFT_CONFIG_DISABLE_APPLY, 1));
+    CuAssertIntEquals(tc, 0, raft_config(r, 0, RAFT_CONFIG_DISABLE_APPLY, &val));
     CuAssertIntEquals(tc, 1, val);
 
-    CuAssertIntEquals(tc, RAFT_ERR_NOTFOUND, raft_config(r, 1, "fake", 1));
-    CuAssertIntEquals(tc, RAFT_ERR_NOTFOUND, raft_config(r, 0, "fake", &val));
+    CuAssertIntEquals(tc, RAFT_ERR_NOTFOUND, raft_config(r, 1, -1, 1));
+    CuAssertIntEquals(tc, RAFT_ERR_NOTFOUND, raft_config(r, 0, -1, &val));
 
     long long tmp;
-    CuAssertIntEquals(tc, 0, raft_config(r, 1, "disable-apply", 1));
-    CuAssertIntEquals(tc, 0, raft_config(r, 0, "disable-apply", &tmp));
+    CuAssertIntEquals(tc, 0, raft_config(r, 1, RAFT_CONFIG_DISABLE_APPLY, 1));
+    CuAssertIntEquals(tc, 0, raft_config(r, 0, RAFT_CONFIG_DISABLE_APPLY, &tmp));
     CuAssertIntEquals(tc, 1, val);
 }
 
