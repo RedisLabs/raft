@@ -1284,8 +1284,8 @@ int raft_entry_is_cfg_change(raft_entry_t* ety);
  *  - not apply log entries
  *  - not start elections
  *
- * If 'nonblocking-apply' config flag is set via raft_config(), log entries will
- * be applied during snapshot. The FSM must isolate the snapshot state and
+ * If RAFT_CONFIG_NONBLOCKING_APPLY config is set via raft_config(), log entries
+ * will be applied during snapshot. The FSM must isolate the snapshot state and
  * guarantee these changes do not affect it.
  *
  * @return 0 on success
@@ -1544,7 +1544,7 @@ raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me);
  * Example:
  *
  * To disable auto flush mode:
- *      raft_config(raft, 1, "auto-flush", 0);
+ *      raft_config(raft, 1, RAFT_CONFIG_AUTO_FLUSH, 0);
  *
  * void server_loop() {
  *    while (1) {
