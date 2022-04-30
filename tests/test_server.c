@@ -4633,6 +4633,61 @@ void TestRaft_config(CuTest *tc)
     CuAssertIntEquals(tc, 1, val);
 }
 
+static int cb_send_ae(raft_server_t *raft, void *udata, raft_node_t *node,
+                      raft_appendentries_req_t *msg)
+{
+    CuTest *tc = udata;
+    int *appendentries_msg_count = raft_node_get_udata(node);
+
+    (*appendentries_msg_count)++;
+
+    CuAssertIntEquals(tc, 10, msg->n_entries);
+    return 0;
+}
+
+static raft_index_t cb_get_entries_to_send(raft_server_t *raft,
+                                           void *user_data,
+                                           raft_node_t *node,
+                                           raft_index_t idx,
+                                           raft_index_t entries_n,
+                                           raft_entry_t **entries)
+{
+    const int count = 10;
+
+    /* Fill with 10 entries */
+    for (int i = 0; i < count; i++) {
+        entries[i] = raft_get_entry_from_idx(raft, idx + i);
+    }
+    return count;
+}
+
+void TestRaft_limit_appendentries_size(CuTest *tc)
+{
+    raft_cbs_t funcs = {
+        .send_appendentries = cb_send_ae,
+        .get_entries_to_send = cb_get_entries_to_send
+    };
+
+    int appendentries_msg_count = 0;
+
+    raft_server_t *r = raft_new();
+    raft_set_callbacks(r, &funcs, tc);
+    raft_add_node(r, NULL, 100, 1);
+
+    raft_node_t *node = raft_add_node(r, NULL, 2, 0);
+    raft_node_set_udata(node, &appendentries_msg_count);
+
+    raft_set_current_term(r, 1);
+
+    /* Append 200 entries */
+    __RAFT_APPEND_ENTRIES_SEQ_ID(r, 200, 0, 1, "test");
+
+    /* 20 appendentries message will be sent. Each message will contain
+     * 10 entries. */
+    raft_send_appendentries_all(r);
+    CuAssertIntEquals(tc, 20, appendentries_msg_count);
+}
+
 int main(void)
 {
     CuString *output = CuStringNew();
@@ -4778,6 +4833,7 @@ int main(void)
     SUITE_ADD_TEST(suite, Test_transfer_leader_not_leader);
     SUITE_ADD_TEST(suite, Test_transfer_automatic);
     SUITE_ADD_TEST(suite, TestRaft_config);
+    SUITE_ADD_TEST(suite, TestRaft_limit_appendentries_size);
     CuSuiteRun(suite);
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);
