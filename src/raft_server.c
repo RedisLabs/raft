@@ -761,7 +761,7 @@ int raft_recv_appendentries(raft_server_t* me,
     int e = 0;
 
     raft_log_node(me, ae->leader_id,
-        "recv appendentries li:%d t:%ld ci:%ld lc:%ld pli:%ld plt:%ld msgid:%ld #%d",
+        "recv appendentries li:%d t:%ld ci:%ld lc:%ld pli:%ld plt:%ld msgid:%ld #%ld",
         ae->leader_id, ae->term, raft_get_current_idx(me),
         ae->leader_commit, ae->prev_log_idx, ae->prev_log_term,
         ae->msg_id, ae->n_entries);
@@ -1222,20 +1222,57 @@ exit:
     return 0;
 }
 
-raft_entry_t** raft_get_entries_from_idx(raft_server_t* me, raft_index_t idx, int* n_etys)
+static raft_entry_t **raft_get_entries(raft_server_t *me,
+                                       raft_node_t *node,
+                                       raft_index_t idx,
+                                       raft_index_t *n_etys)
 {
+
+    const int max_entries_in_append_req = 64 * 1024;
+    raft_index_t n;
+
+    /* If callback is not implemented, fetch entries from log implementation. */
+    if (!me->cb.get_entries_to_send) {
+        return raft_get_entries_from_idx(me, idx, n_etys);
+    }
+
+    *n_etys = 0;
+
     if (raft_get_current_idx(me) < idx) {
-        *n_etys = 0;
         return NULL;
     }
-    
+
+    raft_index_t size = raft_get_current_idx(me) - idx + 1;
+    if (size > max_entries_in_append_req) {
+        size = max_entries_in_append_req;
+    }
+
+    raft_entry_t **e = raft_malloc(size * sizeof(*e));
+
+    n = me->cb.get_entries_to_send(me, me->udata, node, idx, size, e);
+    if (n < 0) {
+        n = 0;
+    }
+
+    *n_etys = n;
+    return e;
+}
+
+raft_entry_t **raft_get_entries_from_idx(raft_server_t *me,
+                                         raft_index_t idx,
+                                         raft_index_t *n_etys)
+{
+    *n_etys = 0;
+
+    if (raft_get_current_idx(me) < idx) {
+        return NULL;
+    }
+
     raft_index_t size = raft_get_current_idx(me) - idx + 1;
     raft_entry_t **e = raft_malloc(size * sizeof(raft_entry_t*));
-    int n = me->log_impl->get_batch(me->log, idx, (int) size, e);
 
+    raft_index_t n = me->log_impl->get_batch(me->log, idx, size, e);
     if (n < 1) {
-        raft_free(e);
-        *n_etys = 0;
         return NULL;
     }
 
@@ -1429,81 +1466,81 @@ int raft_recv_snapshot_response(raft_server_t* me,
     return 0;
 }
 
+raft_term_t raft_get_previous_log_term(raft_server_t *me, raft_index_t idx)
+{
+    assert(idx > 0);
+
+    raft_entry_t *ety = raft_get_entry_from_idx(me, idx - 1);
+    if (!ety) {
+        return me->snapshot_last_term;
+    }
+
+    raft_term_t term = ety->term;
+    raft_entry_release(ety);
+
+    return term;
+}
+
 int raft_send_appendentries(raft_server_t* me, raft_node_t* node)
 {
-    assert(node);
     assert(node != me->node);
+    assert(raft_node_get_next_idx(node) != 0);
+
+    int e;
 
     if (!raft_node_is_active(node)) {
         return 0;
     }
 
-    raft_index_t next_idx = raft_node_get_next_idx(node);
-
-    /* figure out if the client needs a snapshot sent */
-    if (me->snapshot_last_idx > 0 && next_idx <= me->snapshot_last_idx)
-    {
+    if (me->snapshot_last_idx >= raft_node_get_next_idx(node)) {
         return raft_send_snapshot(me, node);
     }
 
-    if (!me->cb.send_appendentries)
+    if (!me->cb.send_appendentries) {
         return -1;
-
-    if (me->cb.backpressure) {
-        if (me->cb.backpressure(me, me->udata, node) != 0) {
-            return 0;
-        }
     }
 
-    raft_appendentries_req_t ae = {
-        .term = me->current_term,
-        .leader_id = raft_get_nodeid(me),
-        .leader_commit = raft_get_commit_idx(me),
-        .msg_id = ++me->msg_id,
-    };
-
-    ae.entries = raft_get_entries_from_idx(me, next_idx, &ae.n_entries);
-    assert((!ae.entries && 0 == ae.n_entries) ||
-            (ae.entries && 0 < ae.n_entries));
-
-    /* previous log is the log just before the new logs */
-    if (next_idx > 1)
-    {
-        raft_entry_t* prev_ety = raft_get_entry_from_idx(me, next_idx - 1);
-        if (!prev_ety)
-        {
-            ae.prev_log_idx = me->snapshot_last_idx;
-            ae.prev_log_term = me->snapshot_last_term;
+    do {
+        if (me->cb.backpressure) {
+            if (me->cb.backpressure(me, me->udata, node) != 0) {
+                return 0;
+            }
         }
-        else
-        {
-            ae.prev_log_idx = next_idx - 1;
-            ae.prev_log_term = prev_ety->term;
-            raft_entry_release(prev_ety);
-        }
-    }
 
-    raft_log_node(me,
-              raft_node_get_id(node),
-              "sending appendentries: ci:%lu comi:%lu t:%lu lc:%lu pli:%lu plt:%lu msgid:%lu #%d",
-              raft_get_current_idx(me),
-              raft_get_commit_idx(me),
-              ae.term,
-              ae.leader_commit,
-              ae.prev_log_idx,
-              ae.prev_log_term,
-              ae.msg_id,
-              ae.n_entries);
+        raft_index_t next_idx = raft_node_get_next_idx(node);
 
-    int res = me->cb.send_appendentries(me, me->udata, node, &ae);
-    if (!res) {
+        raft_appendentries_req_t ae = {
+            .term = me->current_term,
+            .leader_id = raft_get_nodeid(me),
+            .leader_commit = raft_get_commit_idx(me),
+            .msg_id = ++me->msg_id,
+            .prev_log_idx = next_idx - 1,
+            .prev_log_term = raft_get_previous_log_term(me, next_idx),
+            .entries = raft_get_entries(me, node, next_idx, &ae.n_entries)
+        };
+
+        raft_log_node(me, raft_node_get_id(node),
+                      "send ae: t:%lu lc:%lu pli:%lu plt:%lu msgid:%lu #%ld",
+                      ae.term,
+                      ae.leader_commit,
+                      ae.prev_log_idx,
+                      ae.prev_log_term,
+                      ae.msg_id,
+                      ae.n_entries);
+
+        e = me->cb.send_appendentries(me, me->udata, node, &ae);
+
         raft_node_set_next_idx(node, next_idx + ae.n_entries);
         raft_node_set_next_msgid(node, ae.msg_id + 1);
-    }
-    raft_entry_release_list(ae.entries, ae.n_entries);
-    raft_free(ae.entries);
+        raft_entry_release_list(ae.entries, ae.n_entries);
 
-    return res;
+        if (e != 0) {
+            return e;
+        }
+
+    } while (raft_node_get_next_idx(node) <= raft_get_current_idx(me));
+
+    return 0;
 }
 
 int raft_send_appendentries_all(raft_server_t* me)
@@ -1842,11 +1879,15 @@ void raft_entry_release(raft_entry_t *ety)
 
 void raft_entry_release_list(raft_entry_t **ety_list, size_t len)
 {
-    size_t i;
+    if (!ety_list) {
+        return;
+    }
 
-    for (i = 0; i < len; i++) {
+    for (size_t i = 0; i < len; i++) {
         raft_entry_release(ety_list[i]);
     }
+
+    raft_free(ety_list);
 }
 
 int raft_queue_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg)
