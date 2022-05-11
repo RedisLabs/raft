@@ -4172,10 +4172,12 @@ void TestRaft_callback_timeoutnow_at_send_appendentries_response_if_up_to_date(C
     CuAssertIntEquals(tc, 0, ret);
     CuAssertTrue(tc, 0 == timeoutnow_sent);
 
-    raft_appendentries_resp_t aer;
-    aer.term = 2;
-    aer.success = 1;
-    aer.current_idx = 2;
+    raft_appendentries_resp_t aer = {
+        .term = 2,
+        .success = 1,
+        .current_idx = 2
+    };
+
     raft_recv_appendentries_response(r, raft_get_node(r, 2), &aer);
     CuAssertTrue(tc, 1 == timeoutnow_sent);
 }
