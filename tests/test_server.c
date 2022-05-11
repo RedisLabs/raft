@@ -4690,6 +4690,44 @@ void TestRaft_limit_appendentries_size(CuTest *tc)
     CuAssertIntEquals(tc, 20, appendentries_msg_count);
 }
 
+static int cb_sendmsg(raft_server_t *raft, void *udata, raft_node_t *node,
+                      raft_appendentries_req_t *msg)
+{
+    CuTest *tc = udata;
+    int *appendentries_msg_count = raft_node_get_udata(node);
+    (*appendentries_msg_count)++;
+
+    return 0;
+}
+
+void TestRaft_flush_sends_msg(CuTest *tc)
+{
+    raft_cbs_t funcs = {
+        .send_appendentries = cb_sendmsg,
+    };
+
+    int appendentries_msg_count = 0;
+
+    raft_server_t *r = raft_new();
+    raft_set_callbacks(r, &funcs, tc);
+    raft_config(r, 1, RAFT_CONFIG_AUTO_FLUSH, 0);
+    raft_add_node(r, NULL, 100, 1);
+
+    raft_node_t *node = raft_add_node(r, NULL, 2, 0);
+    raft_node_set_udata(node, &appendentries_msg_count);
+
+    raft_set_current_term(r, 1);
+    raft_become_leader(r);
+
+    raft_queue_read_request(r, NULL, NULL);
+    raft_node_set_match_msgid(node, r->msg_id - 1);
+    raft_node_set_next_msgid(node, r->msg_id);
+
+    int msg_send = appendentries_msg_count;
+    raft_flush(r, 0);
+    CuAssertIntEquals(tc, msg_send + 1, appendentries_msg_count);
+}
+
 int main(void)
 {
     CuString *output = CuStringNew();
@@ -4836,6 +4874,7 @@ int main(void)
     SUITE_ADD_TEST(suite, Test_transfer_automatic);
     SUITE_ADD_TEST(suite, TestRaft_config);
     SUITE_ADD_TEST(suite, TestRaft_limit_appendentries_size);
+    SUITE_ADD_TEST(suite, TestRaft_flush_sends_msg);
     CuSuiteRun(suite);
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);

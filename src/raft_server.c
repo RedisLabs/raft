@@ -2151,7 +2151,7 @@ int raft_flush(raft_server_t* me, raft_index_t sync_index)
         if (me->node == me->nodes[i])
             continue;
 
-        if (raft_node_get_next_msgid(me->nodes[i]) >= last &&
+        if (raft_node_get_next_msgid(me->nodes[i]) > last &&
             raft_node_get_next_idx(me->nodes[i]) > raft_get_current_idx(me))
             continue;
 
