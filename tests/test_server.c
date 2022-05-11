@@ -4720,6 +4720,9 @@ void TestRaft_flush_sends_msg(CuTest *tc)
     raft_become_leader(r);
 
     raft_queue_read_request(r, NULL, NULL);
+
+    /* Verify that we send appendentries if the next msgid of a node equals
+     * to the last read request's msgid. */
     raft_node_set_match_msgid(node, r->msg_id - 1);
     raft_node_set_next_msgid(node, r->msg_id);
 
