@@ -713,14 +713,12 @@ int raft_recv_appendentries_response(raft_server_t* me,
     raft_index_t match_idx = raft_node_get_match_idx(node);
     if (r->current_idx > match_idx) {
         raft_node_set_match_idx(node, r->current_idx);
-        raft_node_set_next_idx(node, r->current_idx + 1);
     }
     assert(r->current_idx <= raft_get_current_idx(me));
 
     raft_msg_id_t match_msgid = raft_node_get_match_msgid(node);
     if (r->msg_id > match_msgid) {
         raft_node_set_match_msgid(node, r->msg_id);
-        raft_node_set_next_msgid(node, r->msg_id + 1);
     }
     assert(r->msg_id <= me->msg_id);
 
