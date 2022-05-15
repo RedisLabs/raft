@@ -48,6 +48,9 @@ struct raft_server {
     /* idx of highest log entry applied to state machine */
     raft_index_t last_applied_idx;
 
+    /* term of the highest log entry applied to the state machine */
+    raft_term_t last_applied_term;
+
     /* follower/leader/candidate indicator */
     raft_state_e state;
 
