@@ -388,54 +388,52 @@ void raft_accept_leader(raft_server_t* me, raft_node_id_t leader)
 
 int raft_become_leader(raft_server_t* me)
 {
-    int i;
+    raft_log(me, "becoming leader term: %ld", me->current_term);
 
-    raft_log(me, "becoming leader term:%ld", raft_get_current_term(me));
+    raft_entry_t *noop = raft_entry_new(0);
+    noop->term = raft_get_current_term(me);
+    noop->type = RAFT_LOGTYPE_NO_OP;
 
-    raft_index_t next_idx = raft_get_current_idx(me) + 1;
+    int e = raft_append_entry(me, noop);
+    raft_entry_release(noop);
+    if (e != 0) {
+        return e;
+    }
 
-    if (raft_get_current_term(me) > 1) {
-        raft_entry_t *noop = raft_entry_new(0);
-        noop->term = raft_get_current_term(me);
-        noop->type = RAFT_LOGTYPE_NO_OP;
+    e = me->log_impl->sync(me->log);
+    if (e != 0) {
+        return e;
+    }
 
-        int e = raft_append_entry(me, noop);
-        raft_entry_release(noop);
-        if (0 != e)
-            return e;
+    raft_index_t current_idx = raft_get_current_idx(me);
 
-        e = me->log_impl->sync(me->log);
-        if (0 != e)
-            return e;
+    raft_node_set_match_idx(me->node, current_idx);
+    me->next_sync_index = current_idx + 1;
 
-        raft_node_set_match_idx(me->node, raft_get_current_idx(me));
-        me->next_sync_index = raft_get_current_idx(me) + 1;
-
-        // Commit noop immediately if this is a single node cluster
-        if (raft_is_single_node_voting_cluster(me)) {
-            raft_set_commit_idx(me, raft_get_current_idx(me));
-        }
+    /* Commit noop immediately if this is a single node cluster. */
+    if (raft_is_single_node_voting_cluster(me)) {
+        raft_set_commit_idx(me, current_idx);
     }
 
     raft_set_state(me, RAFT_STATE_LEADER);
     raft_update_quorum_meta(me, me->msg_id);
     raft_clear_incoming_snapshot(me, 0);
+    raft_reset_transfer_leader(me, 0);
     me->timeout_elapsed = 0;
 
-    raft_reset_transfer_leader(me, 0);
+    if (me->cb.notify_state_event) {
+        me->cb.notify_state_event(me, me->udata, RAFT_STATE_LEADER);
+    }
 
-    if (me->cb.notify_state_event)
-        me->cb.notify_state_event(me, raft_get_udata(me), RAFT_STATE_LEADER);
+    for (int i = 0; i < me->num_nodes; i++) {
+        raft_node_t *node = me->nodes[i];
 
-    for (i = 0; i < me->num_nodes; i++)
-    {
-        raft_node_t* node = me->nodes[i];
-
-        if (me->node == node)
+        if (me->node == node) {
             continue;
+        }
 
         raft_node_set_snapshot_offset(node, 0);
-        raft_node_set_next_idx(node, next_idx);
+        raft_node_set_next_idx(node, current_idx + 1);
         raft_node_set_match_idx(node, 0);
         raft_send_appendentries(me, node);
     }

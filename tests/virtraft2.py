@@ -666,7 +666,7 @@ class Network(object):
         e = server.recv_entry(ety)
         assert e == 0
 
-        lib.raft_set_commit_idx(server.raft, 1)
+        lib.raft_set_commit_idx(server.raft, 2)
         e = lib.raft_apply_all(server.raft)
         assert e == 0
 
