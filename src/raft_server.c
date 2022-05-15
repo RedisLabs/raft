@@ -1691,7 +1691,7 @@ int raft_begin_snapshot(raft_server_t *me)
     me->next_snapshot_last_idx = me->last_applied_idx;
     me->next_snapshot_last_term = me->last_applied_term;
 
-    raft_log(me, "begin snapshot lai:%ld lat:%ld slogs:%ld",
+    raft_log(me, "begin snapshot lai:%ld lat:%ld ec:%ld",
              me->last_applied_idx, me->last_applied_term, entry_count);
 
     return 0;
