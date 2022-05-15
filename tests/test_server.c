@@ -3933,7 +3933,8 @@ void TestRaft_read_action_callback(
     /* election started, nothing should be read */
     raft_become_candidate(r);
     raft_periodic(r, 1);
-    CuAssertIntEquals(tc, 0, ra.calls);
+    CuAssertIntEquals(tc, 0, ra.last_cb_safe);
+    CuAssertIntEquals(tc, 1, ra.calls);
 
     /* we win, but for safety we will not process read requests
      * from past terms */

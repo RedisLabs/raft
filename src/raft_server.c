@@ -1925,60 +1925,32 @@ static void pop_read_queue(raft_server_t *me, int can_read)
 
 void raft_process_read_queue(raft_server_t* me)
 {
-    if (!me->read_queue_head)
+    if (!me->read_queue_head) {
         return;
+    }
 
-    /* As a follower we drop all queued read requests */
-    if (raft_is_follower(me)) {
+    /* If not the leader, we drop all queued read requests */
+    if (!raft_is_leader(me)) {
         while (me->read_queue_head) {
             pop_read_queue(me, 0);
         }
-        return;
     }
 
     /* As a leader we can process requests that fulfill these conditions:
-     * 1) Heartbeat acknowledged by majority
-     * 2) We're on the same term (note: is this needed or over cautious?)
+     * 1) Applied NOOP entry from this term.
+     * 2) Heartbeat acknowledged by majority.
+     * 3) State machine has advanced enough.
      */
-    if (!raft_is_leader(me))
+    if (me->last_applied_term < me->current_term) {
         return;
-
-    /* Quickly bail if nothing to do */
-    if (!me->read_queue_head)
-        return;
-
-    if (raft_get_num_voting_nodes(me) > 1) {
-        raft_entry_t *ety = raft_get_entry_from_idx(me, raft_get_commit_idx(me));
-        if (!ety)
-            return;
-
-        raft_term_t ety_term = ety->term;
-        raft_entry_release(ety);
-
-        /* Don't read if we did not commit an entry this term yet!
-         * A new term has a NO_OP committed so if everything is well
-         * we can except that to happen.
-         */
-        if (ety_term < me->current_term)
-            return;
     }
 
     raft_msg_id_t last_acked_msgid = quorum_msg_id(me);
-    raft_index_t last_applied_idx = me->last_applied_idx;
-
-    /* Special case: the log's first index is 1, so we need to account
-     * for that in case we read before anything was ever committed.
-     *
-     * Note that this also implies a single node because adding nodes would
-     * bump the log and commit index.
-     */
-    if (!me->commit_idx && !me->last_applied_idx && raft_get_current_idx(me) == 1)
-        last_applied_idx = 1;
 
     while (me->read_queue_head &&
-            me->read_queue_head->msg_id <= last_acked_msgid &&
-            me->read_queue_head->read_idx <= last_applied_idx) {
-        pop_read_queue(me, me->read_queue_head->read_term == me->current_term);
+           me->read_queue_head->msg_id <= last_acked_msgid &&
+           me->read_queue_head->read_idx <= me->last_applied_idx) {
+        pop_read_queue(me, 1);
     }
 }
 
