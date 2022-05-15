@@ -1889,7 +1889,7 @@ void raft_entry_release_list(raft_entry_t **ety_list, size_t len)
     raft_free(ety_list);
 }
 
-int raft_queue_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg)
+int raft_recv_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg)
 {
     raft_read_request_t *req = raft_malloc(sizeof(raft_read_request_t));
 

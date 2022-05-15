@@ -413,7 +413,7 @@ class Network(object):
             if lib.raft_is_leader(sv.raft):
                 msg_id = lib.raft_get_msg_id(sv.raft) + 1
                 arg = sv.id * net.rqm + msg_id
-                lib.raft_queue_read_request(sv.raft, sv.handle_read_queue, ffi.cast("void *", arg))
+                lib.raft_recv_read_request(sv.raft, sv.handle_read_queue, ffi.cast("void *", arg))
 
     def id2server(self, id):
         for server in self.servers:

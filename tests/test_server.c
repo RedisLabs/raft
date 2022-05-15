@@ -3907,7 +3907,7 @@ void TestRaft_read_action_callback(
     __RAFT_APPEND_ENTRY(r, 1, 1, "aaa");
     raft_set_commit_idx(r, 1);
 
-    raft_queue_read_request(r, __read_request_callback, &ra);
+    raft_recv_read_request(r, __read_request_callback, &ra);
 
     /* not acked yet */
     raft_periodic(r, 1);
@@ -3928,7 +3928,7 @@ void TestRaft_read_action_callback(
     /* entry 2 */
     __RAFT_APPEND_ENTRY(r, 2, 1, "aaa");
     ra.calls = 0;
-    raft_queue_read_request(r, __read_request_callback, &ra);
+    raft_recv_read_request(r, __read_request_callback, &ra);
 
     /* election started, nothing should be read */
     raft_become_candidate(r);
@@ -3950,7 +3950,7 @@ void TestRaft_read_action_callback(
     __RAFT_APPEND_ENTRY(r, 3, 1, "aaa");
 
     ra.calls = 0;
-    raft_queue_read_request(r, __read_request_callback, &ra);
+    raft_recv_read_request(r, __read_request_callback, &ra);
 
     /* elections again, we lose */
     raft_become_candidate(r);
@@ -3978,7 +3978,7 @@ void TestRaft_single_node_commits_noop(CuTest * tc)
     raft_set_current_term(r, 2);
     raft_set_commit_idx(r, 0);
     raft_periodic(r, 500);
-    raft_queue_read_request(r, single_node_commits_noop_cb, &str);
+    raft_recv_read_request(r, single_node_commits_noop_cb, &str);
     raft_periodic(r, 500);
 
     CuAssertIntEquals(tc, 1, raft_get_commit_idx(r));
@@ -4069,7 +4069,7 @@ void TestRaft_quorum_msg_id_correctness(CuTest * tc)
     raft_set_commit_idx(r, 1);
 
     raft_periodic(r, 100);
-    raft_queue_read_request(r, quorum_msg_id_correctness_cb, &val);
+    raft_recv_read_request(r, quorum_msg_id_correctness_cb, &val);
     raft_periodic(r, 200);
 
     // Read request is pending as it requires two acks
@@ -4085,7 +4085,7 @@ void TestRaft_quorum_msg_id_correctness(CuTest * tc)
     raft_add_node(r, NULL, 3, 0);
     raft_add_node(r, NULL, 4, 0);
     raft_periodic(r, 100);
-    raft_queue_read_request(r, quorum_msg_id_correctness_cb, &val);
+    raft_recv_read_request(r, quorum_msg_id_correctness_cb, &val);
     raft_periodic(r, 200);
 
     // Read request is pending as it requires three acks
@@ -4719,7 +4719,7 @@ void TestRaft_flush_sends_msg(CuTest *tc)
     raft_set_current_term(r, 1);
     raft_become_leader(r);
 
-    raft_queue_read_request(r, NULL, NULL);
+    raft_recv_read_request(r, NULL, NULL);
 
     /* Verify that we send appendentries if the next msgid of a node equals
      * to the last read request's msgid. */
