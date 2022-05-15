@@ -673,16 +673,11 @@ int raft_recv_appendentries_response(raft_server_t* me,
     else if (me->current_term != r->term)
         return 0;
 
-    /* If we got here, it means that the follower has acked us as a leader,
-     * even if it cant accept the append_entry */
-    raft_node_set_match_msgid(node, r->msg_id);
-
-    raft_index_t match_idx = raft_node_get_match_idx(node);
 
     if (0 == r->success)
     {
         /* Stale response -- ignore */
-        if (r->current_idx < match_idx)
+        if (r->current_idx < raft_node_get_match_idx(node))
             return 0;
 
         raft_index_t next = min(r->current_idx + 1, raft_get_current_idx(me));
@@ -715,13 +710,17 @@ int raft_recv_appendentries_response(raft_server_t* me,
             raft_node_set_has_sufficient_logs(node);
     }
 
-    if (r->current_idx <= match_idx)
-        return 0;
-
+    raft_index_t match_idx = raft_node_get_match_idx(node);
+    if (r->current_idx > match_idx) {
+        raft_node_set_match_idx(node, r->current_idx);
+    }
     assert(r->current_idx <= raft_get_current_idx(me));
 
-    raft_node_set_next_idx(node, r->current_idx + 1);
-    raft_node_set_match_idx(node, r->current_idx);
+    raft_msg_id_t match_msgid = raft_node_get_match_msgid(node);
+    if (r->msg_id > match_msgid) {
+        raft_node_set_match_msgid(node, r->msg_id);
+    }
+    assert(r->msg_id <= me->msg_id);
 
     if (me->auto_flush)
         return raft_flush(me, 0);
@@ -2150,7 +2149,7 @@ int raft_flush(raft_server_t* me, raft_index_t sync_index)
         if (me->node == me->nodes[i])
             continue;
 
-        if (raft_node_get_next_msgid(me->nodes[i]) >= last &&
+        if (raft_node_get_next_msgid(me->nodes[i]) > last &&
             raft_node_get_next_idx(me->nodes[i]) > raft_get_current_idx(me))
             continue;
 
