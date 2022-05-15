@@ -2517,6 +2517,10 @@ void TestRaft_non_leader_recv_entry_msg_fails(CuTest * tc)
     /* receive entry */
     int e = raft_recv_entry(r, ety, &cr);
     CuAssertTrue(tc, RAFT_ERR_NOT_LEADER == e);
+
+    /* receive read request */
+    e = raft_recv_read_request(r, NULL, NULL);
+    CuAssertTrue(tc, RAFT_ERR_NOT_LEADER == e);
 }
 
 /* 5.3 */
@@ -3895,15 +3899,12 @@ void TestRaft_read_action_callback(
 {
     void *r = raft_new();
     struct read_request_arg ra = { 0 };
-
     raft_add_node(r, NULL, 1, 1);
     raft_add_node(r, NULL, 2, 0);
     raft_add_node(r, NULL, 3, 0);
-
     raft_set_current_term(r, 1);
     raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 1000);
     raft_become_leader(r);
-
     __RAFT_APPEND_ENTRY(r, 1, 1, "aaa");
     raft_set_commit_idx(r, 1);
 
@@ -3920,11 +3921,9 @@ void TestRaft_read_action_callback(
     raft_periodic(r, 1);
     CuAssertIntEquals(tc, 1, ra.calls);
     CuAssertIntEquals(tc, 1, ra.last_cb_safe);
-
     /* make sure read request is called only once */
     raft_periodic(r, 1);
     CuAssertIntEquals(tc, 1, ra.calls);
-
     /* entry 2 */
     __RAFT_APPEND_ENTRY(r, 2, 1, "aaa");
     ra.calls = 0;
@@ -3942,21 +3941,23 @@ void TestRaft_read_action_callback(
     aer.msg_id = 2;
     aer.term = 3;
     CuAssertIntEquals(tc, 0, raft_recv_appendentries_response(r, raft_get_node(r, 2), &aer));
-
     raft_periodic(r, 1);
     CuAssertIntEquals(tc, 1, ra.calls);
     CuAssertIntEquals(tc, 0, ra.last_cb_safe);
-
     /* entry 3 */
     __RAFT_APPEND_ENTRY(r, 3, 1, "aaa");
 
     ra.calls = 0;
-    raft_recv_read_request(r, __read_request_callback, &ra);
+    int err = raft_recv_read_request(r, __read_request_callback, &ra);
+    CuAssertIntEquals(tc, RAFT_ERR_NOT_LEADER, err);
+
+    raft_become_leader(r);
+    err = raft_recv_read_request(r, __read_request_callback, &ra);
+    CuAssertIntEquals(tc, 0, err);
 
     /* elections again, we lose */
     raft_become_candidate(r);
     raft_become_follower(r);
-
     /* queued read should fire back with can_read==false */
     raft_periodic(r, 1);
     CuAssertIntEquals(tc, 1, ra.calls);

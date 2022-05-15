@@ -1883,10 +1883,14 @@ void raft_entry_release_list(raft_entry_t **ety_list, size_t len)
 
 int raft_recv_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg)
 {
-    raft_read_request_t *req = raft_malloc(sizeof(raft_read_request_t));
+    if (!raft_is_leader(me)) {
+        return RAFT_ERR_NOT_LEADER;
+    }
+
+    raft_read_request_t *req = raft_malloc(sizeof(*req));
 
     req->read_idx = raft_get_current_idx(me);
-    req->read_term = raft_get_current_term(me);
+    req->read_term = me->current_term;
     req->msg_id = ++me->msg_id;
     req->cb = cb;
     req->cb_arg = cb_arg;
