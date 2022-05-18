@@ -433,7 +433,7 @@ int raft_become_leader(raft_server_t* me)
         }
 
         raft_node_set_snapshot_offset(node, 0);
-        raft_node_set_next_idx(node, current_idx + 1);
+        raft_node_set_next_idx(node, current_idx);
         raft_node_set_match_idx(node, 0);
         raft_send_appendentries(me, node);
     }

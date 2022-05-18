@@ -3158,7 +3158,7 @@ void TestRaft_leader_recv_appendentries_response_jumps_to_lower_next_idx(
     CuAssertTrue(tc, NULL != (ae = sender_poll_msg_data(sender)));
     // this ae contains the leader no op only, hence prev is the idx 4, term 4
     CuAssertIntEquals(tc, 4, ae->prev_log_term);
-    CuAssertIntEquals(tc, 5, ae->prev_log_idx);
+    CuAssertIntEquals(tc, 4, ae->prev_log_idx);
 
     /* receive mock success responses */
     memset(&aer, 0, sizeof(raft_appendentries_resp_t));
