@@ -161,6 +161,7 @@ void raft_clear(raft_server_t* me)
     me->leader_id = RAFT_NODE_ID_NONE;
     me->commit_idx = 0;
     me->last_applied_idx = 0;
+    me->last_applied_term = 0;
     me->num_nodes = 0;
     me->node = NULL;
     me->log_impl->reset(me->log, 1, 1);
@@ -387,54 +388,52 @@ void raft_accept_leader(raft_server_t* me, raft_node_id_t leader)
 
 int raft_become_leader(raft_server_t* me)
 {
-    int i;
+    raft_log(me, "becoming leader term: %ld", me->current_term);
 
-    raft_log(me, "becoming leader term:%ld", raft_get_current_term(me));
+    raft_entry_t *noop = raft_entry_new(0);
+    noop->term = raft_get_current_term(me);
+    noop->type = RAFT_LOGTYPE_NO_OP;
 
-    raft_index_t next_idx = raft_get_current_idx(me) + 1;
+    int e = raft_append_entry(me, noop);
+    raft_entry_release(noop);
+    if (e != 0) {
+        return e;
+    }
 
-    if (raft_get_current_term(me) > 1) {
-        raft_entry_t *noop = raft_entry_new(0);
-        noop->term = raft_get_current_term(me);
-        noop->type = RAFT_LOGTYPE_NO_OP;
+    e = me->log_impl->sync(me->log);
+    if (e != 0) {
+        return e;
+    }
 
-        int e = raft_append_entry(me, noop);
-        raft_entry_release(noop);
-        if (0 != e)
-            return e;
+    raft_index_t current_idx = raft_get_current_idx(me);
 
-        e = me->log_impl->sync(me->log);
-        if (0 != e)
-            return e;
+    raft_node_set_match_idx(me->node, current_idx);
+    me->next_sync_index = current_idx + 1;
 
-        raft_node_set_match_idx(me->node, raft_get_current_idx(me));
-        me->next_sync_index = raft_get_current_idx(me) + 1;
-
-        // Commit noop immediately if this is a single node cluster
-        if (raft_is_single_node_voting_cluster(me)) {
-            raft_set_commit_idx(me, raft_get_current_idx(me));
-        }
+    /* Commit noop immediately if this is a single node cluster. */
+    if (raft_is_single_node_voting_cluster(me)) {
+        raft_set_commit_idx(me, current_idx);
     }
 
     raft_set_state(me, RAFT_STATE_LEADER);
     raft_update_quorum_meta(me, me->msg_id);
     raft_clear_incoming_snapshot(me, 0);
+    raft_reset_transfer_leader(me, 0);
     me->timeout_elapsed = 0;
 
-    raft_reset_transfer_leader(me, 0);
+    if (me->cb.notify_state_event) {
+        me->cb.notify_state_event(me, me->udata, RAFT_STATE_LEADER);
+    }
 
-    if (me->cb.notify_state_event)
-        me->cb.notify_state_event(me, raft_get_udata(me), RAFT_STATE_LEADER);
+    for (int i = 0; i < me->num_nodes; i++) {
+        raft_node_t *node = me->nodes[i];
 
-    for (i = 0; i < me->num_nodes; i++)
-    {
-        raft_node_t* node = me->nodes[i];
-
-        if (me->node == node)
+        if (me->node == node) {
             continue;
+        }
 
         raft_node_set_snapshot_offset(node, 0);
-        raft_node_set_next_idx(node, next_idx);
+        raft_node_set_next_idx(node, current_idx);
         raft_node_set_match_idx(node, 0);
         raft_send_appendentries(me, node);
     }
@@ -1168,19 +1167,18 @@ int raft_apply_entry(raft_server_t* me)
     if (me->last_applied_idx == raft_get_commit_idx(me))
         return -1;
 
-    raft_index_t log_idx = me->last_applied_idx + 1;
+    raft_index_t idx = me->last_applied_idx + 1;
 
-    raft_entry_t* ety = raft_get_entry_from_idx(me, log_idx);
+    raft_entry_t* ety = raft_get_entry_from_idx(me, idx);
     if (!ety)
         return -1;
 
     raft_log(me, "applying log: %ld, id: %d size: %d",
-          log_idx, ety->id, ety->data_len);
+             idx, ety->id, ety->data_len);
 
-    me->last_applied_idx++;
     if (me->cb.applylog)
     {
-        int e = me->cb.applylog(me, me->udata, ety, me->last_applied_idx);
+        int e = me->cb.applylog(me, me->udata, ety, idx);
         assert(e == 0 || e == RAFT_ERR_SHUTDOWN);
         if (RAFT_ERR_SHUTDOWN == e) {
             raft_entry_release(ety);
@@ -1188,13 +1186,16 @@ int raft_apply_entry(raft_server_t* me)
         }
     }
 
-    if (log_idx == me->voting_cfg_change_log_idx)
+    me->last_applied_idx = idx;
+    me->last_applied_term = ety->term;
+
+    if (idx == me->voting_cfg_change_log_idx)
         me->voting_cfg_change_log_idx = -1;
 
     if (!raft_entry_is_cfg_change(ety))
         goto exit;
 
-    raft_node_id_t node_id = me->cb.get_node_id(me, raft_get_udata(me), ety, log_idx);
+    raft_node_id_t node_id = me->cb.get_node_id(me, me->udata, ety, idx);
     raft_node_t* node = raft_get_node(me, node_id);
 
     switch (ety->type) {
@@ -1671,35 +1672,25 @@ raft_index_t raft_get_num_snapshottable_logs(raft_server_t *me)
 
 int raft_begin_snapshot(raft_server_t *me)
 {
-    if (raft_get_num_snapshottable_logs(me) == 0)
+    raft_index_t entry_count = raft_get_num_snapshottable_logs(me);
+    if (entry_count == 0) {
         return -1;
-
-    raft_index_t snapshot_target = raft_get_commit_idx(me);
-    if (!snapshot_target)
-        return -1;
-
-    raft_entry_t* ety = raft_get_entry_from_idx(me, snapshot_target);
-    if (!ety)
-        return -1;
-    raft_term_t ety_term = ety->term;
-    raft_entry_release(ety);
+    }
 
     /* we need to get all the way to the commit idx */
     int e = raft_apply_all(me);
-    if (e != 0)
+    if (e != 0) {
         return e;
+    }
 
-    assert(raft_get_commit_idx(me) == raft_get_last_applied_idx(me));
+    assert(me->commit_idx == me->last_applied_idx);
 
     me->snapshot_in_progress = 1;
-    me->next_snapshot_last_idx = snapshot_target;
-    me->next_snapshot_last_term = ety_term;
+    me->next_snapshot_last_idx = me->last_applied_idx;
+    me->next_snapshot_last_term = me->last_applied_term;
 
-    raft_log(me,
-        "begin snapshot sli:%ld slt:%ld slogs:%ld",
-        me->snapshot_last_idx,
-        me->snapshot_last_term,
-        raft_get_num_snapshottable_logs(me));
+    raft_log(me, "begin snapshot lai:%ld lat:%ld ec:%ld",
+             me->last_applied_idx, me->last_applied_term, entry_count);
 
     return 0;
 }
@@ -1793,6 +1784,7 @@ int raft_begin_load_snapshot(
     if (raft_get_commit_idx(me) < last_included_index)
         raft_set_commit_idx(me, last_included_index);
 
+    me->last_applied_term = last_included_term;
     me->last_applied_idx = last_included_index;
     me->next_snapshot_last_term = last_included_term;
     me->next_snapshot_last_idx = last_included_index;
@@ -1889,12 +1881,16 @@ void raft_entry_release_list(raft_entry_t **ety_list, size_t len)
     raft_free(ety_list);
 }
 
-int raft_queue_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg)
+int raft_recv_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg)
 {
-    raft_read_request_t *req = raft_malloc(sizeof(raft_read_request_t));
+    if (!raft_is_leader(me)) {
+        return RAFT_ERR_NOT_LEADER;
+    }
+
+    raft_read_request_t *req = raft_malloc(sizeof(*req));
 
     req->read_idx = raft_get_current_idx(me);
-    req->read_term = raft_get_current_term(me);
+    req->read_term = me->current_term;
     req->msg_id = ++me->msg_id;
     req->cb = cb;
     req->cb_arg = cb_arg;
@@ -1933,60 +1929,32 @@ static void pop_read_queue(raft_server_t *me, int can_read)
 
 void raft_process_read_queue(raft_server_t* me)
 {
-    if (!me->read_queue_head)
+    if (!me->read_queue_head) {
         return;
+    }
 
-    /* As a follower we drop all queued read requests */
-    if (raft_is_follower(me)) {
+    /* If not the leader, we drop all queued read requests */
+    if (!raft_is_leader(me)) {
         while (me->read_queue_head) {
             pop_read_queue(me, 0);
         }
-        return;
     }
 
     /* As a leader we can process requests that fulfill these conditions:
-     * 1) Heartbeat acknowledged by majority
-     * 2) We're on the same term (note: is this needed or over cautious?)
+     * 1) Applied NOOP entry from this term.
+     * 2) Heartbeat acknowledged by majority.
+     * 3) State machine has advanced enough.
      */
-    if (!raft_is_leader(me))
+    if (me->last_applied_term < me->current_term) {
         return;
-
-    /* Quickly bail if nothing to do */
-    if (!me->read_queue_head)
-        return;
-
-    if (raft_get_num_voting_nodes(me) > 1) {
-        raft_entry_t *ety = raft_get_entry_from_idx(me, raft_get_commit_idx(me));
-        if (!ety)
-            return;
-
-        raft_term_t ety_term = ety->term;
-        raft_entry_release(ety);
-
-        /* Don't read if we did not commit an entry this term yet!
-         * A new term has a NO_OP committed so if everything is well
-         * we can except that to happen.
-         */
-        if (ety_term < me->current_term)
-            return;
     }
 
     raft_msg_id_t last_acked_msgid = quorum_msg_id(me);
-    raft_index_t last_applied_idx = me->last_applied_idx;
-
-    /* Special case: the log's first index is 1, so we need to account
-     * for that in case we read before anything was ever committed.
-     *
-     * Note that this also implies a single node because adding nodes would
-     * bump the log and commit index.
-     */
-    if (!me->commit_idx && !me->last_applied_idx && raft_get_current_idx(me) == 1)
-        last_applied_idx = 1;
 
     while (me->read_queue_head &&
-            me->read_queue_head->msg_id <= last_acked_msgid &&
-            me->read_queue_head->read_idx <= last_applied_idx) {
-        pop_read_queue(me, me->read_queue_head->read_term == me->current_term);
+           me->read_queue_head->msg_id <= last_acked_msgid &&
+           me->read_queue_head->read_idx <= me->last_applied_idx) {
+        pop_read_queue(me, 1);
     }
 }
 

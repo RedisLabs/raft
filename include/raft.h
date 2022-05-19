@@ -1538,7 +1538,7 @@ extern const raft_log_impl_t raft_log_internal_impl;
 
 void raft_handle_append_cfg_change(raft_server_t* me, raft_entry_t* ety, raft_index_t idx);
 
-int raft_queue_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg);
+int raft_recv_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg);
 
 /** Attempt to process read queue.
  */
@@ -1591,7 +1591,7 @@ raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me);
  *        HandleNetworkOperations();
  *
  *         for (int i = 0; i < new_readreq_count; i++)
- *             raft_queue_read_request(raft, read_requests[i]);
+ *             raft_recv_read_request(raft, read_requests[i]);
  *
  *         for (int i = 0; i < new_requests_count; i++)
  *             raft_recv_entry(raft, new_requests[i]);
