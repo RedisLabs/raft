@@ -1948,10 +1948,10 @@ static void pop_read_queue(raft_server_t *me, int can_read)
     raft_free(p);
 }
 
-int raft_process_read_queue(raft_server_t *me)
+void raft_process_read_queue(raft_server_t *me)
 {
     if (!me->read_queue_head) {
-        return 0;
+        return;
     }
 
     /* If not the leader, we drop all queued read requests */
@@ -1959,7 +1959,7 @@ int raft_process_read_queue(raft_server_t *me)
         while (me->read_queue_head) {
             pop_read_queue(me, 0);
         }
-        return 0;
+        return;
     }
 
     /* As a leader we can process requests that fulfill these conditions:
@@ -1968,7 +1968,7 @@ int raft_process_read_queue(raft_server_t *me)
      * 3) State machine has advanced enough.
      */
     if (me->last_applied_term < me->current_term) {
-        return 0;
+        return;
     }
 
     raft_msg_id_t last_acked_msgid = quorum_msg_id(me);
@@ -1979,13 +1979,11 @@ int raft_process_read_queue(raft_server_t *me)
 
         if (raft_time_millis(me) > me->exec_deadline) {
             me->pending_operations = 1;
-            return 0;
+            return;
         }
 
         pop_read_queue(me, 1);
     }
-
-    return 0;
 }
 
 int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout)
@@ -2230,12 +2228,16 @@ int raft_exec_operations(raft_server_t *me)
     me->exec_deadline = raft_time_millis(me) + me->request_timeout;
 
     int e = raft_apply_all(me);
-    if (e == 0) {
-        e = raft_process_read_queue(me);
+    if (e != 0) {
+       goto out;
     }
 
+    raft_process_read_queue(me);
+
+out:
     /* Set deadline to MAX to prevent raft_apply_all() to return early if this
      * function is called manually or inside raft_begin_snapshot() */
     me->exec_deadline = LLONG_MAX;
+
     return e;
 }
