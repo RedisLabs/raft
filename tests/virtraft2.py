@@ -925,7 +925,7 @@ class RaftServer(object):
         if self.network.random.randint(1, 100000) < self.network.compaction_rate:
             self.do_compaction()
 
-        e = lib.raft_periodic(self.raft, msec)
+        e = lib.raft_periodic_internal(self.raft, msec)
         if lib.RAFT_ERR_SHUTDOWN == e:
             self.shutdown()
 
@@ -1091,6 +1091,9 @@ class RaftServer(object):
         logger.debug('{} loading snapshot'.format(self))
 
         leader = find_leader()
+        if not leader:
+            return 0
+
         leader_snapshot = leader.snapshot_buf
 
         # Copy received snapshot as our snapshot and clear the temp buf
