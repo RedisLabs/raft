@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <limits.h>
 
 #include "raft.h"
 #include "raft_private.h"
@@ -112,6 +113,7 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     me->election_timeout = 1000;
     me->node_transferring_leader_to = RAFT_NODE_ID_NONE;
     me->auto_flush = 1;
+    me->exec_deadline = LLONG_MAX;
 
     raft_update_quorum_meta(me, me->msg_id);
 
@@ -360,7 +362,7 @@ int raft_delete_entry_from_idx(raft_server_t* me, raft_index_t idx)
 int raft_election_start(raft_server_t* me, int skip_precandidate)
 {
     raft_log(me,
-        "election starting: %d %d, term: %ld ci: %ld",
+        "election starting: %d %lld, term: %ld ci: %ld",
         me->election_timeout_rand, me->timeout_elapsed, me->current_term,
         raft_get_current_idx(me));
 
@@ -549,8 +551,34 @@ static raft_msg_id_t quorum_msg_id(raft_server_t* me)
     return msg_ids[num_voters / 2];
 }
 
-int raft_periodic(raft_server_t* me, int msec_since_last_period)
+static raft_time_t raft_time_millis(raft_server_t *me)
 {
+    return me->cb.timestamp ? me->cb.timestamp(me, me->udata) / 1000 : 0;
+}
+
+int raft_periodic(raft_server_t *me)
+{
+    return raft_periodic_internal(me, -1);
+}
+
+int raft_periodic_internal(raft_server_t *me,
+                           raft_time_t msec_since_last_period)
+{
+    if (msec_since_last_period < 0) {
+        raft_time_t timestamp = raft_time_millis(me);
+        assert(timestamp >= me->timestamp);
+
+        /* If this is the first call, previous timestamp will be zero. In this
+         * case, we just assume `0` millisecond has passed. */
+        if (me->timestamp == 0) {
+            msec_since_last_period = 0;
+        } else {
+            msec_since_last_period = timestamp - me->timestamp;
+        }
+
+        me->timestamp = timestamp;
+    }
+
     me->timeout_elapsed += msec_since_last_period;
 
     /* Only one voting node means it's safe for us to become the leader */
@@ -617,14 +645,7 @@ int raft_periodic(raft_server_t* me, int msec_since_last_period)
             return e;
     }
 
-    int e = raft_apply_all(me);
-    if (e != 0) {
-        return e;
-    }
-
-    raft_process_read_queue(me);
-
-    return 0;
+    return raft_exec_operations(me);
 }
 
 raft_entry_t* raft_get_entry_from_idx(raft_server_t* me, raft_index_t etyidx)
@@ -1612,16 +1633,22 @@ int raft_msg_entry_response_committed(raft_server_t* me,
     return r->idx <= raft_get_commit_idx(me);
 }
 
-int raft_apply_all(raft_server_t* me)
+int raft_apply_all(raft_server_t *me)
 {
-    if (!raft_is_apply_allowed(me))
+    if (!raft_is_apply_allowed(me)) {
         return 0;
+    }
 
-    while (me->commit_idx > me->last_applied_idx)
-    {
+    while (me->commit_idx > me->last_applied_idx) {
+        if (raft_time_millis(me) > me->exec_deadline) {
+            me->pending_operations = 1;
+            return 0;
+        }
+
         int e = raft_apply_entry(me);
-        if (0 != e)
+        if (e != 0) {
             return e;
+        }
     }
 
     return 0;
@@ -1927,7 +1954,7 @@ static void pop_read_queue(raft_server_t *me, int can_read)
     raft_free(p);
 }
 
-void raft_process_read_queue(raft_server_t* me)
+void raft_process_read_queue(raft_server_t *me)
 {
     if (!me->read_queue_head) {
         return;
@@ -1938,6 +1965,7 @@ void raft_process_read_queue(raft_server_t* me)
         while (me->read_queue_head) {
             pop_read_queue(me, 0);
         }
+        return;
     }
 
     /* As a leader we can process requests that fulfill these conditions:
@@ -1954,6 +1982,12 @@ void raft_process_read_queue(raft_server_t* me)
     while (me->read_queue_head &&
            me->read_queue_head->msg_id <= last_acked_msgid &&
            me->read_queue_head->read_idx <= me->last_applied_idx) {
+
+        if (raft_time_millis(me) > me->exec_deadline) {
+            me->pending_operations = 1;
+            return;
+        }
+
         pop_read_queue(me, 1);
     }
 }
@@ -2124,14 +2158,8 @@ int raft_flush(raft_server_t* me, raft_index_t sync_index)
         raft_send_appendentries(me, me->nodes[i]);
     }
 
-    int e = raft_apply_all(me);
-    if (e != 0) {
-        return e;
-    }
-
 out:
-    raft_process_read_queue(me);
-    return 0;
+    return raft_exec_operations(me);
 }
 
 int raft_config(raft_server_t *me, int set, raft_config_e config, ...)
@@ -2144,18 +2172,18 @@ int raft_config(raft_server_t *me, int set, raft_config_e config, ...)
     switch (config) {
         case RAFT_CONFIG_ELECTION_TIMEOUT:
             if (set) {
-                me->election_timeout = va_arg(va, int);
+                me->election_timeout = va_arg(va, raft_time_t);
                 raft_update_quorum_meta(me, me->last_acked_msg_id);
                 raft_randomize_election_timeout(me);
             } else {
-                *(va_arg(va, int*)) = me->election_timeout;
+                *(va_arg(va, raft_time_t*)) = me->election_timeout;
             }
             break;
         case RAFT_CONFIG_REQUEST_TIMEOUT:
             if (set) {
-                me->request_timeout = va_arg(va, int);
+                me->request_timeout = va_arg(va, raft_time_t);
             } else {
-                *(va_arg(va, int*)) = me->request_timeout;
+                *(va_arg(va, raft_time_t*)) = me->request_timeout;
             }
             break;
         case RAFT_CONFIG_AUTO_FLUSH:
@@ -2195,3 +2223,27 @@ int raft_config(raft_server_t *me, int set, raft_config_e config, ...)
     return ret;
 }
 
+int raft_pending_operations(raft_server_t *me)
+{
+    return me->pending_operations;
+}
+
+int raft_exec_operations(raft_server_t *me)
+{
+    me->pending_operations = 0;
+    me->exec_deadline = raft_time_millis(me) + me->request_timeout;
+
+    int e = raft_apply_all(me);
+    if (e != 0) {
+       goto out;
+    }
+
+    raft_process_read_queue(me);
+
+out:
+    /* Set deadline to MAX to prevent raft_apply_all() to return early if this
+     * function is called manually or inside raft_begin_snapshot() */
+    me->exec_deadline = LLONG_MAX;
+
+    return e;
+}

@@ -32,7 +32,7 @@ int raft_get_num_voting_nodes(raft_server_t* me)
     return num;
 }
 
-int raft_get_timeout_elapsed(raft_server_t* me)
+raft_time_t raft_get_timeout_elapsed(raft_server_t* me)
 {
     return me->timeout_elapsed;
 }
