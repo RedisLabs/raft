@@ -561,19 +561,25 @@ int raft_periodic(raft_server_t *me)
     return raft_periodic_internal(me, -1);
 }
 
-int raft_periodic_internal(raft_server_t *me, raft_time_t milliseconds)
+int raft_periodic_internal(raft_server_t *me,
+                           raft_time_t msec_since_last_period)
 {
-    if (milliseconds < 0) {
+    if (msec_since_last_period < 0) {
         raft_time_t timestamp = raft_time_millis(me);
         assert(timestamp >= me->timestamp);
 
         /* If this is the first call, previous timestamp will be zero. In this
          * case, we just assume `0` millisecond has passed. */
-        milliseconds = me->timestamp == 0 ? 0 : timestamp - me->timestamp;
+        if (me->timestamp == 0) {
+            msec_since_last_period = 0;
+        } else {
+            msec_since_last_period = timestamp - me->timestamp;
+        }
+
         me->timestamp = timestamp;
     }
 
-    me->timeout_elapsed += milliseconds;
+    me->timeout_elapsed += msec_since_last_period;
 
     /* Only one voting node means it's safe for us to become the leader */
     if (raft_is_single_node_voting_cluster(me) && !raft_is_leader(me)) {
@@ -591,7 +597,7 @@ int raft_periodic_internal(raft_server_t *me, raft_time_t milliseconds)
 
     /* needs to be outside state check, as can become a followr and still timeout */
     if (me->node_transferring_leader_to != RAFT_NODE_ID_NONE) {
-        me->transfer_leader_time -= milliseconds;
+        me->transfer_leader_time -= msec_since_last_period;
         if (me->transfer_leader_time < 0) {
             raft_reset_transfer_leader(me, 1);
         }
@@ -606,7 +612,7 @@ int raft_periodic_internal(raft_server_t *me, raft_time_t milliseconds)
             raft_send_appendentries_all(me);
         }
 
-        me->quorum_timeout -= milliseconds;
+        me->quorum_timeout -= msec_since_last_period;
         if (me->quorum_timeout < 0)
         {
             /**
