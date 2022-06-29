@@ -265,7 +265,7 @@ void TestRaft_server_starts_with_election_timeout_of_1000ms(CuTest * tc)
 {
     void *r = raft_new();
 
-    raft_time_t election_timeout;
+    int election_timeout;
     raft_config(r, 0, RAFT_CONFIG_ELECTION_TIMEOUT, &election_timeout);
 
     CuAssertTrue(tc, 1000 == election_timeout);
@@ -275,7 +275,7 @@ void TestRaft_server_starts_with_request_timeout_of_200ms(CuTest * tc)
 {
     void *r = raft_new();
 
-    raft_time_t request_timeout;
+    int request_timeout;
     raft_config(r, 0, RAFT_CONFIG_REQUEST_TIMEOUT, &request_timeout);
 
     CuAssertTrue(tc, 200 == request_timeout);
@@ -4195,7 +4195,7 @@ void TestRaft_leader_steps_down_if_there_is_no_quorum(CuTest * tc)
     raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, 1000);
 
     // Quorum timeout is twice the election timeout.
-    raft_time_t election_timeout;
+    int election_timeout;
     raft_config(r, 0, RAFT_CONFIG_ELECTION_TIMEOUT, &election_timeout);
 
     raft_time_t quorum_timeout = election_timeout * 2;
@@ -4220,7 +4220,7 @@ void TestRaft_leader_steps_down_if_there_is_no_quorum(CuTest * tc)
 
     // Trigger new round of append entries
 
-    raft_time_t request_timeout;
+    int request_timeout;
     raft_config(r, 0, RAFT_CONFIG_REQUEST_TIMEOUT, &request_timeout);
 
     raft_periodic_internal(r, request_timeout + 1);
@@ -4602,7 +4602,7 @@ void Test_transfer_automatic(CuTest *tc)
 void TestRaft_config(CuTest *tc)
 {
     int val;
-    raft_time_t time;
+    int time;
     raft_server_t *r = raft_new();
 
     CuAssertIntEquals(tc, 0, raft_config(r, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 566));
@@ -4795,9 +4795,7 @@ void TestRaft_apply_entry_timeout(CuTest *tc)
     raft_add_node(r, NULL, 1, 1);
     raft_set_callbacks(r, &funcs, &ts);
     raft_set_current_term(r, 1);
-
-    raft_time_t timeout = 100;
-    raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, timeout);
+    raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, 100);
 
     __RAFT_APPEND_ENTRIES_SEQ_ID(r, 21, 0, 1, "");
     raft_set_commit_idx(r, 21);
@@ -4840,9 +4838,7 @@ void TestRaft_apply_read_request_timeout(CuTest *tc)
     raft_set_commit_idx(r, 1);
     raft_apply_all(r);
     raft_config(r, 1, RAFT_CONFIG_AUTO_FLUSH, 0);
-
-    raft_time_t timeout = 100;
-    raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, timeout);
+    raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, 100);
 
     int remaining = 20;
     for (int i = 0; i < remaining; i++) {

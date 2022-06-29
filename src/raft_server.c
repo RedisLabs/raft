@@ -2172,18 +2172,18 @@ int raft_config(raft_server_t *me, int set, raft_config_e config, ...)
     switch (config) {
         case RAFT_CONFIG_ELECTION_TIMEOUT:
             if (set) {
-                me->election_timeout = va_arg(va, raft_time_t);
+                me->election_timeout = va_arg(va, int);
                 raft_update_quorum_meta(me, me->last_acked_msg_id);
                 raft_randomize_election_timeout(me);
             } else {
-                *(va_arg(va, raft_time_t*)) = me->election_timeout;
+                *(va_arg(va, int*)) = (int) me->election_timeout;
             }
             break;
         case RAFT_CONFIG_REQUEST_TIMEOUT:
             if (set) {
-                me->request_timeout = va_arg(va, raft_time_t);
+                me->request_timeout = va_arg(va, int);
             } else {
-                *(va_arg(va, raft_time_t*)) = me->request_timeout;
+                *(va_arg(va, int*)) = (int) me->request_timeout;
             }
             break;
         case RAFT_CONFIG_AUTO_FLUSH:
