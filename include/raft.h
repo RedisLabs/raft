@@ -1660,23 +1660,22 @@ raft_index_t raft_get_index_to_sync(raft_server_t *me);
  * disable-apply      : Skip applying entries. Useful for testing.
  *
  *
- * | Enum                          | Type         | Valid values | Default     |
- * | ----------------------------- | ------------ | ------------ | ----------- |
- * | RAFT_CONFIG_ELECTION_TIMEOUT  | raft_time_t  | > 0          | 1000 millis |
- * | RAFT_CONFIG_REQUEST_TIMEOUT   | raft_time_t  | > 0          | 200 millis  |
- * | RAFT_CONFIG_AUTO_FLUSH        | int          | 0 or 1       | 0           |
- * | RAFT_CONFIG_LOG_ENABLED       | int          | 0 or 1       | 0           |
- * | RAFT_CONFIG_NONBLOCKING_APPLY | int          | 0 or 1       | 0           |
- * | RAFT_CONFIG_DISABLE_APPLY     | int          | 0 or 1       | 0           |
+ * | Enum                          | Type | Valid values     | Default value   |
+ * | ----------------------------- | ---- | ---------------- | --------------- |
+ * | RAFT_CONFIG_ELECTION_TIMEOUT  | int  | Positive integer | 1000 millis     |
+ * | RAFT_CONFIG_REQUEST_TIMEOUT   | int  | Positive integer | 200 millis      |
+ * | RAFT_CONFIG_AUTO_FLUSH        | int  | 0 or 1           | 0               |
+ * | RAFT_CONFIG_LOG_ENABLED       | int  | 0 or 1           | 0               |
+ * | RAFT_CONFIG_NONBLOCKING_APPLY | int  | 0 or 1           | 0               |
+ * | RAFT_CONFIG_DISABLE_APPLY     | int  | 0 or 1           | 0               |
  *
  * Example:
  *
  * - Set
- *      raft_time_t timeout = 4000;
- *      raft_config(raft, 1, RAFT_CONFIG_ELECTION_TIMEOUT, timeout);
+ *      raft_config(raft, 1, RAFT_CONFIG_ELECTION_TIMEOUT, 4000);
  *
  * - Get
- *      raft_time_t election_timeout;
+ *      int election_timeout;
  *      raft_config(raft, 0, RAFT_CONFIG_ELECTION_TIMEOUT, &election_timeout);
  *
  * @param set     1 to set the value, 0 to get the current value.
