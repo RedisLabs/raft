@@ -645,7 +645,11 @@ int raft_periodic_internal(raft_server_t *me,
             return e;
     }
 
-    return raft_exec_operations(me);
+    if (me->auto_flush) {
+        return raft_exec_operations(me);
+    }
+
+    return 0;
 }
 
 raft_entry_t* raft_get_entry_from_idx(raft_server_t* me, raft_index_t etyidx)
