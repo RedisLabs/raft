@@ -2230,8 +2230,11 @@ int raft_pending_operations(raft_server_t *me)
 
 int raft_exec_operations(raft_server_t *me)
 {
+    /* Operations should take less than `request-timeout`. If we block here more
+     * than request-timeout, it means this server won't generate responses on
+     * time for the existing requests. */
+    me->exec_deadline = raft_time_millis(me) + (me->request_timeout / 2);
     me->pending_operations = 0;
-    me->exec_deadline = raft_time_millis(me) + me->request_timeout;
 
     int e = raft_apply_all(me);
     if (e != 0) {
