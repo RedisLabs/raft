@@ -716,7 +716,7 @@ int raft_recv_appendentries_response(raft_server_t* me,
 
     if (me->cb.send_timeoutnow && raft_get_transfer_leader(me) == raft_node_get_id(node) && !me->sent_timeout_now
         && raft_get_current_idx(me) == r->current_idx) {
-        me->cb.send_timeoutnow(me, node);
+        me->cb.send_timeoutnow(me, me->udata, node);
         me->sent_timeout_now = 1;
     }
 
@@ -2032,7 +2032,7 @@ int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout
 
     if (me->cb.send_timeoutnow &&
         raft_get_current_idx(me) == raft_node_get_match_idx(target)) {
-        me->cb.send_timeoutnow(me, target);
+        me->cb.send_timeoutnow(me, me->udata, target);
         me->sent_timeout_now = 1;
     }
 

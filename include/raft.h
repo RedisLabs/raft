@@ -598,6 +598,7 @@ typedef void (
 
 /** Callback for sending TimeoutNow RPC messages
  * @param[in] raft The Raft server making this callback
+ * @param[in] user_data User data that is passed from Raft server
  * @param[in] node The node that we are sending this message to
  * @return 0 on success
  */
@@ -605,6 +606,7 @@ typedef int (
 *raft_send_timeoutnow_f
 )   (
     raft_server_t* raft,
+    void *user_data,
     raft_node_t* node
     );
 

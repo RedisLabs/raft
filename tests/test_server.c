@@ -4106,7 +4106,7 @@ void TestRaft_quorum_msg_id_correctness(CuTest * tc)
 
 int timeoutnow_sent = 0;
 
-int __fake_timeoutnow(raft_server_t* raft, raft_node_t* node)
+int __fake_timeoutnow(raft_server_t* raft, void *udata, raft_node_t* node)
 {
     timeoutnow_sent = 1;
 
