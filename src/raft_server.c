@@ -77,7 +77,7 @@ void raft_randomize_election_timeout(raft_server_t* me)
 {
     /* [election_timeout, 2 * election_timeout) */
     me->election_timeout_rand = me->election_timeout + rand() % me->election_timeout;
-    raft_log(me, "randomize election timeout to %d", me->election_timeout_rand);
+    raft_log(me, "randomize election timeout to %lld", me->election_timeout_rand);
 }
 
 void raft_update_quorum_meta(raft_server_t* me, raft_msg_id_t id)
@@ -362,7 +362,7 @@ int raft_delete_entry_from_idx(raft_server_t* me, raft_index_t idx)
 int raft_election_start(raft_server_t* me, int skip_precandidate)
 {
     raft_log(me,
-        "election starting: %d %lld, term: %ld ci: %ld",
+        "election starting: %lld %lld, term: %ld ci: %ld",
         me->election_timeout_rand, me->timeout_elapsed, me->current_term,
         raft_get_current_idx(me));
 

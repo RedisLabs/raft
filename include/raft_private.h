@@ -122,7 +122,7 @@ struct raft_server {
      * when auto flush is disabled. */
     raft_index_t next_sync_index;
 
-    int election_timeout_rand;
+    raft_time_t election_timeout_rand;
 
     /* Configuration parameters */
 
