@@ -448,8 +448,6 @@ typedef int (
     raft_node_t* node
     );
 
-#ifndef HAVE_FUNC_LOG
-#define HAVE_FUNC_LOG
 /** Callback for providing debug logging information.
  * This callback is optional
  * @param[in] raft The Raft server making this callback
@@ -465,7 +463,6 @@ typedef void (
     void *user_data,
     const char *buf
     );
-#endif
 
 /** Callback for saving who we voted for to disk.
  * For safety reasons this callback MUST flush the change to disk.
