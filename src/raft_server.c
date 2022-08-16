@@ -1921,7 +1921,6 @@ int raft_recv_read_request(raft_server_t* me, raft_read_request_callback_f cb, v
     raft_read_request_t *req = raft_malloc(sizeof(*req));
 
     req->read_idx = raft_get_current_idx(me);
-    req->read_term = me->current_term;
     req->msg_id = ++me->msg_id;
     req->cb = cb;
     req->cb_arg = cb_arg;

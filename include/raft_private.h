@@ -16,7 +16,6 @@ struct raft_log_impl;
 
 typedef struct raft_read_request {
     raft_index_t read_idx;
-    raft_term_t read_term;
 
     raft_msg_id_t msg_id;
     raft_read_request_callback_f cb;
