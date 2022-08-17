@@ -58,42 +58,31 @@ typedef enum {
 #define RAFT_NODE_ID_NONE                   (-1)
 
 typedef enum {
-    /**
-     * Regular log type.
-     * This is solely for application data intended for the FSM.
-     */
+    /** Regular log type. This is for application data intended for the FSM. */
     RAFT_LOGTYPE_NORMAL,
-    /**
-     * Membership change.
-     * Non-voting nodes can't cast votes or start elections.
-     * Nodes in this non-voting state are used to catch up with the cluster,
-     * when trying to the join the cluster.
+
+    /** Membership change. Non-voting nodes can't cast votes. Nodes in this
+     *  non-voting state are used to catch up with the cluster, when trying to
+     *  the join the cluster.
      */
     RAFT_LOGTYPE_ADD_NONVOTING_NODE,
-    /**
-     * Membership change.
-     * Add a voting node.
-     */
+
+    /** Membership change. Add a voting node.  */
     RAFT_LOGTYPE_ADD_NODE,
-    /**
-     * Membership change.
-     * Nodes become demoted when we want to remove them from the cluster
-     * Nodes become demoted upon appending of the log message
-     * Demoted nodes can't take part in voting or start elections.
-     * Demoted nodes become inactive, as per raft_node_is_active.
-     * Demoted nodes are removed from cluster when the log message is committed and applied
-     */
+
+    /** Membership change. Remove a node */
     RAFT_LOGTYPE_REMOVE_NODE,
-    /**
-     * Users can piggyback the entry mechanism by specifying log types that
-     * are higher than RAFT_LOGTYPE_NUM.
+
+
+    /** A no-op entry appended automatically when a leader begins a new term in
+     *  order to determine the current commit index.
      */
     RAFT_LOGTYPE_NO_OP,
-    /**
-     * A no-op entry appended automatically when a leader begins a new term,
-     * in order to determine the current commit index.
+
+    /** Users can piggyback the entry mechanism by specifying log types that
+     *  are higher than RAFT_LOGTYPE_NUM.
      */
-    RAFT_LOGTYPE_NUM=100,
+    RAFT_LOGTYPE_NUM = 100,
 } raft_logtype_e;
 
 /** Entry that is stored in the server's entry log. */
