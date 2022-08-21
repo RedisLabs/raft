@@ -1109,8 +1109,8 @@ int raft_recv_entry(raft_server_t* me,
                     raft_entry_resp_t *resp);
 
 /**
- * @return server's node ID; -1 if it doesn't know what it is */
-int raft_get_nodeid(raft_server_t* me);
+ * @return server's node ID; RAFT_NODE_ID_NONE if it doesn't know what it is */
+raft_node_id_t raft_get_nodeid(raft_server_t *me);
 
 /**
  * @return the server's node */
@@ -1217,7 +1217,7 @@ int raft_get_nvotes_for_me(raft_server_t* me);
 
 /**
  * @return node ID of who I voted for */
-int raft_get_voted_for(raft_server_t* me);
+raft_node_id_t raft_get_voted_for(raft_server_t *me);
 
 /** Get what this node thinks the node ID of the leader is.
  * @return node of what this node thinks is the valid leader;

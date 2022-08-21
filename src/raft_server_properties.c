@@ -13,7 +13,7 @@
 #include "raft.h"
 #include "raft_private.h"
 
-raft_node_id_t raft_get_nodeid(raft_server_t* me)
+raft_node_id_t raft_get_nodeid(raft_server_t *me)
 {
     return raft_node_get_id(me->node);
 }
@@ -42,7 +42,7 @@ raft_index_t raft_get_log_count(raft_server_t* me)
     return me->log_impl->count(me->log);
 }
 
-int raft_get_voted_for(raft_server_t* me)
+raft_node_id_t raft_get_voted_for(raft_server_t *me)
 {
     return me->voted_for;
 }
