@@ -730,8 +730,9 @@ int raft_recv_appendentries_response(raft_server_t* me,
         )
     {
         int e = me->cb.node_has_sufficient_logs(me, me->udata, node);
-        if (0 == e)
-            raft_node_set_has_sufficient_logs(node);
+        if (e == 0) {
+            raft_node_set_has_sufficient_logs(node, 1);
+        }
     }
 
     raft_index_t match_idx = raft_node_get_match_idx(node);
@@ -1227,7 +1228,7 @@ int raft_apply_entry(raft_server_t* me)
         case RAFT_LOGTYPE_ADD_NODE:
             raft_node_set_addition_committed(node, 1);
             raft_node_set_voting_committed(node, 1);
-            raft_node_set_has_sufficient_logs(node);
+            raft_node_set_has_sufficient_logs(node, 1);
             break;
         case RAFT_LOGTYPE_ADD_NONVOTING_NODE:
             raft_node_set_addition_committed(node, 1);
@@ -1416,8 +1417,8 @@ int raft_recv_snapshot(raft_server_t* me,
     me->snapshot_recv_offset = req->chunk.offset + req->chunk.len;
 
     if (req->chunk.last_chunk) {
-        e = me->cb.load_snapshot(me, me->udata,
-                                 req->snapshot_index, req->snapshot_term);
+        e = me->cb.load_snapshot(me, me->udata, req->snapshot_term,
+                                 req->snapshot_index);
         if (e != 0) {
             goto out;
         }
@@ -1701,6 +1702,39 @@ raft_index_t raft_get_num_snapshottable_logs(raft_server_t *me)
     return raft_get_commit_idx(me) - me->log_impl->first_idx(me->log) + 1;
 }
 
+int raft_restore_snapshot(raft_server_t *me,
+                          raft_term_t last_included_term,
+                          raft_index_t last_included_index)
+{
+    if (last_included_term < 0 || last_included_index < 0 ||
+        me->current_term != 0 || me->commit_idx != 0 ||
+        me->snapshot_last_term != 0 || me->snapshot_last_idx != 0 ||
+        me->last_applied_term != 0 || me->last_applied_idx != 0) {
+        return RAFT_ERR_MISUSE;
+    }
+
+    me->current_term = last_included_term;
+    me->commit_idx = last_included_index;
+    me->last_applied_term = last_included_term;
+    me->last_applied_idx = last_included_index;
+    me->snapshot_last_term = last_included_term;
+    me->snapshot_last_idx = last_included_index;
+
+    /* Adjust node flags as they are configured by `voting` data only. */
+    for (int i = 0; i < me->num_nodes; i++) {
+        int voting = raft_node_is_voting(me->nodes[i]);
+
+        raft_node_set_has_sufficient_logs(me->nodes[i], voting);
+        raft_node_set_voting_committed(me->nodes[i], voting);
+        raft_node_set_addition_committed(me->nodes[i], 1);
+    }
+
+    raft_log(me, "restored snapshot lii:%ld lit:%ld",
+             last_included_index, last_included_term);
+
+    return 0;
+}
+
 int raft_begin_snapshot(raft_server_t *me)
 {
     raft_index_t entry_count = raft_get_num_snapshottable_logs(me);
@@ -1780,40 +1814,30 @@ int raft_end_snapshot(raft_server_t *me)
     return 0;
 }
 
-int raft_begin_load_snapshot(
-    raft_server_t *me,
-    raft_term_t last_included_term,
-    raft_index_t last_included_index)
+int raft_begin_load_snapshot(raft_server_t *me,
+                             raft_term_t last_included_term,
+                             raft_index_t last_included_index)
 {
-    if (last_included_index == -1)
-        return -1;
-
-    if (last_included_index == 0 || last_included_term == 0)
-        return -1;
-
-    /* loading the snapshot will break cluster safety */
-    if (last_included_index < me->last_applied_idx)
-        return -1;
-
-    /* snapshot was unnecessary */
-    if (last_included_index < raft_get_current_idx(me))
-        return -1;
-
-    if (last_included_index <= me->snapshot_last_idx)
-        return RAFT_ERR_SNAPSHOT_ALREADY_LOADED;
-
-    if (me->current_term < last_included_term) {
-        raft_set_current_term(me, last_included_term);
-        me->current_term = last_included_term;
+    if (last_included_term <= 0 ||
+        last_included_index <= 0 ||
+        last_included_index < me->last_applied_idx ||
+        last_included_index < raft_get_current_idx(me)) {
+        return RAFT_ERR_MISUSE;
     }
 
-    raft_set_state(me, RAFT_STATE_FOLLOWER);
-    me->leader_id = RAFT_NODE_ID_NONE;
+    if (last_included_index <= me->snapshot_last_idx) {
+        return RAFT_ERR_SNAPSHOT_ALREADY_LOADED;
+    }
 
     me->log_impl->reset(me->log, last_included_index + 1, last_included_term);
 
-    if (raft_get_commit_idx(me) < last_included_index)
+    if (last_included_index > me->commit_idx) {
         raft_set_commit_idx(me, last_included_index);
+    }
+
+    if (last_included_term > me->current_term) {
+        raft_set_current_term(me, last_included_term);
+    }
 
     me->last_applied_term = last_included_term;
     me->last_applied_idx = last_included_index;
@@ -1821,46 +1845,42 @@ int raft_begin_load_snapshot(
     me->next_snapshot_last_idx = last_included_index;
 
     /* remove all nodes but self */
-    int i, my_node_by_idx = 0;
-    for (i = 0; i < me->num_nodes; i++)
-    {
-        if (raft_get_nodeid(me) == raft_node_get_id(me->nodes[i]))
-            my_node_by_idx = i;
-        else {
-            raft_node_free(me->nodes[i]);
-            me->nodes[i] = NULL;
+    for (int i = 0; i < me->num_nodes; i++) {
+        if (me->nodes[i] == me->node) {
+            continue;
         }
+
+        raft_node_free(me->nodes[i]);
     }
 
-    /* this will be realloc'd by a raft_add_node */
-    me->nodes[0] = me->nodes[my_node_by_idx];
-    me->num_nodes = 1;
+    raft_node_clear_flags(me->node);
 
-    raft_log(me,
-        "loaded snapshot sli:%ld slt:%ld slogs:%ld",
-        me->snapshot_last_idx,
-        me->snapshot_last_term,
-        raft_get_num_snapshottable_logs(me));
+    me->num_nodes = 1;
+    me->nodes = raft_realloc(me->nodes, sizeof(*me->nodes) * me->num_nodes);
+    me->nodes[0] = me->node;
+
+    raft_log(me, "begin loading snapshot lii:%ld lit:%ld",
+             last_included_index, last_included_term);
 
     return 0;
 }
 
 int raft_end_load_snapshot(raft_server_t *me)
 {
-    int i;
-
     me->snapshot_last_idx = me->next_snapshot_last_idx;
     me->snapshot_last_term = me->next_snapshot_last_term;
 
-    /* Set nodes' voting status as committed */
-    for (i = 0; i < me->num_nodes; i++)
-    {
-        raft_node_t* node = me->nodes[i];
-        raft_node_set_voting_committed(node, raft_node_is_voting(node));
-        raft_node_set_addition_committed(node, 1);
-        if (raft_node_is_voting(node))
-            raft_node_set_has_sufficient_logs(node);
+    /* Adjust node flags as they are configured by `voting` data only. */
+    for (int i = 0; i < me->num_nodes; i++) {
+        int voting = raft_node_is_voting(me->nodes[i]);
+
+        raft_node_set_has_sufficient_logs(me->nodes[i], voting);
+        raft_node_set_voting_committed(me->nodes[i], voting);
+        raft_node_set_addition_committed(me->nodes[i], 1);
     }
+
+    raft_log(me, "loaded snapshot sli:%ld slt:%ld",
+             me->snapshot_last_idx, me->snapshot_last_term);
 
     return 0;
 }

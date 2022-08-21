@@ -189,8 +189,8 @@ def raft_send_snapshot(raft, udata, node, msg):
     return 0
 
 
-def raft_load_snapshot(raft, udata, index, term):
-    return ffi.from_handle(udata).load_snapshot(index, term)
+def raft_load_snapshot(raft, udata, term, index):
+    return ffi.from_handle(udata).load_snapshot(term, index)
 
 
 def raft_clear_snapshot(raft, udata):
@@ -949,7 +949,7 @@ class RaftServer(object):
         self.raft_send_requestvote = ffi.callback("int(raft_server_t*, void*, raft_node_t*, raft_requestvote_req_t*)", raft_send_requestvote)
         self.raft_send_appendentries = ffi.callback("int(raft_server_t*, void*, raft_node_t*, raft_appendentries_req_t*)", raft_send_appendentries)
         self.raft_send_snapshot = ffi.callback("int(raft_server_t*, void* , raft_node_t*, raft_snapshot_req_t*)", raft_send_snapshot)
-        self.raft_load_snapshot = ffi.callback("int(raft_server_t*, void*, raft_index_t, raft_term_t)", raft_load_snapshot)
+        self.raft_load_snapshot = ffi.callback("int(raft_server_t*, void*, raft_term_t, raft_index_t)", raft_load_snapshot)
         self.raft_clear_snapshot = ffi.callback("int(raft_server_t*, void*)", raft_clear_snapshot)
         self.raft_get_snapshot_chunk = ffi.callback("int(raft_server_t*, void*, raft_node_t*, raft_size_t offset, raft_snapshot_chunk_t*)", raft_get_snapshot_chunk)
         self.raft_store_snapshot_chunk = ffi.callback("int(raft_server_t*, void*, raft_index_t index, raft_size_t offset, raft_snapshot_chunk_t*)", raft_store_snapshot_chunk)
@@ -1087,7 +1087,7 @@ class RaftServer(object):
 
         return 0
 
-    def load_snapshot(self, index, term):
+    def load_snapshot(self, term, index):
         logger.debug('{} loading snapshot'.format(self))
 
         leader = find_leader()

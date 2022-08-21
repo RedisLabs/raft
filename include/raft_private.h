@@ -166,11 +166,13 @@ void raft_node_free(raft_node_t* me);
 
 void raft_node_set_match_idx(raft_node_t* node, raft_index_t idx);
 
+void raft_node_clear_flags(raft_node_t *me);
+
 void raft_node_vote_for_me(raft_node_t* me, int vote);
 
 int raft_node_has_vote_for_me(raft_node_t* me);
 
-void raft_node_set_has_sufficient_logs(raft_node_t* me);
+void raft_node_set_has_sufficient_logs(raft_node_t *me, int has_sufficient_log);
 
 int raft_is_single_node_voting_cluster(raft_server_t *me);
 

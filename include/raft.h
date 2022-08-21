@@ -25,7 +25,8 @@ typedef enum {
     RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS = -9,
     RAFT_ERR_DONE                        = -10,
     RAFT_ERR_STALE_TERM                  = -11,
-    RAFT_ERR_NOTFOUND                    = -12
+    RAFT_ERR_NOTFOUND                    = -12,
+    RAFT_ERR_MISUSE                      = -13,
 } raft_error_e;
 
 typedef enum {
@@ -359,16 +360,16 @@ typedef int (
  *
  * @param[in] raft Raft server making this callback
  * @param[in] user_data User data that is passed from Raft server
- * @param[in] snapshot_index Received snapshot index
  * @param[in] snapshot_term  Received snapshot term
+ * @param[in] snapshot_index Received snapshot index
  * @return 0 on success */
 typedef int (
 *raft_load_snapshot_f
 )   (
     raft_server_t* raft,
     void *user_data,
-    raft_index_t snapshot_index,
-    raft_term_t snapshot_term
+    raft_term_t snapshot_term,
+    raft_index_t snapshot_index
 );
 
 /** Callback to get a chunk from the snapshot file. This chunk will be sent
@@ -1379,6 +1380,26 @@ raft_entry_t *raft_get_last_applied_entry(raft_server_t *me);
 
 raft_index_t raft_get_first_entry_idx(raft_server_t* me);
 
+/** Restore the snapshot after a restart.
+ *
+ * This function should be called on a restart just after application restores
+ * the snapshot and configures the nodes from the snapshot.
+ *
+ * Correct order to restore the state after a restart:
+ * 1- Restore the snapshot
+ * 2- Load log entries
+ * 3- Restore metadata
+ *
+ * @param[in] last_included_term Term of the last log of the snapshot
+ * @param[in] last_included_index Index of the last log of the snapshot
+ * @return
+ *  0 on success
+ *  RAFT_ERR_MISUSE if the server has already started
+ */
+int raft_restore_snapshot(raft_server_t *me,
+                          raft_term_t last_included_term,
+                          raft_index_t last_included_index);
+
 /** Start loading snapshot
  *
  * This is usually the result of a snapshot being loaded.
@@ -1392,12 +1413,12 @@ raft_index_t raft_get_first_entry_idx(raft_server_t* me);
  *
  * @return
  *  0 on success
- *  -1 on failure
+ *  RAFT_ERR_MISUSE
  *  RAFT_ERR_SNAPSHOT_ALREADY_LOADED
  **/
 int raft_begin_load_snapshot(raft_server_t *me,
-                       raft_term_t last_included_term,
-		       raft_index_t last_included_index);
+                             raft_term_t last_included_term,
+                             raft_index_t last_included_index);
 
 /** Stop loading snapshot.
  *
