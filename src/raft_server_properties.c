@@ -49,17 +49,20 @@ int raft_get_voted_for(raft_server_t* me)
 
 int raft_set_current_term(raft_server_t* me, const raft_term_t term)
 {
-    if (me->current_term < term)
-    {
-        if (me->cb.persist_term)
-        {
-            int e = me->cb.persist_term(me, me->udata, term, RAFT_NODE_ID_NONE);
-            if (0 != e)
-                return e;
-        }
-        me->current_term = term;
-        me->voted_for = RAFT_NODE_ID_NONE;
+    if (me->current_term >= term) {
+        return 0;
     }
+
+    if (me->cb.persist_metadata) {
+        int e = me->cb.persist_metadata(me, me->udata, term, RAFT_NODE_ID_NONE);
+        if (e != 0) {
+            return e;
+        }
+    }
+
+    me->current_term = term;
+    me->voted_for = RAFT_NODE_ID_NONE;
+
     return 0;
 }
 

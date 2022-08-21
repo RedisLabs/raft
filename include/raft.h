@@ -467,32 +467,18 @@ typedef void (
     );
 #endif
 
-/** Callback for saving who we voted for to disk.
- * For safety reasons this callback MUST flush the change to disk.
- * @param[in] raft The Raft server making this callback
- * @param[in] user_data User data that is passed from Raft server
- * @param[in] vote The node we voted for
- * @return 0 on success */
-typedef int (
-*raft_persist_vote_f
-)   (
-    raft_server_t* raft,
-    void *user_data,
-    raft_node_id_t vote
-    );
-
-/** Callback for saving current term (and nil vote) to disk.
+/** Callback for saving current term and vote to the disk.
  * For safety reasons this callback MUST flush the term and vote changes to
  * disk atomically.
  * @param[in] raft The Raft server making this callback
  * @param[in] user_data User data that is passed from Raft server
  * @param[in] term Current term
- * @param[in] vote The node value dictating we haven't voted for anybody
+ * @param[in] vote Vote
  * @return 0 on success */
 typedef int (
-*raft_persist_term_f
+*raft_persist_metadata_f
 )   (
-    raft_server_t* raft,
+    raft_server_t *raft,
     void *user_data,
     raft_term_t term,
     raft_node_id_t vote
@@ -714,14 +700,10 @@ typedef struct
      * Return RAFT_ERR_SHUTDOWN if you want the server to shutdown. */
     raft_logentry_event_f applylog;
 
-    /** Callback for persisting vote data
-     * For safety reasons this callback MUST flush the change to disk. */
-    raft_persist_vote_f persist_vote;
-
-    /** Callback for persisting term (and nil vote) data
+    /** Callback for persisting term and vote data
      * For safety reasons this callback MUST flush the term and vote changes to
      * disk atomically. */
-    raft_persist_term_f persist_term;
+    raft_persist_metadata_f persist_metadata;
 
     /** Callback for determining which node this configuration log entry
      * affects. This call only applies to configuration change log entries.
@@ -965,6 +947,15 @@ void raft_destroy(raft_server_t* me);
 
 /** De-initialise Raft server. */
 void raft_clear(raft_server_t* me);
+
+/** Restore term and vote after reading the metadata file from the disk.
+ *
+ * On a restart, the application should set term and vote after reading metadata
+ * file from the disk. See `raft_persist_metadata_f`.
+ **/
+int raft_restore_metadata(raft_server_t *me,
+                          raft_term_t term,
+                          raft_node_id_t vote);
 
 /** Set callbacks and user data.
  *

@@ -140,6 +140,16 @@ raft_server_t* raft_new(void)
     return raft_new_with_log(&raft_log_internal_impl, NULL);
 }
 
+int raft_restore_metadata(raft_server_t *me,
+                          raft_term_t term,
+                          raft_node_id_t vote)
+{
+    me->current_term = term;
+    me->voted_for = vote;
+
+    return 0;
+}
+
 void raft_set_callbacks(raft_server_t* me, raft_cbs_t* funcs, void* udata)
 {
     me->cb = *funcs;
@@ -1613,12 +1623,17 @@ int raft_vote(raft_server_t* me, raft_node_t* node)
 
 int raft_vote_for_nodeid(raft_server_t* me, const raft_node_id_t nodeid)
 {
-    if (me->cb.persist_vote) {
-        int e = me->cb.persist_vote(me, me->udata, nodeid);
-        if (0 != e)
+    int e;
+
+    if (me->cb.persist_metadata) {
+        e = me->cb.persist_metadata(me, me->udata, me->current_term, nodeid);
+        if (e != 0) {
             return e;
+        }
     }
+
     me->voted_for = nodeid;
+
     return 0;
 }
 
