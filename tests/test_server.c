@@ -433,7 +433,7 @@ void TestRaft_user_applylog_error_propogates_to_periodic(
     CuTest* tc)
 {
     raft_cbs_t funcs = {
-            .persist_metadata = __raft_persist_metadata,
+        .persist_metadata = __raft_persist_metadata,
         .applylog = __raft_applylog_shutdown,
     };
 
