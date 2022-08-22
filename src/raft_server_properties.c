@@ -168,22 +168,22 @@ void* raft_get_udata(raft_server_t* me)
 
 int raft_is_follower(raft_server_t* me)
 {
-    return raft_get_state(me) == RAFT_STATE_FOLLOWER;
+    return me->state == RAFT_STATE_FOLLOWER;
 }
 
 int raft_is_leader(raft_server_t* me)
 {
-    return raft_get_state(me) == RAFT_STATE_LEADER;
+    return me->state == RAFT_STATE_LEADER;
 }
 
 int raft_is_precandidate(raft_server_t* me)
 {
-    return raft_get_state(me) == RAFT_STATE_PRECANDIDATE;
+    return me->state == RAFT_STATE_PRECANDIDATE;
 }
 
 int raft_is_candidate(raft_server_t* me)
 {
-    return raft_get_state(me) == RAFT_STATE_CANDIDATE;
+    return me->state == RAFT_STATE_CANDIDATE;
 }
 
 raft_term_t raft_get_last_log_term(raft_server_t* me)
@@ -196,8 +196,8 @@ raft_term_t raft_get_last_log_term(raft_server_t* me)
             raft_term_t term = ety->term;
             raft_entry_release(ety);
             return term;
-        } else if (raft_get_snapshot_last_idx(me) == current_idx) {
-            return raft_get_snapshot_last_term(me);
+        } else if (me->snapshot_last_idx == current_idx) {
+            return me->snapshot_last_term;
         }
     }
 
@@ -212,14 +212,15 @@ int raft_snapshot_is_in_progress(raft_server_t *me)
 int raft_is_apply_allowed(raft_server_t* me)
 {
     return !me->disable_apply &&
-           (!raft_snapshot_is_in_progress(me) || me->nonblocking_apply);
+           (!me->snapshot_in_progress || me->nonblocking_apply);
 }
 
 raft_entry_t *raft_get_last_applied_entry(raft_server_t *me)
 {
-    if (raft_get_last_applied_idx(me) == 0)
+    if (me->last_applied_idx == 0) {
         return NULL;
-    return me->log_impl->get(me->log, raft_get_last_applied_idx(me));
+    }
+    return me->log_impl->get(me->log, me->last_applied_idx);
 }
 
 raft_index_t raft_get_snapshot_last_idx(raft_server_t *me)
