@@ -12,7 +12,7 @@
 #include "mock_send_functions.h"
 
 static int __raft_persist_metadata(
-    raft_server_t* raft,
+    raft_server_t *raft,
     void *udata,
     raft_term_t term,
     raft_node_id_t vote
