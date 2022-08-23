@@ -13,20 +13,11 @@
 
 #include "helpers.h"
 
-static int __raft_persist_term(
+static int __raft_persist_metadata(
     raft_server_t* raft,
     void *udata,
     raft_term_t term,
-    int vote
-    )
-{
-    return 0;
-}
-
-static int __raft_persist_vote(
-    raft_server_t* raft,
-    void *udata,
-    int vote
+    raft_node_id_t vote
     )
 {
     return 0;
@@ -186,11 +177,6 @@ static int test_load_snapshot(raft_server_t* raft,
     return 0;
 }
 
-/* static raft_cbs_t generic_funcs = { */
-/*     .persist_term = __raft_persist_term, */
-/*     .persist_vote = __raft_persist_vote, */
-/* }; */
-
 static int max_election_timeout(int election_timeout)
 {
 	return 2 * election_timeout;
@@ -315,7 +301,7 @@ void TestRaft_leader_snapshot_begin_fails_if_less_than_2_logs_to_compact(CuTest 
 void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
 {
     raft_cbs_t funcs = {
-        .persist_term = __raft_persist_term,
+        .persist_metadata = __raft_persist_metadata,
         .send_appendentries = __raft_send_appendentries,
     };
 
@@ -380,7 +366,7 @@ void TestRaft_leader_snapshot_end_succeeds_if_log_compacted(CuTest * tc)
 void TestRaft_leader_snapshot_end_succeeds_if_log_compacted2(CuTest * tc)
 {
     raft_cbs_t funcs = {
-        .persist_term = __raft_persist_term,
+        .persist_metadata = __raft_persist_metadata,
         .send_appendentries = __raft_send_appendentries,
     };
 
@@ -712,7 +698,7 @@ void TestRaft_follower_recv_appendentries_is_successful_when_previous_log_idx_eq
     CuTest * tc)
 {
     raft_cbs_t funcs = {
-        .persist_term = __raft_persist_term,
+        .persist_metadata = __raft_persist_metadata,
     };
 
     void *r = raft_new();
