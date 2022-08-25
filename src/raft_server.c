@@ -2317,6 +2317,7 @@ int raft_restore_log(raft_server_t *me)
             raft_handle_append_cfg_change(me, ety, i);
         }
 
+        raft_entry_release(ety);
         i++;
     }
 
