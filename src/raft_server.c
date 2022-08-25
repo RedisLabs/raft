@@ -2294,3 +2294,31 @@ out:
 
     return e;
 }
+
+int raft_restore_log(raft_server_t *me)
+{
+    if (me->snapshot_last_idx != me->last_applied_idx) {
+        return RAFT_ERR_MISUSE;
+    }
+
+    raft_index_t i = me->snapshot_last_idx + 1;
+
+    while (1) {
+        raft_entry_t *ety = me->log_impl->get(me->log, i);
+        if (!ety) {
+            return 0;
+        }
+
+        if (raft_entry_is_voting_cfg_change(ety)) {
+            me->voting_cfg_change_log_idx = i;
+        }
+
+        if (raft_entry_is_cfg_change(ety)) {
+            raft_handle_append_cfg_change(me, ety, i);
+        }
+
+        i++;
+    }
+
+    return 0;
+}
