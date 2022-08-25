@@ -4877,6 +4877,59 @@ void TestRaft_test_metadata_on_restart(CuTest *tc)
     CuAssertIntEquals(tc, 10, raft_get_voted_for(r));
 }
 
+void TestRaft_rebuild_config_after_restart(CuTest *tc)
+{
+    /* Test if we can rebuild the same cluster configuration from the logs after
+     * a restart. */
+
+    raft_cbs_t funcs = {
+            .get_node_id = __raft_get_node_id
+    };
+
+    raft_server_t *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_non_voting_node(r, NULL, 1, 1);
+
+    raft_become_leader(r);
+
+    raft_entry_req_t *ety = __MAKE_ENTRY(1, 1, "1");
+    ety->type = RAFT_LOGTYPE_ADD_NODE;
+    CuAssertTrue(tc, 0 == raft_recv_entry(r, ety, NULL));
+    raft_periodic_internal(r, 2000);
+
+    raft_entry_t *ety2 = __MAKE_ENTRY(2, 1, "2");
+    ety2->type = RAFT_LOGTYPE_ADD_NODE;
+    CuAssertTrue(tc, 0 == raft_recv_entry(r, ety2, NULL));
+
+    raft_entry_t *ety3 = __MAKE_ENTRY(3, 1, "3");
+    ety3->type = RAFT_LOGTYPE_ADD_NONVOTING_NODE;
+    CuAssertTrue(tc, 0 == raft_recv_entry(r, ety3, NULL));
+
+    /* Cluster has three nodes in the configuration now. A bit hacky but let's
+     * create another server and use first server's log implementation for the
+     * new server. We are just simulating the restart scenario. Normally, new
+     * server would read log entries from the disk. */
+    raft_server_t *r2 = raft_new();
+    r2->log = raft_get_log(r2);
+
+    raft_set_callbacks(r2, &funcs, NULL);
+    raft_add_non_voting_node(r2, NULL, 1, 1);
+
+    /* Restore configuration with the first server's entries. */
+    raft_restore_log(r2);
+
+    /* Verify second server's configuration is same with the first server's */
+    CuAssertIntEquals(tc, raft_get_num_nodes(r), raft_get_num_nodes(r2));
+
+    for (int i = 0; i < raft_get_num_nodes(r); i++) {
+        raft_node_t *n1 = raft_get_node_from_idx(r, i);
+        raft_node_t *n2 = raft_get_node_from_idx(r2, i);
+
+        CuAssertIntEquals(tc, raft_node_is_active(n1), raft_node_is_active(n2));
+        CuAssertIntEquals(tc, raft_node_is_voting(n1), raft_node_is_voting(n2));
+    }
+}
+
 int main(void)
 {
     CuString *output = CuStringNew();
@@ -5028,6 +5081,7 @@ int main(void)
     SUITE_ADD_TEST(suite, TestRaft_apply_entry_timeout);
     SUITE_ADD_TEST(suite, TestRaft_apply_read_request_timeout);
     SUITE_ADD_TEST(suite, TestRaft_test_metadata_on_restart);
+    SUITE_ADD_TEST(suite, TestRaft_rebuild_config_after_restart);
     CuSuiteRun(suite);
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);

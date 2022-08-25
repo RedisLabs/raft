@@ -1701,4 +1701,12 @@ int raft_config(raft_server_t *me, int set, raft_config_e config, ...);
  */
 int raft_pending_operations(raft_server_t *me);
 
+/** Restore log entries after a restart.
+ *
+ * This function should only be called after a restart. After application loads
+ * the snapshot and log entries, this function should be called to rebuild
+ * cluster configuration from the logs.
+ */
+int raft_restore_log(raft_server_t *me);
+
 #endif /* RAFT_H_ */
