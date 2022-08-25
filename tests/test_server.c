@@ -4910,7 +4910,7 @@ void TestRaft_rebuild_config_after_restart(CuTest *tc)
      * new server. We are just simulating the restart scenario. Normally, new
      * server would read log entries from the disk. */
     raft_server_t *r2 = raft_new();
-    r2->log = raft_get_log(r2);
+    r2->log = raft_get_log(r);
 
     raft_set_callbacks(r2, &funcs, NULL);
     raft_add_non_voting_node(r2, NULL, 1, 1);
