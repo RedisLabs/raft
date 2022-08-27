@@ -156,21 +156,21 @@ int raft_send_appendentries_all(raft_server_t* me);
  * @return 1 if entry committed, 0 otherwise */
 int raft_apply_entry(raft_server_t* me);
 
-void raft_set_last_applied_idx(raft_server_t* me, raft_index_t idx);
+void raft_set_last_applied_idx(raft_server_t *me, raft_index_t idx);
 
-void raft_set_state(raft_server_t* me, int state);
+void raft_set_state(raft_server_t *me, int state);
 
-raft_node_t* raft_node_new(void* udata, raft_node_id_t id);
+raft_node_t *raft_node_new(void *udata, raft_node_id_t id);
 
-void raft_node_free(raft_node_t* me);
+void raft_node_free(raft_node_t *me);
 
-void raft_node_set_match_idx(raft_node_t* node, raft_index_t idx);
+void raft_node_set_match_idx(raft_node_t *me, raft_index_t idx);
 
 void raft_node_clear_flags(raft_node_t *me);
 
-void raft_node_vote_for_me(raft_node_t* me, int vote);
+void raft_node_vote_for_me(raft_node_t *me, int vote);
 
-int raft_node_has_vote_for_me(raft_node_t* me);
+int raft_node_has_vote_for_me(raft_node_t *me);
 
 void raft_node_set_has_sufficient_logs(raft_node_t *me, int has_sufficient_log);
 
@@ -195,7 +195,7 @@ void raft_node_update_max_seen_msg_id(raft_node_t *me, raft_msg_id_t msg_id);
 /* get the max message id this server has seen from its the specified node */
 raft_msg_id_t raft_node_get_max_seen_msg_id(raft_node_t *me);
 /* get the server's current msg_id */
-raft_msg_id_t raft_get_msg_id(raft_server_t* me);
+raft_msg_id_t raft_get_msg_id(raft_server_t *me);
 
 /* attempt to abort the leadership transfer */
 void raft_reset_transfer_leader(raft_server_t* me, int timed_out);
