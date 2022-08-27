@@ -236,14 +236,6 @@ raft_term_t raft_get_snapshot_last_term(raft_server_t *me)
     return me->snapshot_last_term;
 }
 
-void raft_set_snapshot_metadata(raft_server_t *me, raft_term_t term, raft_index_t idx)
-{
-    me->last_applied_term = term;
-    me->last_applied_idx = idx;
-    me->snapshot_last_term = term;
-    me->snapshot_last_idx = idx;
-}
-
 int raft_is_single_node_voting_cluster(raft_server_t *me)
 {
     return (1 == raft_get_num_voting_nodes(me) && raft_node_is_voting(me->node));
