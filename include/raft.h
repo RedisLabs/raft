@@ -1155,26 +1155,26 @@ raft_index_t raft_get_last_applied_idx(raft_server_t *me);
 
 /**
  * @return the node's next index */
-raft_index_t raft_node_get_next_idx(raft_node_t *me);
+raft_index_t raft_node_get_next_idx(raft_node_t *node);
 
 /**
  * @return this node's user data */
-raft_index_t raft_node_get_match_idx(raft_node_t *me);
+raft_index_t raft_node_get_match_idx(raft_node_t *node);
 
 /**
  * @return this node's user data */
-void* raft_node_get_udata(raft_node_t *me);
+void* raft_node_get_udata(raft_node_t *node);
 
 /**
  * Set this node's user data */
-void raft_node_set_udata(raft_node_t *me, void *user_data);
+void raft_node_set_udata(raft_node_t *node, void *user_data);
 
 /**
  * After sending the snapshot, user can set the next index for the node
  *
  * @param[in] node node
  * @param[in] idx next entry index */
-void raft_node_set_next_idx(raft_node_t *me, raft_index_t idx);
+void raft_node_set_next_idx(raft_node_t *node, raft_index_t idx);
 
 /**
  * @param[in] idx The entry's index
@@ -1272,7 +1272,7 @@ int raft_msg_entry_response_committed(raft_server_t* me,
 
 /** Get node's ID.
  * @return ID of node */
-raft_node_id_t raft_node_get_id(raft_node_t* me);
+raft_node_id_t raft_node_get_id(raft_node_t *node);
 
 /** Tell if we are a leader, candidate or follower.
  * @return get state of type raft_state_e. */
@@ -1288,15 +1288,15 @@ raft_term_t raft_get_last_log_term(raft_server_t *me);
 /** Turn a node into a voting node.
  * Voting nodes can take part in elections and in-regards to committing entries,
  * are counted in majorities. */
-void raft_node_set_voting(raft_node_t *me, int voting);
+void raft_node_set_voting(raft_node_t *node, int voting);
 
 /** Tell if a node is a voting node or not.
  * @return 1 if this is a voting node. Otherwise 0. */
-int raft_node_is_voting(raft_node_t *me);
+int raft_node_is_voting(raft_node_t *node);
 
 /** Check if a node has sufficient logs to be able to join the cluster.
  **/
-int raft_node_has_sufficient_logs(raft_node_t *me);
+int raft_node_has_sufficient_logs(raft_node_t *node);
 
 /** Apply all entries up to the commit index
  * @return
@@ -1437,7 +1437,7 @@ void raft_set_snapshot_metadata(raft_server_t *me, raft_term_t term, raft_index_
  * Active nodes could become voting nodes.
  * This should be used for creating the membership snapshot.
  **/
-int raft_node_is_active(raft_node_t *me);
+int raft_node_is_active(raft_node_t *node);
 
 /** Make the node active.
  *
@@ -1446,17 +1446,17 @@ int raft_node_is_active(raft_node_t *me);
  *
  * @param[in] active Set a node as active if this is 1
  **/
-void raft_node_set_active(raft_node_t *me, int active);
+void raft_node_set_active(raft_node_t *node, int active);
 
 /** Check if a node's voting status has been committed.
  * This should be used for creating the membership snapshot.
  **/
-int raft_node_is_voting_committed(raft_node_t *me);
+int raft_node_is_voting_committed(raft_node_t *node);
 
 /** Check if a node's membership to the cluster has been committed.
  * This should be used for creating the membership snapshot.
  **/
-int raft_node_is_addition_committed(raft_node_t *me);
+int raft_node_is_addition_committed(raft_node_t *node);
 
 /**
  * Register custom heap management functions, to be used if an alternative
@@ -1470,12 +1470,12 @@ void raft_set_heap_functions(void *(*_malloc)(size_t),
 /** Confirm that a node's voting status is final
  * @param[in] node The node
  * @param[in] voting Whether this node's voting status is committed or not */
-void raft_node_set_voting_committed(raft_node_t *me, int voting);
+void raft_node_set_voting_committed(raft_node_t *node, int voting);
 
 /** Confirm that a node's voting status is final
  * @param[in] node The node
  * @param[in] committed Whether this node's membership is committed or not */
-void raft_node_set_addition_committed(raft_node_t *me, int committed);
+void raft_node_set_addition_committed(raft_node_t *node, int committed);
 
 /** Check if a voting change is in progress
  * @param[in] raft The Raft server
