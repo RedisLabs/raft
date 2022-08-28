@@ -356,17 +356,41 @@ void raft_handle_remove_cfg_change(raft_server_t* me, raft_entry_t* ety, const r
     }
 }
 
-int raft_delete_entry_from_idx(raft_server_t* me, raft_index_t idx)
+int raft_delete_entry_from_idx(raft_server_t *me, raft_index_t idx)
 {
     assert(me->commit_idx < idx);
 
-    if (idx <= me->voting_cfg_change_log_idx)
-        me->voting_cfg_change_log_idx = -1;
+    if (me->log_impl->count(me->log) == 0) {
+        return 0;
+    }
 
-    int e = me->log_impl->pop(me->log, idx,
-             (raft_entry_notify_f) raft_handle_remove_cfg_change, me);
-    if (e != 0)
-        return e;
+    raft_index_t first = me->log_impl->first_idx(me->log);
+    raft_index_t last = me->log_impl->current_idx(me->log);
+
+    if (idx < first || idx > last) {
+        return 0;
+    }
+
+    /* Delete entries starting from the last one. */
+    while (last >= idx) {
+        raft_entry_t *ety = raft_get_entry_from_idx(me, last);
+
+        int e = me->log_impl->pop(me->log, last);
+        if (e != 0) {
+            me->log_impl->sync(me->log);
+            raft_entry_release(ety);
+            return e;
+        }
+
+        raft_handle_remove_cfg_change(me, ety, last);
+        raft_entry_release(ety);
+
+        if (me->voting_cfg_change_log_idx == last) {
+            me->voting_cfg_change_log_idx = -1;
+        }
+
+        last--;
+    }
 
     return me->log_impl->sync(me->log);
 }
@@ -1692,18 +1716,6 @@ int raft_entry_is_cfg_change(raft_entry_t* ety)
         RAFT_LOGTYPE_ADD_NODE == ety->type ||
         RAFT_LOGTYPE_ADD_NONVOTING_NODE == ety->type ||
         RAFT_LOGTYPE_REMOVE_NODE == ety->type);
-}
-
-int raft_pop_entry(raft_server_t* me)
-{
-    raft_index_t cur_idx = me->log_impl->current_idx(me->log);
-
-    int e = me->log_impl->pop(me->log, cur_idx,
-               (raft_entry_notify_f) raft_handle_remove_cfg_change, me);
-    if (e != 0)
-        return e;
-
-    return me->log_impl->sync(me->log);
 }
 
 raft_index_t raft_get_first_entry_idx(raft_server_t* me)

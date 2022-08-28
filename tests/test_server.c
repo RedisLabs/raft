@@ -4930,6 +4930,60 @@ void TestRaft_rebuild_config_after_restart(CuTest *tc)
     }
 }
 
+void TestRaft_delete_configuration_change_entries(CuTest *tc)
+{
+    /* Delete configuration change entries and verify the configuration is
+     * rolled back correctly. */
+
+    raft_cbs_t funcs = {
+            .get_node_id = __raft_get_node_id
+    };
+
+    void *r = raft_new();
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_set_current_term(r, 1);
+    raft_set_state(r, RAFT_STATE_LEADER);
+
+    /* If there is no entry, delete should return immediately. */
+    CuAssertIntEquals(tc, 0, raft_delete_entry_from_idx(r, 2));
+
+    /* Add the non-voting node. */
+    raft_entry_t *ety = __MAKE_ENTRY(1, 1, "3");
+    ety->type = RAFT_LOGTYPE_ADD_NONVOTING_NODE;
+    CuAssertIntEquals(tc, 0, raft_recv_entry(r, ety, NULL));
+
+    /* If there idx is out of bounds, delete should return immediately. */
+    CuAssertIntEquals(tc, 0, raft_delete_entry_from_idx(r, 2));
+
+    /* Append a removal log entry for the non-voting node we just added. */
+    ety = __MAKE_ENTRY(1, 1, "3");
+    ety->type = RAFT_LOGTYPE_REMOVE_NODE;
+    CuAssertIntEquals(tc, 0, raft_recv_entry(r, ety, NULL));
+
+    /* Another configuration change entry should be rejected. */
+    ety = __MAKE_ENTRY(1, 1, "4");
+    ety->type = RAFT_LOGTYPE_ADD_NODE;
+    int err = raft_recv_entry(r, ety, NULL);
+    CuAssertIntEquals(tc, RAFT_ERR_ONE_VOTING_CHANGE_ONLY, err);
+
+    /* Add some random entries. */
+    __RAFT_APPEND_ENTRIES_SEQ_ID(r, 10, 1, 1, "data");
+    CuAssertIntEquals(tc, 12, raft_get_log_count(r));
+
+    /* Delete the removal log entry and others after it. */
+    CuAssertIntEquals(tc, 0, raft_delete_entry_from_idx(r, 2));
+
+    CuAssertIntEquals(tc, 1, raft_get_log_count(r));
+    CuAssertIntEquals(tc, 1, raft_node_is_active(raft_get_node(r, 3)));
+    CuAssertIntEquals(tc, 0, raft_node_is_voting(raft_get_node(r, 3)));
+
+    /* Configuration change entry should be accepted now. */
+    CuAssertIntEquals(tc, 0, raft_recv_entry(r, ety, NULL));
+}
+
 int main(void)
 {
     CuString *output = CuStringNew();
@@ -5082,6 +5136,7 @@ int main(void)
     SUITE_ADD_TEST(suite, TestRaft_apply_read_request_timeout);
     SUITE_ADD_TEST(suite, TestRaft_test_metadata_on_restart);
     SUITE_ADD_TEST(suite, TestRaft_rebuild_config_after_restart);
+    SUITE_ADD_TEST(suite, TestRaft_delete_configuration_change_entries);
     CuSuiteRun(suite);
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);
