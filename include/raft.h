@@ -1431,8 +1431,6 @@ raft_index_t raft_get_snapshot_last_idx(raft_server_t *me);
 
 raft_term_t raft_get_snapshot_last_term(raft_server_t *me);
 
-void raft_set_snapshot_metadata(raft_server_t *me, raft_term_t term, raft_index_t idx);
-
 /** Check if a node is active.
  * Active nodes could become voting nodes.
  * This should be used for creating the membership snapshot.

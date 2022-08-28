@@ -130,7 +130,6 @@ raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
     me->leader_id = RAFT_NODE_ID_NONE;
 
     me->snapshot_in_progress = 0;
-    raft_set_snapshot_metadata(me, 0, 0);
 
     return me;
 }
