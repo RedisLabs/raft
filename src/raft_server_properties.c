@@ -193,7 +193,9 @@ raft_term_t raft_get_last_log_term(raft_server_t *me)
 
     if (current_idx == 0) {
         return 0;
-    } else if (current_idx == me->snapshot_last_idx) {
+    }
+    
+    if (current_idx == me->snapshot_last_idx) {
         return me->snapshot_last_term;
     }
 
