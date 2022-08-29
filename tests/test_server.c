@@ -4754,10 +4754,10 @@ void TestRaft_apply_entry_timeout(CuTest *tc)
     void *r = raft_new();
     raft_add_node(r, NULL, 1, 1);
     raft_set_callbacks(r, &funcs, &ts);
-    raft_set_current_term(r, 1);
+    raft_set_current_term(r, 3);
     raft_config(r, 1, RAFT_CONFIG_REQUEST_TIMEOUT, 100);
 
-    __RAFT_APPEND_ENTRIES_SEQ_ID(r, 21, 0, 1, "");
+    __RAFT_APPEND_ENTRIES_SEQ_ID(r, 21, 0, 3, "");
     raft_set_commit_idx(r, 21);
 
     /* Each execution iteration will apply 5 entries as we throttle when we
@@ -4767,6 +4767,7 @@ void TestRaft_apply_entry_timeout(CuTest *tc)
     raft_exec_operations(r);
     CuAssertIntEquals(tc, 1, raft_pending_operations(r));
     CuAssertIntEquals(tc, 5, raft_get_last_applied_idx(r));
+    CuAssertIntEquals(tc, 3, raft_get_last_applied_term(r));
 
     raft_exec_operations(r);
     CuAssertIntEquals(tc, 1, raft_pending_operations(r));
