@@ -214,10 +214,7 @@ raft_index_t raft_log_count(raft_log_t *me)
     return me->count;
 }
 
-static int log_delete(raft_log_t *me,
-                      raft_index_t idx,
-                      raft_entry_notify_f cb,
-                      void *cb_arg)
+static int log_delete(raft_log_t *me, raft_index_t idx)
 {
     if (idx == 0) {
         return -1;
@@ -239,10 +236,6 @@ static int log_delete(raft_log_t *me,
             }
         }
 
-        if (cb) {
-            cb(cb_arg, me->entries[back], idx_tmp);
-        }
-
         raft_entry_release(me->entries[back]);
 
         me->back = back;
@@ -254,7 +247,7 @@ static int log_delete(raft_log_t *me,
 
 int raft_log_delete(raft_log_t *me, raft_index_t idx)
 {
-    return log_delete(me, idx, NULL, NULL);
+    return log_delete(me, idx);
 }
 
 int raft_log_poll(raft_log_t *me, raft_entry_t **etyp)
@@ -398,10 +391,9 @@ static raft_index_t log_get_batch(void *log,
     return n;
 }
 
-static int log_pop(void *log, raft_index_t from_idx,
-                   raft_entry_notify_f cb, void *cb_arg)
+static int log_pop(void *log, raft_index_t from_idx)
 {
-    return log_delete(log, from_idx, cb, cb_arg);
+    return log_delete(log, from_idx);
 }
 
 static int log_poll(void *log, raft_index_t first_idx)

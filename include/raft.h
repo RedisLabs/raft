@@ -726,24 +726,6 @@ typedef struct
     raft_timestamp_f timestamp;
 } raft_cbs_t;
 
-/** A generic notification callback used to allow Raft to notify caller
- * on certain log operations.
- *
- * @param[in] arg Argument passed by Raft in the original call.
- * @param[in] entry Entry for which notification is generated.
- * @param[in] entry_idx Index of entry.
- *
- * The callback *must not* modify the entry or perform any preemptive
- * log operation until it returns.
- */
-typedef void (
-*raft_entry_notify_f
-)   (
-    void* arg,
-    raft_entry_t *entry,
-    raft_index_t entry_idx
-    );
-
 /** A callback used to notify when queued read requests can be processed.
  *
  * @param[in] arg Argument passed in the original call.
@@ -852,13 +834,11 @@ typedef struct raft_log_impl
      *
      * @param[in] from_idx Index of first entry to be removed.  All entries
      *  starting from and including this index shall be removed.
-     * @param[in] cb Optional callback to execute for every removed entry.
-     * @param[in] cb_arg Argument to pass to callback.
      * @return
      *  0 on success;
      *  -1 on error.
      */
-    int (*pop) (void *log, raft_index_t from_idx, raft_entry_notify_f cb, void *cb_arg);
+    int (*pop) (void *log, raft_index_t from_idx);
 
     /** Get a single entry from the log.
      *
@@ -1261,13 +1241,6 @@ void raft_set_commit_idx(raft_server_t *me, raft_index_t commit_idx);
  *  RAFT_ERR_SHUTDOWN server should shutdown
  *  RAFT_ERR_NOMEM memory allocation failure */
 int raft_append_entry(raft_server_t* me, raft_entry_t* ety);
-
-/** Remove the last entry from the server's log.
- * This should only be used when reloading persistent state from an append log
- * store, where removed entries are still in the log but followed by a pop
- * action.
- */
-int raft_pop_entry(raft_server_t* me);
 
 /** Confirm if a msg_entry_response has been committed.
  * @param[in] r The response we want to check */
