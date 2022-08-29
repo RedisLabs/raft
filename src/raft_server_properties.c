@@ -97,6 +97,11 @@ raft_index_t raft_get_last_applied_idx(raft_server_t *me)
     return me->last_applied_idx;
 }
 
+raft_term_t raft_get_last_applied_term(raft_server_t *me)
+{
+    return me->last_applied_term;
+}
+
 raft_index_t raft_get_commit_idx(raft_server_t *me)
 {
     return me->commit_idx;

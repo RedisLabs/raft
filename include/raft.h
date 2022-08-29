@@ -1154,6 +1154,10 @@ raft_time_t raft_get_timeout_elapsed(raft_server_t *me);
 raft_index_t raft_get_last_applied_idx(raft_server_t *me);
 
 /**
+ * @return index of last applied term */
+raft_term_t raft_get_last_applied_term(raft_server_t *me);
+
+/**
  * @return the node's next index */
 raft_index_t raft_node_get_next_idx(raft_node_t *node);
 
