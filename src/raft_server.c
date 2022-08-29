@@ -1481,8 +1481,11 @@ int raft_recv_snapshot_response(raft_server_t *me,
              raft_get_nodeid(me), raft_node_get_id(node), resp->msg_id,
              resp->term, resp->success, resp->offset, resp->last_chunk);
 
-    if (!raft_is_leader(me) ||
-        resp->term < me->current_term ||
+    if (!raft_is_leader(me)) {
+        return RAFT_ERR_NOT_LEADER;
+    }
+
+    if (resp->term < me->current_term ||
         resp->msg_id < raft_node_get_match_msgid(node) ) {
         return 0;
     }
