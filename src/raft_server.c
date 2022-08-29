@@ -800,7 +800,7 @@ int raft_recv_appendentries(raft_server_t *me,
     int e = 0;
 
     raft_log(me, "%d <-- %d, recv appendentries_req "
-             "li:%d, id:%ld, t:%ld, pli:%ld, plt:%ld, lc:%ld ent:%ld",
+             "lead:%d, id:%ld, t:%ld, pli:%ld, plt:%ld, lc:%ld ent:%ld",
              raft_get_nodeid(me), raft_node_get_id(node),
              req->leader_id, req->msg_id, req->term, req->prev_log_idx,
              req->prev_log_term, req->leader_commit, req->n_entries);
@@ -1389,7 +1389,7 @@ int raft_recv_snapshot(raft_server_t *me,
     int e;
 
     raft_log(me, "%d <-- %d, recv snapshot_req "
-             "t:%ld, li:%d, id:%ld, si:%ld, st:%ld, o:%llu len:%llu lc:%d",
+             "t:%ld, lead:%d, id:%ld, si:%ld, st:%ld, o:%llu len:%llu lc:%d",
              raft_get_nodeid(me), raft_node_get_id(node),
              req->term, req->leader_id, req->msg_id, req->snapshot_index,
              req->snapshot_term, req->chunk.offset, req->chunk.len,
@@ -1573,7 +1573,7 @@ int raft_send_appendentries(raft_server_t *me, raft_node_t *node)
         };
 
         raft_log(me, "%d --> %d, sent appendentries_req "
-                 "li:%d, id:%ld, t:%ld, pli:%ld, plt:%ld, lc:%ld ent:%ld",
+                 "lead:%d, id:%ld, t:%ld, pli:%ld, plt:%ld, lc:%ld ent:%ld",
                  raft_get_nodeid(me), raft_node_get_id(node),
                  req.leader_id, req.msg_id, req.term, req.prev_log_idx,
                  req.prev_log_term, req.leader_commit, req.n_entries);
