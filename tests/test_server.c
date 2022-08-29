@@ -4064,7 +4064,7 @@ void TestRaft_quorum_msg_id_correctness(CuTest * tc)
 
 int timeoutnow_sent = 0;
 
-int __fake_timeoutnow(raft_server_t* raft, void *udata, raft_node_t* node)
+int cb_timeoutnow(raft_server_t* raft, void *udata, raft_node_t* node)
 {
     timeoutnow_sent = 1;
 
@@ -4076,7 +4076,7 @@ void TestRaft_callback_timeoutnow_at_set_if_up_to_date(CuTest *tc)
     timeoutnow_sent = 0;
 
     raft_cbs_t funcs = {
-            .send_timeoutnow = __fake_timeoutnow,
+            .send_timeoutnow = cb_timeoutnow,
     };
 
     raft_server_t *r = raft_new();
@@ -4111,7 +4111,7 @@ void TestRaft_callback_timeoutnow_at_send_appendentries_response_if_up_to_date(C
     timeoutnow_sent = 0;
 
     raft_cbs_t funcs = {
-            .send_timeoutnow = __fake_timeoutnow,
+            .send_timeoutnow = cb_timeoutnow,
     };
 
     raft_server_t *r = raft_new();
@@ -4439,6 +4439,7 @@ void Test_reset_transfer_leader(CuTest *tc)
     raft_leader_transfer_e state;
     raft_cbs_t funcs = {
             .notify_transfer_event = cb_notify_transfer_event,
+            .send_timeoutnow = cb_timeoutnow,
     };
     raft_server_t *r = raft_new();
     raft_set_state(r, RAFT_STATE_LEADER);
@@ -4471,6 +4472,7 @@ void Test_transfer_leader_success(CuTest *tc)
     raft_leader_transfer_e state = RAFT_LEADER_TRANSFER_TIMEOUT;
     raft_cbs_t funcs = {
             .notify_transfer_event = cb_notify_transfer_event,
+            .send_timeoutnow = cb_timeoutnow
     };
     raft_server_t *r = raft_new();
     raft_set_callbacks(r, &funcs, &state);
@@ -4496,6 +4498,7 @@ void Test_transfer_leader_unexpected(CuTest *tc)
     raft_leader_transfer_e state = RAFT_LEADER_TRANSFER_TIMEOUT;
     raft_cbs_t funcs = {
             .notify_transfer_event = cb_notify_transfer_event,
+            .send_timeoutnow = cb_timeoutnow
     };
     raft_server_t *r = raft_new();
     raft_set_callbacks(r, &funcs, &state);
