@@ -1255,6 +1255,9 @@ int raft_get_state(raft_server_t *me);
 /* @return state string */
 const char *raft_get_state_str(raft_server_t *me);
 
+/* @return error string */
+const char *raft_get_error_str(int err);
+
 /** Get the most recent log's term
  * @return the last log term */
 raft_term_t raft_get_last_log_term(raft_server_t *me);
