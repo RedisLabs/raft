@@ -133,13 +133,13 @@ struct raft_server {
     int disable_apply;     /* Do not apply entries, useful for testing */
 };
 
-int raft_election_start(raft_server_t* me, int skip_precandidate);
+int raft_election_start(raft_server_t *me, int skip_precandidate);
 
-int raft_become_candidate(raft_server_t* me);
+int raft_become_candidate(raft_server_t *me);
 
-int raft_become_precandidate(raft_server_t* me);
+int raft_become_precandidate(raft_server_t *me);
 
-void raft_randomize_election_timeout(raft_server_t* me);
+void raft_randomize_election_timeout(raft_server_t *me);
 
 void raft_update_quorum_meta(raft_server_t* me, raft_msg_id_t id);
 

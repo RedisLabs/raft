@@ -441,15 +441,12 @@ typedef int (
 /** Callback for providing debug logging information.
  * This callback is optional
  * @param[in] raft The Raft server making this callback
- * @param[in] node_id The node id that is the subject of this log. If log is not
- *                    related to a node, this could be 'RAFT_NODE_ID_NONE'.
  * @param[in] user_data User data that is passed from Raft server
  * @param[in] buf The buffer that was logged */
 typedef void (
 *raft_log_f
 )    (
     raft_server_t* raft,
-    raft_node_id_t node_id,
     void *user_data,
     const char *buf
     );
@@ -991,10 +988,10 @@ int raft_periodic(raft_server_t *me);
  * @return
  *  0 on success
  *  */
-int raft_recv_appendentries(raft_server_t* me,
-                            raft_node_t* node,
-                            raft_appendentries_req_t* req,
-                            raft_appendentries_resp_t* resp);
+int raft_recv_appendentries(raft_server_t *me,
+                            raft_node_t *node,
+                            raft_appendentries_req_t *req,
+                            raft_appendentries_resp_t *resp);
 
 /** Receive a response from an appendentries message we sent.
  * @param[in] node The node who sent us this message
@@ -1003,9 +1000,9 @@ int raft_recv_appendentries(raft_server_t* me,
  *  0 on success;
  *  -1 on error;
  *  RAFT_ERR_NOT_LEADER server is not the leader */
-int raft_recv_appendentries_response(raft_server_t* me,
-                                     raft_node_t* node,
-                                     raft_appendentries_resp_t* resp);
+int raft_recv_appendentries_response(raft_server_t *me,
+                                     raft_node_t *node,
+                                     raft_appendentries_resp_t *resp);
 
 /** Receive a snapshot message.
  * @param[in] node The node who sent us this message
@@ -1025,8 +1022,8 @@ int raft_recv_snapshot(raft_server_t* me,
  *  0 on success;
  *  -1 on error;
  *  RAFT_ERR_NOT_LEADER server is not the leader */
-int raft_recv_snapshot_response(raft_server_t* me,
-                                raft_node_t* node,
+int raft_recv_snapshot_response(raft_server_t *me,
+                                raft_node_t *node,
                                 raft_snapshot_resp_t *resp);
 
 /** Receive a requestvote message.
@@ -1034,20 +1031,20 @@ int raft_recv_snapshot_response(raft_server_t* me,
  * @param[in] req The requestvote message
  * @param[out] resp The resulting response
  * @return 0 on success */
-int raft_recv_requestvote(raft_server_t* me,
-                          raft_node_t* node,
-                          raft_requestvote_req_t* req,
-                          raft_requestvote_resp_t* resp);
+int raft_recv_requestvote(raft_server_t *me,
+                          raft_node_t *node,
+                          raft_requestvote_req_t *req,
+                          raft_requestvote_resp_t *resp);
 
 /** Receive a response from a requestvote message we sent.
  * @param[in] node The node this response was sent by
- * @param[in] req The requestvote response message
+ * @param[in] resp The requestvote response message
  * @return
  *  0 on success;
  *  RAFT_ERR_SHUTDOWN server MUST shutdown; */
-int raft_recv_requestvote_response(raft_server_t* me,
-                                   raft_node_t* node,
-                                   raft_requestvote_resp_t* req);
+int raft_recv_requestvote_response(raft_server_t *me,
+                                   raft_node_t *node,
+                                   raft_requestvote_resp_t *resp);
 
 /** Receive an entry message from the client.
  *
@@ -1073,7 +1070,7 @@ int raft_recv_requestvote_response(raft_server_t* me,
  *  RAFT_ERR_ONE_VOTING_CHANGE_ONLY there is a non-voting change inflight;
  *  RAFT_ERR_NOMEM memory allocation failure
  */
-int raft_recv_entry(raft_server_t* me,
+int raft_recv_entry(raft_server_t *me,
                     raft_entry_req_t *req,
                     raft_entry_resp_t *resp);
 
@@ -1284,11 +1281,11 @@ int raft_apply_all(raft_server_t* me);
 /** Become leader
  * WARNING: this is a dangerous function call. It could lead to your cluster
  * losing it's consensus guarantees. */
-int raft_become_leader(raft_server_t* me);
+int raft_become_leader(raft_server_t *me);
 
 /** Become follower. This may be used to give up leadership. It does not change
  * currentTerm. */
-void raft_become_follower(raft_server_t* me);
+void raft_become_follower(raft_server_t *me);
 
 /** Determine if entry is voting configuration change.
  * @param[in] ety The entry to query.
