@@ -4066,7 +4066,7 @@ int timeoutnow_sent = 0;
 
 int cb_timeoutnow(raft_server_t* raft, void *udata, raft_node_t* node)
 {
-    timeoutnow_sent = 1;
+    timeoutnow_sent++;
 
     return 0;
 }
@@ -4138,6 +4138,10 @@ void TestRaft_callback_timeoutnow_at_send_appendentries_response_if_up_to_date(C
         .current_idx = 2
     };
 
+    raft_recv_appendentries_response(r, raft_get_node(r, 2), &aer);
+    CuAssertTrue(tc, 1 == timeoutnow_sent);
+
+    /* Verify we won't send timeout now message twice. */
     raft_recv_appendentries_response(r, raft_get_node(r, 2), &aer);
     CuAssertTrue(tc, 1 == timeoutnow_sent);
 }
