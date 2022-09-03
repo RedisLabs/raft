@@ -4988,6 +4988,45 @@ void TestRaft_delete_configuration_change_entries(CuTest *tc)
     CuAssertIntEquals(tc, 0, raft_recv_entry(r, ety, NULL));
 }
 
+static int fail_sequence = 0;
+static int cb_persist_metadata_fail(raft_server_t *raft, void *udata,
+                                    raft_term_t term, raft_node_id_t vote)
+{
+    if (--fail_sequence >= 0) {
+        return 0;
+    }
+
+    return -1;
+}
+
+void TestRaft_propagate_persist_metadata_failure(CuTest *tc)
+{
+    int e;
+
+    raft_cbs_t funcs = {
+            .persist_metadata = cb_persist_metadata_fail,
+    };
+
+    raft_server_t *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    /* This will fail when we increment the term. */
+    e = raft_become_candidate(r);
+    CuAssertIntEquals(tc, e, -1);
+
+    /* This will fail when we vote for ourselves. */
+    fail_sequence = 1;
+    e  = raft_become_candidate(r);
+    CuAssertIntEquals(tc, e, -1);
+
+    fail_sequence = 0;
+    e = raft_begin_load_snapshot(r, 2, 10);
+    CuAssertIntEquals(tc, e, -1);
+}
+
 int main(void)
 {
     CuString *output = CuStringNew();
@@ -5141,6 +5180,7 @@ int main(void)
     SUITE_ADD_TEST(suite, TestRaft_test_metadata_on_restart);
     SUITE_ADD_TEST(suite, TestRaft_rebuild_config_after_restart);
     SUITE_ADD_TEST(suite, TestRaft_delete_configuration_change_entries);
+    SUITE_ADD_TEST(suite, TestRaft_propagate_persist_metadata_failure);
     CuSuiteRun(suite);
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);

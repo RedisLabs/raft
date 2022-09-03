@@ -509,7 +509,10 @@ int raft_become_candidate(raft_server_t *me)
     }
 
     if (raft_node_is_voting(me->node)) {
-        raft_vote(me, me->node);
+        e = raft_vote(me, me->node);
+        if (e != 0) {
+            return e;
+        }
     }
 
     me->leader_id = RAFT_NODE_ID_NONE;
@@ -1867,14 +1870,17 @@ int raft_begin_load_snapshot(raft_server_t *me,
         return RAFT_ERR_SNAPSHOT_ALREADY_LOADED;
     }
 
+    if (last_included_term > me->current_term) {
+        int e = raft_set_current_term(me, last_included_term);
+        if (e != 0) {
+            return e;
+        }
+    }
+
     me->log_impl->reset(me->log, last_included_index + 1, last_included_term);
 
     if (last_included_index > me->commit_idx) {
         raft_set_commit_idx(me, last_included_index);
-    }
-
-    if (last_included_term > me->current_term) {
-        raft_set_current_term(me, last_included_term);
     }
 
     me->last_applied_term = last_included_term;
