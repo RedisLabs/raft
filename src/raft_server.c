@@ -750,7 +750,8 @@ int raft_recv_appendentries_response(raft_server_t *me,
         return 0;
     }
 
-    if (raft_get_transfer_leader(me) == raft_node_get_id(node) &&
+    if (!me->sent_timeout_now &&
+        raft_get_transfer_leader(me) == raft_node_get_id(node) &&
         raft_get_current_idx(me) == resp->current_idx) {
 
         me->cb.send_timeoutnow(me, me->udata, node);
