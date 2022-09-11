@@ -665,6 +665,9 @@ typedef struct
     /** Callback for sending snapshot messages */
     raft_send_snapshot_f send_snapshot;
 
+    /** Callback for sending timeoutnow message */
+    raft_send_timeoutnow_f send_timeoutnow;
+
     /** Callback for loading snapshot. This will be called when we complete
      * receiving snapshot from the leader */
     raft_load_snapshot_f load_snapshot;
@@ -697,30 +700,29 @@ typedef struct
     /** Callback for detecting when a non-voting node has sufficient logs. */
     raft_node_has_sufficient_logs_f node_has_sufficient_logs;
 
-    /** Callback for being notified of membership changes (optional). */
-    raft_membership_event_f notify_membership_event;
-
-    /** Callback for being notified of state changes (optional). */
-    raft_state_event_f notify_state_event;
-
-    /** Callbakc for notified of transfer leadership events (optional) */
-    raft_transfer_event_f notify_transfer_event;
-
-    /** Callback for catching debugging log messages
-     * This callback is optional */
-    raft_log_f log;
-
-    /** Callback for sending TimeoutNow RPC messages to nodes */
-    raft_send_timeoutnow_f send_timeoutnow;
-
-    /** Callback for deciding whether to send raft_appendentries_req to a node. */
-    raft_backpressure_f backpressure;
-
-    /** Callback for preparing entries to send in a raft_appendentries_req */
-    raft_get_entries_to_send_f get_entries_to_send;
-
     /** Callback to retrieve monotonic timestamp in microseconds */
     raft_timestamp_f timestamp;
+
+    /** (optional) Callback for being notified of membership changes. */
+    raft_membership_event_f notify_membership_event;
+
+    /** (optional) Callback for being notified of state changes. */
+    raft_state_event_f notify_state_event;
+
+    /** (optional) Callback for being notified of transfer leadership events. */
+    raft_transfer_event_f notify_transfer_event;
+
+    /** (optional) Callback for catching debugging log messages. */
+    raft_log_f log;
+
+    /** (optional) Callback for deciding whether to send raft_appendentries_req
+     * to a node. */
+    raft_backpressure_f backpressure;
+
+    /** (optional) Callback for preparing entries to send in
+     * a raft_appendentries_req. */
+    raft_get_entries_to_send_f get_entries_to_send;
+
 } raft_cbs_t;
 
 /** A callback used to notify when queued read requests can be processed.
