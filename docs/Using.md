@@ -4,6 +4,9 @@ Using the library
 Implementing callbacks
 ----------------
 
+Libraft only provides core raft logic. Application should implement some set of callbacks to provide networking and persistence.
+
+
 ### Libraft callbacks
 You provide your callbacks to the Raft server using `raft_set_callbacks()`.
 Application must implement all the mandatory callbacks. You can find more detailed info in the `raft.h`.
@@ -77,7 +80,7 @@ You should initialize raft library on all nodes:
 raft_server_t *r = raft_new_with_log(&log_impl, log_impl_arg);
 raft_set_callbacks(r, &callback_impls, app_arg);
 
-// Add own node as non-voting, e.g node id here is 999999
+// Add own node as non-voting, e.g node ID here is 999999, application generates node IDs.
 raft_add_non_voting_node(r, user_data_ptr, 999999, 1); 
 ```
 
@@ -85,7 +88,7 @@ raft_add_non_voting_node(r, user_data_ptr, 999999, 1);
 Cluster Initialization
 ------------------
 
-These are steps that you need follow when you want to bootstrap a cluster. 
+These are steps that you need follow when you want to initialize a cluster. 
 - You need to start a single node first. This node will be the first node in the cluster. Other nodes can join to this node later.
 
 ```c
@@ -113,6 +116,67 @@ raft_recv_entry(rr->raft, ety, NULL);
 raft_entry_release(ety);
 
 ```
+
+Submit requests
+------------------
+
+#### Submit entries
+
+You can submit entries by calling `raft_recv_entry()`:
+
+```c
+void submit(raft_server_t *r, void *client_request, size_t client_request_len)
+{
+    raft_entry_t *ety = raft_entry_new(client_request_len);
+    memcpy(ety->data, client_request, client_request_len);
+    ety->type = RAFT_LOGTYPE_NORMAL;
+    raft_recv_entry(r, ety, NULL);
+}
+```
+
+When libraft commits the entry, it will call `applylog` callback for the entry:
+
+```c
+int appylog_callback_impl(raft_server_t *r,
+                          void *user_data,
+                          raft_entry_t *entry,
+                          raft_index_t entry_index)
+{
+    void *client_request = entry->data;
+    size_t client_request_len = entry->data_len;
+    
+    apply_to_state(client_request, client_request_len);
+}
+```
+
+#### Submit readonly requests
+
+If your operation is readonly, you can execute it without writing to the log or replicating it to other nodes. Still, libraft needs to communicate with other nodes to verify it is still the leader. So, for readonly requests, there is another API to submit it. When it is safe to execute the request, libraft will call the callback you provided:
+
+```c
+void submit_readonly(raft_server_t *r, void *client_request) 
+{
+   raft_recv_read_request(r, readonly_op_callback, request); 
+}
+
+void readonly_op_callback(void *arg, int can_read)
+{
+    if (can_read == 0) {
+        // Cluster is down or this node is not the leader anymore. 
+        // We cannot execute the command.
+        return;
+    }
+    
+    void *client_request = arg;
+    execute(request);
+}
+
+```
+
+
+> :bulb: In the code snippets, error handling is skipped. You should check the return code of the library functions all the time. For example, you can only submit new requests on the leader node. The above function calls will fail if the node is not the leader.
+
+
 
 Log compaction
 ------------------
@@ -148,37 +212,24 @@ void take_snapshot(raft_server_t *r)
         // part in this example as it is not part of the libraft
         serialize_node_into_snapshot(id, voting);
     }
+    
+    save_snapshot_to_disk();
 
     raft_end_snapshot(r);
 }
 
 ```
 
-
-## Saving Raft Library info into the snapshot
-You need to store 
-
-- `last_applied_term` and `last_applied_index`
-- node configuration
-
-e.g:
-
-```c
-
-
-```
-
-
-
 Restore state after a restart
 ------------------
 
 Raft stores all its data in three files: Snapshot, log and metadata file.
 After a restart, we need to restore the state. Correct order would be:
-1- Initialize library (described above)
-2- Restore snapshot (skip this step if you don't have a snapshot)
-3- Restore log entries
-4- Restore metadata
+
+- Initialize library (described above)
+- Restore snapshot (skip this step if you don't have a snapshot)
+- Restore log entries
+- Restore metadata
 
 
 ### Restoring from snapshot
