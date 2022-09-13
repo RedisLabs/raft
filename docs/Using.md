@@ -84,11 +84,18 @@ raft_set_callbacks(r, &callback_impls, app_arg);
 raft_add_non_voting_node(r, user_data_ptr, 999999, 1); 
 ```
 
+and call `raft_periodic()` at periodic intervals:
+
+```
+//e.g call every 100 milliseconds
+raft_periodic(r);
+```
+
 
 Cluster Initialization
 ------------------
 
-These are steps that you need follow when you want to initialize a cluster. 
+These are steps that you need follow when you want to initialize a cluster. (Preparing to use it for the first time)
 - You need to start a single node first. This node will be the first node in the cluster. Other nodes can join to this node later.
 
 ```c
