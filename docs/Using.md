@@ -314,6 +314,7 @@ void app_restore_libraft()
     // Assuming you loaded snapshot into your application,
     // extracted node configuration list,
     // extracted last_applied_term and last_applied_index
+    // See the example implementation above for this function.
     app_configure_from_snapshot(r, cfg, last_applied_term, last_applied_index);
     
     app_load_logs_to_impl(); // Load log entries in your log implementation
@@ -326,3 +327,135 @@ void app_restore_libraft()
 
 ```
 
+
+
+Sending a snapshot and loading a snapshot as a follower
+------------------
+
+#### Sending a snapshot
+
+Leader node can send snapshot to the follower node if the follower is lagging behind. When that happends, libraft will call `raft_get_snapshot_chunk_f` callback and require a chunk from snapshot from the application. An example implementation would be:
+
+```c
+
+// Assuming you have a pointer to snapshot 
+// (e.g you can use mmap'ed file or if snapshot is small, you can have a copy of snapshot in memory)
+size_t snapshot_file_len;
+void *snapshot_file_in_memory;
+
+int app_get_snapshot_chunk_impl(raft_server_t* raft,
+                                void *user_data, 
+                                raft_node_t *node, 
+                                raft_size_t offset, 
+                                raft_snapshot_chunk_t *chunk)
+{
+    const raft_size_t remaining_bytes = snapshot_file_len - offset;
+    if (remaining_bytes == 0) {
+        /* All chunks are sent */
+        return RAFT_ERR_DONE;
+    }
+
+    chunk->data = (char *) snapshot_file_in_memory + offset;
+    chunk->last_chunk = (offset + chunk->len == rr->outgoing_snapshot_file.len);
+
+    return 0;
+}
+```
+
+#### Receiving a snapshot
+
+Leader node can send snapshot to the follower node. Libraft will call required callbacks when that happens:
+
+```c
+// To clear the temporary snapshot file on the disk. Remember leader can move onto
+// a newer snapshot and start sending it. In that case, libraft will instruct
+// application delete partial file of the previous snapshot.
+int raft_clear_snapshot_f(raft_server_t *raft, void *user_data); 
+
+int raft_store_snapshot_chunk_f(raft_server_t *raft, void *user_data, raft_index_t snapshot_index, raft_size_t offset, raft_snapshot_chunk_t *chunk);
+```
+
+An example implementation of `raft_store_snapshot_chunk_f` would be:
+
+```c
+
+int app_raft_store_snapshot_impl(raft_server_t *r, 
+                                 void *user_data,
+                                 raft_index_t snapshot_index,
+                                 raft_size_t offset,
+                                 raft_snapshot_chunk_t *chunk)
+{
+    int flags = O_WRONLY | O_CREAT;
+    
+    if (offset == 0) {
+        flags |= O_TRUNC;
+    }
+
+    int fd = open("temp_snapshot_file.db", flags, S_IWUSR | S_IRUSR);
+    if (fd == -1) {
+        return -1;
+    }
+
+    off_t ret_offset = lseek(fd, offset, SEEK_CUR);
+    if (ret_offset != (off_t) offset) {
+        close(fd);
+        return -1;
+    }
+
+    size_t len = write(fd, chunk->data, chunk->len);
+    if (len != chunk->len) {
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+    return 0;
+}
+
+```
+
+#### Loading the received snapshot file
+
+When snapshot is received fully, libraft will call `raft_load_snapshot_f` callback.
+
+These are the steps when you want to load the received snapshot. Inside the callback:
+
+- Call `raft_begin_load_snapshot()`
+- Read snapshot into your application
+- Configure libraft from the application.
+- Call `raft_end_load_snapshot()`
+
+An example implementation would be:
+
+```c
+int app_raft_load_snapshot(raft_server_t *r,
+                           void *user_data,
+                           raft_term_t snapshot_term,
+                           raft_index_t snapshot_index)
+{
+    // See the function app_raft_store_snapshot() above. The assumption is 
+    // application stores incoming chunks in a file called "temp_snapshot_file.db".
+    // If we are inside this callback, it means we've received all the chunk, and 
+    // we can rename it as the current snapshot file.
+    int ret = rename("temp_snapshot_file.db", "final_snapshot_file.db");
+    if (ret != 0) {
+        return -1;
+    }
+
+    ret = raft_begin_load_snapshot(r, snapshot_term, snapshot_index);
+    if (ret != 0) {
+        return ret;
+    }
+    
+    // Configure libraft from the configuration in the snapshot
+    // See the example implementation above for more details about this function
+    app_configure_from_snapshot();
+    raft_end_load_snapshot(rr->raft);
+    
+    // Probably, you need to create mmap of the snapshot file or read it into the
+    // memory to be prepared for the `raft_get_snapshot_chunk_f` callback.
+    // See the example above for the `raft_get_snapshot_chunk_f` callback for more details.
+    
+    return 0;
+}
+```
