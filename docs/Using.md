@@ -49,7 +49,7 @@ typedef struct
 ### Log file callbacks
 
 Application must provide a log implementation and pass that implementation as a parameter to `raft_new_with_log()` call.
-Log implementation must implement all callbacks. You can find more detailed info in the `raft.h`.
+Log implementation must implement all the callbacks. You can find more detailed info in the `raft.h`.
 
 ```c
 typedef struct raft_log_impl
@@ -125,11 +125,13 @@ Submit requests
 You can submit entries by calling `raft_recv_entry()`:
 
 ```c
-void submit(raft_server_t *r, void *client_request, size_t client_request_len)
+void app_submit(raft_server_t *r, void *client_request, size_t client_request_len)
 {
     raft_entry_t *ety = raft_entry_new(client_request_len);
+    
     memcpy(ety->data, client_request, client_request_len);
     ety->type = RAFT_LOGTYPE_NORMAL;
+    
     raft_recv_entry(r, ety, NULL);
 }
 ```
@@ -137,15 +139,15 @@ void submit(raft_server_t *r, void *client_request, size_t client_request_len)
 When libraft commits the entry, it will call `applylog` callback for the entry:
 
 ```c
-int appylog_callback_impl(raft_server_t *r,
-                          void *user_data,
-                          raft_entry_t *entry,
-                          raft_index_t entry_index)
+int app_appylog_callback_impl(raft_server_t *r,
+                              void *user_data,
+                              raft_entry_t *entry,
+                              raft_index_t entry_index)
 {
     void *client_request = entry->data;
     size_t client_request_len = entry->data_len;
     
-    apply_to_state(client_request, client_request_len);
+    app_execute_request(client_request, client_request_len);
 }
 ```
 
@@ -154,21 +156,22 @@ int appylog_callback_impl(raft_server_t *r,
 If your operation is readonly, you can execute it without writing to the log or replicating it to other nodes. Still, libraft needs to communicate with other nodes to verify it is still the leader. So, for readonly requests, there is another API to submit it. When it is safe to execute the request, libraft will call the callback you provided:
 
 ```c
-void submit_readonly(raft_server_t *r, void *client_request) 
+void app_submit_readonly(raft_server_t *r, void *client_request) 
 {
-   raft_recv_read_request(r, readonly_op_callback, request); 
+   raft_recv_read_request(r, app_readonly_op_callback, request); 
 }
 
-void readonly_op_callback(void *arg, int can_read)
+void app_readonly_op_callback(void *arg, int can_read)
 {
+    void *client_request = arg;
+    
     if (can_read == 0) {
         // Cluster is down or this node is not the leader anymore. 
         // We cannot execute the command.
         return;
     }
     
-    void *client_request = arg;
-    execute(request);
+    app_execute_readonly(request);
 }
 
 ```
@@ -192,12 +195,12 @@ These are the steps when you want to save a snapshot:
 
 e.g
 ```c
-void take_snapshot(raft_server_t *r)
+void app_take_snapshot(raft_server_t *r)
 {
     raft_begin_snapshot(r);
 
-    serialize_into_snapshot(raft_get_last_applied_term());
-    serialize_into_snapshot(raft_get_last_applied_index());
+    app_serialize_into_snapshot(raft_get_last_applied_term());
+    app_serialize_into_snapshot(raft_get_last_applied_index());
 
     for (int i = 0; i < raft_get_num_nodes(r); i++) {
         raft_node_t *n = raft_get_node_from_idx(r, i);
@@ -208,12 +211,12 @@ void take_snapshot(raft_server_t *r)
         raft_node_id_t id = raft_get_node_id(n);
         int voting = raft_is_voting_committed(n);
         
-        // You may want to store address info for the node but skipping that
+        // You may also want to store address info for the node but skipping that
         // part in this example as it is not part of the libraft
         serialize_node_into_snapshot(id, voting);
     }
     
-    save_snapshot_to_disk();
+    app_save_snapshot_to_disk();
 
     raft_end_snapshot(r);
 }
@@ -223,7 +226,8 @@ void take_snapshot(raft_server_t *r)
 Restore state after a restart
 ------------------
 
-Raft stores all its data in three files: Snapshot, log and metadata file.
+Raft stores all its data in three files: Snapshot, log and metadata file (see `raft_persist_metadata_f` in `raft.h` for details).
+
 After a restart, we need to restore the state. Correct order would be:
 
 - Initialize library (described above)
@@ -234,12 +238,14 @@ After a restart, we need to restore the state. Correct order would be:
 
 ### Restoring from snapshot
 
-After loading the state, you need to configure libraft from the configuration info in the snapshot. In the snapshot, you need to store `last_applied_term`, `last_applied_index` along with node configuration
+Application saves `last_applied_term` and `last_applied_index` along with node configuration into the snapshots.
+On a restart, after loading the state into your application, you need to configure libraft from the configuration info in the snapshot and finally call `raft_restore_snapshot()`.
+
 e.g: 
 
 ```c
 
-// As an example, assuming you get a list of nodes from the snapshot
+// As an example, assuming you read a list of nodes from the snapshot
 struct config {
     raft_node_id_t id;
     int voting;
@@ -247,10 +253,10 @@ struct config {
 };
 ....
 
-void configure_from_snapshot(raft_server_t *r, 
-                             struct config *head, 
-                             raft_term_t last_applied_term
-                             raft_index_t last_applied_index)
+void app_configure_from_snapshot(raft_server_t *r, 
+                                 struct config *head, 
+                                 raft_term_t last_applied_term
+                                 raft_index_t last_applied_index)
 {
     struct config *cfg = head;
     
@@ -293,7 +299,7 @@ raft_restore_metadata(r, term, vote);
 If we put all steps together:
 
 ```c
-void restore_libraft()
+void app_restore_libraft()
 {
     // Raft Library initialization
     raft_server_t *r = raft_new_with_log(..., ...);
@@ -302,12 +308,12 @@ void restore_libraft()
     // Assuming you loaded snapshot into your application,
     // extracted node configuration list,
     // extracted last_applied_term and last_applied_index
-    configure_from_snapshot(r, cfg, last_applied_term, last_applied_index);
+    app_configure_from_snapshot(r, cfg, last_applied_term, last_applied_index);
     
-    load_logs_to_impl(); // Load log entries in your log implementation
+    app_load_logs_to_impl(); // Load log entries in your log implementation
     raft_restore_log();
     
-    read_metadata_file(); // Read metadata file and extract term and vote
+    app_read_metadata_file(); // Read metadata file and extract term and vote
     raft_restore_metadata(r, term, vote);
 }
 
