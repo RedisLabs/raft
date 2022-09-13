@@ -61,8 +61,7 @@ typedef struct raft_log_impl
     int (*poll) (void *log, raft_index_t first_idx);
     int (*pop) (void *log, raft_index_t from_idx);
     raft_entry_t* (*get) (void *log, raft_index_t idx);
-    raft_index_t (*get_batch) (void *log, raft_index_t idx,
-                              raft_index_t entries_n, raft_entry_t **entries);
+    raft_index_t (*get_batch) (void *log, raft_index_t idx, raft_index_t entries_n, raft_entry_t **entries);
     raft_index_t (*first_idx) (void *log);
     raft_index_t (*current_idx) (void *log);
     raft_index_t (*count) (void *log);
