@@ -1463,44 +1463,6 @@ int raft_voting_change_is_in_progress(raft_server_t *me);
  */
 void *raft_get_log(raft_server_t* me);
 
-/** Backward compatible callbacks for log events, implemented by the
- * default in-memory log implementation.
- *
- */
-
-typedef struct {
-    /** Callback for adding an entry to the log
-     * For safety reasons this callback MUST flush the change to disk.
-     * Return 0 on success.
-     * Return RAFT_ERR_SHUTDOWN if you want the server to shutdown. */
-
-    raft_logentry_event_f log_offer;
-
-    /** Callback for removing the oldest entry from the log
-     * For safety reasons this callback MUST flush the change to disk.
-     * @note The callback does not need to call raft_entry_release() as
-     *   no references are implicitly held.  If access to the entry is
-     *   desired after the callback returns, raft_entry_hold() should be
-     *   used.
-     */
-    raft_logentry_event_f log_poll;
-
-    /** Callback for removing the youngest entry from the log
-     * For safety reasons this callback MUST flush the change to disk.
-     * @note The callback does not need to call raft_entry_release() as
-     *   no references are implicitly held.  If access to the entry is
-     *   desired after the callback returns, raft_entry_hold() should be
-     *   used.
-     */
-    raft_logentry_event_f log_pop;
-
-    /** Callback called for every existing log entry when clearing the log.
-     * If memory was malloc'd in log_offer and the entry doesn't get a chance
-     * to go through log_poll or log_pop, this is the last chance to free it.
-     */
-    raft_logentry_event_f log_clear;
-} raft_log_cbs_t;
-
 /** Allocate a new Raft Log entry.
  *
  * @param[in] data_len Length of user-supplied data for which additional
