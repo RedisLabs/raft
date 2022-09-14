@@ -1477,15 +1477,12 @@ void raft_entry_release(raft_entry_t *ety);
  *
  * @note The array itself is not freed.
  */
-
 void raft_entry_release_list(raft_entry_t **ety_list, size_t len);
 
 /** Log Implementation callbacks structure for the default in-memory
  * log implementation.
  */
 extern const raft_log_impl_t raft_log_internal_impl;
-
-void raft_handle_append_cfg_change(raft_server_t* me, raft_entry_t* ety, raft_index_t idx);
 
 int raft_recv_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg);
 
@@ -1505,8 +1502,6 @@ raft_node_id_t raft_get_transfer_leader(raft_server_t *me);
 
 /* cause this server to force an election. */
 int raft_timeout_now(raft_server_t* me);
-
-raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me);
 
 /**
  *  Library can be used in two modes:

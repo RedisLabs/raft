@@ -214,4 +214,6 @@ int raft_periodic_internal(raft_server_t *me, raft_time_t milliseconds);
 
 int raft_exec_operations(raft_server_t *me);
 
+raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me);
+
 #endif /* RAFT_PRIVATE_H_ */
