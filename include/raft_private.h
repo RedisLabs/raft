@@ -180,6 +180,38 @@ int raft_node_has_vote_for_me(raft_node_t *node);
 
 void raft_node_set_has_sufficient_logs(raft_node_t *node, int sufficient_logs);
 
+void raft_node_set_voting_committed(raft_node_t *node, int voting);
+
+/** Check if a node is active.
+ * Active nodes could become voting nodes.
+ * This should be used for creating the membership snapshot.
+ **/
+int raft_node_is_active(raft_node_t *node);
+
+/** Make the node active.
+ *
+ * The user sets this to 1 between raft_begin_load_snapshot and
+ * raft_end_load_snapshot.
+ *
+ * @param[in] active Set a node as active if this is 1
+ **/
+void raft_node_set_active(raft_node_t *node, int active);
+
+/** Turn a node into a voting node.
+ * Voting nodes can take part in elections and in-regards to committing entries,
+ * are counted in majorities. */
+void raft_node_set_voting(raft_node_t *node, int voting);
+
+/** Tell if a node is a voting node or not.
+ * @return 1 if this is a voting node. Otherwise 0. */
+int raft_node_is_voting(raft_node_t *node);
+
+/** Check if a node has sufficient logs to be able to join the cluster.
+ **/
+int raft_node_has_sufficient_logs(raft_node_t *node);
+
+void raft_node_set_addition_committed(raft_node_t *node, int committed);
+
 int raft_is_single_node_voting_cluster(raft_server_t *me);
 
 int raft_votes_is_majority(int nnodes, int nvotes);

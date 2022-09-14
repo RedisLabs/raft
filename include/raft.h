@@ -1249,19 +1249,6 @@ const char *raft_get_error_str(int err);
  * @return the last log term */
 raft_term_t raft_get_last_log_term(raft_server_t *me);
 
-/** Turn a node into a voting node.
- * Voting nodes can take part in elections and in-regards to committing entries,
- * are counted in majorities. */
-void raft_node_set_voting(raft_node_t *node, int voting);
-
-/** Tell if a node is a voting node or not.
- * @return 1 if this is a voting node. Otherwise 0. */
-int raft_node_is_voting(raft_node_t *node);
-
-/** Check if a node has sufficient logs to be able to join the cluster.
- **/
-int raft_node_has_sufficient_logs(raft_node_t *node);
-
 /** Apply all entries up to the commit index
  * @return
  *  0 on success;
@@ -1395,21 +1382,6 @@ raft_index_t raft_get_snapshot_last_idx(raft_server_t *me);
 
 raft_term_t raft_get_snapshot_last_term(raft_server_t *me);
 
-/** Check if a node is active.
- * Active nodes could become voting nodes.
- * This should be used for creating the membership snapshot.
- **/
-int raft_node_is_active(raft_node_t *node);
-
-/** Make the node active.
- *
- * The user sets this to 1 between raft_begin_load_snapshot and
- * raft_end_load_snapshot.
- *
- * @param[in] active Set a node as active if this is 1
- **/
-void raft_node_set_active(raft_node_t *node, int active);
-
 /** Check if a node's voting status has been committed.
  * This should be used for creating the membership snapshot.
  **/
@@ -1428,16 +1400,6 @@ void raft_set_heap_functions(void *(*_malloc)(size_t),
                              void *(*_calloc)(size_t, size_t),
                              void *(*_realloc)(void *, size_t),
                              void (*_free)(void *));
-
-/** Confirm that a node's voting status is final
- * @param[in] node The node
- * @param[in] voting Whether this node's voting status is committed or not */
-void raft_node_set_voting_committed(raft_node_t *node, int voting);
-
-/** Confirm that a node's voting status is final
- * @param[in] node The node
- * @param[in] committed Whether this node's membership is committed or not */
-void raft_node_set_addition_committed(raft_node_t *node, int committed);
 
 /** Check if a voting change is in progress
  * @param[in] raft The Raft server
