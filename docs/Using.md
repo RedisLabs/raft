@@ -1,10 +1,21 @@
+- [Implementing callbacks](#Implementing callbacks)
+    * [Log file callbacks](#Log file callbacks)
+        + [Sub-sub-heading](#sub-sub-heading)
+- [Heading](#heading-1)
+    * [Sub-heading](#sub-heading-1)
+        + [Sub-sub-heading](#sub-sub-heading-1)
+- [Heading](#heading-2)
+    * [Sub-heading](#sub-heading-2)
+        + [Sub-sub-heading](#sub-sub-heading-2)
+
+
 Using the library
 ===============
 
 Implementing callbacks
 ----------------
 
-Libraft only provides core raft logic. Application should implement some set of callbacks to provide networking and persistence.
+Libraft only provides core raft logic. Application should implement some set of callbacks to provide networking and storage.
 
 
 ### Libraft callbacks
@@ -14,35 +25,36 @@ Application must implement all the mandatory callbacks. You can find more detail
 ```c
 typedef struct
 {
-    raft_logentry_event_f applylog;
-    raft_persist_metadata_f persist_metadata;
-    raft_get_node_id_f get_node_id;
-    raft_node_has_sufficient_logs_f node_has_sufficient_logs;
-    raft_timestamp_f timestamp;
+    int (*raft_appylog_f) (raft_server_t* r, void *user_data, raft_entry_t *entry, raft_index_t entry_idx);
+    int (*raft_persist_metadata_f) (raft_server_t *r, void *user_data, raft_term_t term, raft_node_id_t vote);
+    raft_node_id_t (*raft_get_node_id_f) (raft_server_t *r, void *user_data, raft_entry_t *entry, raft_index_t entry_idx);
+    int (*raft_node_has_sufficient_logs_f) (raft_server_t *r, void *user_data, raft_node_t *node);
+    raft_time_t (*raft_timestamp_f) (raft_server_t *r, void *user_data);
     
     /* Networking */
-    raft_send_requestvote_f send_requestvote;
-    raft_send_appendentries_f send_appendentries;
-    raft_send_snapshot_f send_snapshot;
-    raft_send_timeoutnow_f send_timeoutnow;
+    int (*raft_send_requestvote_f) (raft_server_t *r, void *user_data, raft_node_t *node, raft_requestvote_req_t *req);
+    int (*raft_send_appendentries_f) (raft_server_t *r, void *user_data, raft_node_t *node, raft_appendentries_req_t *req);
+    int (*raft_send_snapshot_f) (raft_server_t *r, void *user_data, raft_node_t *node, raft_snapshot_req_t *req);
+    int (*raft_send_timeoutnow_f) (raft_server_t *r, void *user_data, raft_node_t *node);
     
     /* Snapshot handling */
-    raft_load_snapshot_f load_snapshot;
-    raft_get_snapshot_chunk_f get_snapshot_chunk;
-    raft_store_snapshot_chunk_f store_snapshot_chunk;
-    raft_clear_snapshot_f clear_snapshot;
+    int (*raft_load_snapshot_f) (raft_server_t *r, void *user_data, raft_term_t snapshot_term, raft_index_t snapshot_index);
+    int (*raft_get_snapshot_chunk_f) (raft_server_t *r, void *user_data, raft_node_t *node, raft_size_t offset, raft_snapshot_chunk_t *chunk);
+    int (*raft_store_snapshot_chunk_f) (raft_server_t *r, void *user_data, raft_index_t snapshot_index, raft_size_t offset, raft_snapshot_chunk_t* chunk);
+    int (*raft_clear_snapshot_f) (raft_server_t *r, void *user_data);
     
     /** 
      * Optional callbacks: 
      * 
      * Notification on events, debug logging, message flow control etc.
      */
-    raft_membership_event_f notify_membership_event;
-    raft_state_event_f notify_state_event;
-    raft_transfer_event_f notify_transfer_event;
-    raft_log_f log;
-    raft_backpressure_f backpressure;
-    raft_get_entries_to_send_f get_entries_to_send;
+    void (*raft_membership_event_f) (raft_server_t *r,void *user_data,raft_node_t *node,raft_entry_t *entry,raft_membership_e type);
+    void (*raft_state_event_f) (raft_server_t *r, void *user_data, raft_state_e state);
+    void (*raft_transfer_event_f) (raft_server_t *r, void *user_data, raft_leader_transfer_e result);
+    void (*raft_log_f) (raft_server_t *r, void *user_data, const char *buf);
+    int (*raft_backpressure_f) (raft_server_t* r, void *user_data, raft_node_t *node);
+    raft_index_t (*raft_get_entries_to_send_f) (raft_server_t *r, void *user_data, raft_node_t *node, raft_index_t idx, raft_index_t entries_n, raft_entry_t **entries);
+    
 } raft_cbs_t;
 ```
 
@@ -458,4 +470,161 @@ int app_raft_load_snapshot(raft_server_t *r,
     
     return 0;
 }
+```
+
+Adding and removing nodes
+------------------
+
+Configuration change is done by submitting configuration change entries. Only one configuration change is allowed at a time. Once the entry is applied, you can submit another configuration change entry.
+
+#### Adding a node
+Adding node is done in two steps. In the first step, you wait until the new node catches up with the leader. A node with a slow connection can never catch up the leader. In this case, adding the node without waiting to obtain enough logs can cause unavailability.
+
+e.g 
+Single node cluster adds a new node directly. Majority in the cluster becomes two. To commit an entry, we need to replicate to the both nodes. Until the new node gets all the existing entries, we cannot replicate a new one. So, cluster will be unable to commit an entry until the new node catches up.
+
+
+Add a node in two steps:
+
+- Submit an entry with the type `RAFT_LOGTYPE_ADD_NONVOTING_NODE`.
+- Libraft will call `raft_node_has_sufficient_logs_f` callback once the new node obtained enough log entries and caught up with the leader.
+- Inside that callback, you can submit an entry with the type `RAFT_LOGTYPE_ADD_NODE`.
+- Once that entry is applied, configuration change is completed.
+
+e.g:
+
+```c
+
+struct app_node_config {
+    raft_node_id_t id;
+    int port;
+    char host[128];
+};
+
+// Step-0 This is an example implementation of `raft_get_node_id_f` callback.
+raft_node_id_t app_log_get_node_id(raft_server_t *r,
+                                   void *user_data,
+                                   raft_entry_t *entry,
+                                   raft_index_t entry_idx)
+{
+    struct app_node_config *cfg = (struct app_node_config *) entry->data;
+    return cfg->id;
+}
+
+// Step-1
+void app_add_node(raft_server_t *r)
+{
+    struct app_node_config cfg = { 
+        .id = 9999999,
+        .port = 5000,
+        .host = "localhost"
+    };
+    
+    raft_entry_req_t *entry = raft_entry_new(sizeof(cfg));
+    entry->type = RAFT_LOGTYPE_ADD_NONVOTING_NODE;
+    memcpy(entry->data, &cfg, sizeof(cfg));
+    
+    int e = raft_recv_entry(r, entry, NULL);
+    if (e != 0) {
+        // handle failure
+    }
+    raft_entry_release(entry);
+}
+
+// Step-2 (Callback will be called when the new node catches up)
+int app_node_has_sufficient_logs(raft_server_t *r,
+                                 void *user_data, 
+                                 raft_node_t *raft_node)
+{
+    struct app_node_config cfg = {
+        .id = 9999999,
+        .port = 5000,
+        .host = "localhost"
+    };
+    
+    raft_entry_req_t *entry = raft_entry_new(sizeof(cfg));
+    entry->type = RAFT_LOGTYPE_ADD_NODE;
+    memcpy(entry->data, &cfg, sizeof(cfg));
+    
+    int e = raft_recv_entry(r, entry, &response);
+    raft_entry_release(entry);
+
+    return e;
+}
+
+// Step-3 This is an example implementation of `applylog` callback.
+int app_applylog(raft_server_t *r, 
+                 void *user_data, 
+                 raft_entry_t *entry, 
+                 raft_index_t entry_idx)
+{
+    struct app_node_config *cfg;
+
+    switch (entry->type) {
+        case RAFT_LOGTYPE_ADD_NONVOTING_NODE:
+            cfg = (struct app_node_config *) entry->data;
+            printf("node_id:%d added as non-voting node", cfg->id);
+            break;
+        case RAFT_LOGTYPE_REMOVE_NODE:
+            cfg = (struct app_node_config *) entry->data;
+            printf("node_id:%d added as voting node", cfg->id);
+            break;
+
+    return 0;
+}
+
+```
+
+#### Removing a node
+
+- Submit an entry with the type `RAFT_LOGTYPE_REMOVE_NODE`
+- Node will be removed when entry is applied.
+
+```c
+
+struct app_node_config {
+    raft_node_id_t id;
+};
+
+// Step-0 This is an example implementation of `raft_get_node_id_f` callback.
+raft_node_id_t app_log_get_node_id(raft_server_t *r,
+                                   void *user_data,
+                                   raft_entry_t *entry,
+                                   raft_index_t entry_idx)
+{
+    struct app_node_config *cfg = (struct app_node_config *) entry->data;
+    return cfg->id;
+}
+
+// Step-1
+void app_remove_node()
+{
+    raft_entry_req_t *entry = raft_entry_new(sizeof(cfg));
+    entry->type = RAFT_LOGTYPE_REMOVE_NODE;
+    memcpy(entry->data, &cfg, sizeof(cfg));
+
+    int e = raft_recv_entry(r, entry, &resp);
+    if (e != 0) {
+        // handle error
+    }
+    raft_entry_release(entry);
+} 
+
+// Step-2 This is an example implementation of `applylog` callback.
+int app_applylog(raft_server_t *r, 
+                 void *user_data, 
+                 raft_entry_t *entry, 
+                 raft_index_t entry_idx)
+{
+    struct app_node_config *cfg;
+
+    switch (entry->type) {
+        case RAFT_LOGTYPE_REMOVE_NODE:
+            cfg = (struct app_node_config *) entry->data;
+            printf("node_id:%d has been removed", cfg->id);
+            break;
+    
+    return 0;
+}
+
 ```
