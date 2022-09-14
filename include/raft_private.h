@@ -309,5 +309,9 @@ raft_time_t raft_get_timeout_elapsed(raft_server_t *me);
  *  RAFT_ERR_NOMEM memory allocation failure */
 int raft_append_entry(raft_server_t* me, raft_entry_t* ety);
 
+/** Check if a voting change is in progress
+ * @param[in] raft The Raft server
+ * @return 1 if a voting change is in progress */
+int raft_voting_change_is_in_progress(raft_server_t *me);
 
 #endif /* RAFT_PRIVATE_H_ */

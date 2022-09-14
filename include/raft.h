@@ -1341,11 +1341,6 @@ void raft_set_heap_functions(void *(*_malloc)(size_t),
                              void *(*_realloc)(void *, size_t),
                              void (*_free)(void *));
 
-/** Check if a voting change is in progress
- * @param[in] raft The Raft server
- * @return 1 if a voting change is in progress */
-int raft_voting_change_is_in_progress(raft_server_t *me);
-
 /** Get the log implementation handle in use.
  */
 void *raft_get_log(raft_server_t* me);
