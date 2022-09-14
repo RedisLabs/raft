@@ -1,5 +1,5 @@
 - [Implementing callbacks](#Implementing callbacks)
-    * [Log file callbacks](#Log file callbacks)
+    * [Log file callbacks](#Log-file-callbacks)
         + [Sub-sub-heading](#sub-sub-heading)
 - [Heading](#heading-1)
     * [Sub-heading](#sub-heading-1)
