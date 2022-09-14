@@ -929,8 +929,8 @@ void raft_clear(raft_server_t* me);
  * file from the disk. See `raft_persist_metadata_f`.
  *
  * @param[in] raft The Raft server
- * @param term term in the metadata file
- * @param vote vote in the metadata file
+ * @param[in] term term in the metadata file
+ * @param[in] vote vote in the metadata file
  * @return 0 on success
  */
 int raft_restore_metadata(raft_server_t *me,
