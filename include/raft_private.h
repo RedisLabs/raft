@@ -300,4 +300,14 @@ raft_node_id_t raft_get_voted_for(raft_server_t *me);
  * @return currently elapsed timeout in milliseconds */
 raft_time_t raft_get_timeout_elapsed(raft_server_t *me);
 
+/** Add an entry to the server's log.
+ * This should be used to reload persistent state, ie. the commit log.
+ * @param[in] ety The entry to be appended
+ * @return
+ *  0 on success;
+ *  RAFT_ERR_SHUTDOWN server should shutdown
+ *  RAFT_ERR_NOMEM memory allocation failure */
+int raft_append_entry(raft_server_t* me, raft_entry_t* ety);
+
+
 #endif /* RAFT_PRIVATE_H_ */

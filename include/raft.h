@@ -1186,16 +1186,6 @@ void *raft_get_udata(raft_server_t *me);
  *  0 on success */
 int raft_set_current_term(raft_server_t *me, raft_term_t term);
 
-
-/** Add an entry to the server's log.
- * This should be used to reload persistent state, ie. the commit log.
- * @param[in] ety The entry to be appended
- * @return
- *  0 on success;
- *  RAFT_ERR_SHUTDOWN server should shutdown
- *  RAFT_ERR_NOMEM memory allocation failure */
-int raft_append_entry(raft_server_t* me, raft_entry_t* ety);
-
 /** Confirm if a msg_entry_response has been committed.
  * @param[in] r The response we want to check */
 int raft_msg_entry_response_committed(raft_server_t* me,
