@@ -3,9 +3,22 @@
     * [Log file callbacks](#Log-file-callbacks)
 - [Library Initialization](#Library-Initialization)
 - [Cluster Initialization](#Cluster-Initialization)
-- [Heading](#heading-2)
-    * [Sub-heading](#sub-heading-2)
-        + [Sub-sub-heading](#sub-sub-heading-2)
+- [Submit Requests](#Submit-requests)
+    * [Submit entries](#Submit-entries)
+    * [Submit readonly requests](#Submit-readonly-requests)
+- [Log compaction](#Log-compaction)
+- [Restore state after a restart](#Restore-state-after-a-restart)
+    * [Restoring from snapshot](#Restoring-from-snapshot)
+    * [Restoring log entries](#Restoring-log-entries)
+    * [Restoring metadata](#Restoring-metadata)
+    * [State restore example](#State-restore-example)
+- [Sending a snapshot and loading a snapshot as a follower](#Sending-a-snapshot-and-loading-a-snapshot-as-a-follower)
+    * [Sending a snapshot](#Sending-a-snapshot)
+    * [Receiving a snapshot](#Receiving-a-snapshot)
+    * [Loading the received snapshot file](#Loading-the-received-snapshot-file)
+- [Adding and removing nodes](#Adding-and-removing-nodes)
+    * [Adding a node](#Adding-a-node)
+    * [Removing a node](#Removing-a-node)
 
 
 Using the library
@@ -311,7 +324,7 @@ As the final step, read term and voted_for info from the metadata file and then 
 raft_restore_metadata(r, term, vote);
 ```
 
-### Example
+### State restore example
 
 If we put all steps together:
 
