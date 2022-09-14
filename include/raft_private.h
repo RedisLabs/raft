@@ -248,4 +248,25 @@ int raft_exec_operations(raft_server_t *me);
 
 raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me);
 
+/** Become follower. This may be used to give up leadership. It does not change
+ * currentTerm. */
+void raft_become_follower(raft_server_t *me);
+
+/** Determine if entry is voting configuration change.
+ * @param[in] ety The entry to query.
+ * @return 1 if this is a voting configuration change. */
+int raft_entry_is_voting_cfg_change(raft_entry_t* ety);
+
+/** Determine if entry is configuration change.
+ * @param[in] ety The entry to query.
+ * @return 1 if this is a configuration change. */
+int raft_entry_is_cfg_change(raft_entry_t* ety);
+
+
+/** Apply all entries up to the commit index
+ * @return
+ *  0 on success;
+ *  RAFT_ERR_SHUTDOWN when server MUST shutdown */
+int raft_apply_all(raft_server_t* me);
+
 #endif /* RAFT_PRIVATE_H_ */

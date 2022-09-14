@@ -1249,30 +1249,10 @@ const char *raft_get_error_str(int err);
  * @return the last log term */
 raft_term_t raft_get_last_log_term(raft_server_t *me);
 
-/** Apply all entries up to the commit index
- * @return
- *  0 on success;
- *  RAFT_ERR_SHUTDOWN when server MUST shutdown */
-int raft_apply_all(raft_server_t* me);
-
 /** Become leader
  * WARNING: this is a dangerous function call. It could lead to your cluster
  * losing it's consensus guarantees. */
 int raft_become_leader(raft_server_t *me);
-
-/** Become follower. This may be used to give up leadership. It does not change
- * currentTerm. */
-void raft_become_follower(raft_server_t *me);
-
-/** Determine if entry is voting configuration change.
- * @param[in] ety The entry to query.
- * @return 1 if this is a voting configuration change. */
-int raft_entry_is_voting_cfg_change(raft_entry_t* ety);
-
-/** Determine if entry is configuration change.
- * @param[in] ety The entry to query.
- * @return 1 if this is a configuration change. */
-int raft_entry_is_cfg_change(raft_entry_t* ety);
 
 /** Begin snapshotting.
  *
