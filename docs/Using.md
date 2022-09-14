@@ -1,9 +1,8 @@
-- [Implementing callbacks](#Implementing callbacks)
+- [Implementing callbacks](#Implementing-callbacks)
+    * [Libraft callbacks](#Libraft-callbacks)
     * [Log file callbacks](#Log-file-callbacks)
-        + [Sub-sub-heading](#sub-sub-heading)
-- [Heading](#heading-1)
-    * [Sub-heading](#sub-heading-1)
-        + [Sub-sub-heading](#sub-sub-heading-1)
+- [Library Initialization](#Library-Initialization)
+- [Cluster Initialization](#Cluster-Initialization)
 - [Heading](#heading-2)
     * [Sub-heading](#sub-heading-2)
         + [Sub-sub-heading](#sub-sub-heading-2)
@@ -82,7 +81,7 @@ typedef struct raft_log_impl
 ```
 
 
-Raft Library Initialization
+Library Initialization
 ----------------
 
 You should initialize raft library on all nodes:
