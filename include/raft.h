@@ -1125,10 +1125,6 @@ int raft_is_precandidate(raft_server_t *me);
 int raft_is_candidate(raft_server_t *me);
 
 /**
- * @return currently elapsed timeout in milliseconds */
-raft_time_t raft_get_timeout_elapsed(raft_server_t *me);
-
-/**
  * @return index of last applied entry */
 raft_index_t raft_get_last_applied_idx(raft_server_t *me);
 
@@ -1168,14 +1164,6 @@ raft_node_t *raft_get_node(raft_server_t *me, raft_node_id_t id);
  * @return node pointed to by node idx */
 raft_node_t *raft_get_node_from_idx(raft_server_t *me, raft_index_t idx);
 
-/**
- * @return number of votes this server has received this election */
-int raft_get_nvotes_for_me(raft_server_t* me);
-
-/**
- * @return node ID of who I voted for */
-raft_node_id_t raft_get_voted_for(raft_server_t *me);
-
 /** Get what this node thinks the node ID of the leader is.
  * @return node of what this node thinks is the valid leader;
  *   RAFT_NODE_ID_NONE if there is no leader */
@@ -1191,20 +1179,6 @@ raft_node_t *raft_get_leader_node(raft_server_t *me);
  * @return callback user data */
 void *raft_get_udata(raft_server_t *me);
 
-/** Vote for a server.
- * This should be used to reload persistent state, ie. the voted-for field.
- * @param[in] node The server to vote for
- * @return
- *  0 on success */
-int raft_vote(raft_server_t* me, raft_node_t* node);
-
-/** Vote for a server.
- * This should be used to reload persistent state, ie. the voted-for field.
- * @param[in] nodeid The server to vote for by nodeid
- * @return
- *  0 on success */
-int raft_vote_for_nodeid(raft_server_t* me, raft_node_id_t nodeid);
-
 /** Set the current term.
  * This should be used to reload persistent state, ie. the current_term field.
  * @param[in] term The new current term
@@ -1212,10 +1186,6 @@ int raft_vote_for_nodeid(raft_server_t* me, raft_node_id_t nodeid);
  *  0 on success */
 int raft_set_current_term(raft_server_t *me, raft_term_t term);
 
-/** Set the commit idx.
- * This should be used to reload persistent state, ie. the commit_idx field.
- * @param[in] commit_idx The new commit index. */
-void raft_set_commit_idx(raft_server_t *me, raft_index_t commit_idx);
 
 /** Add an entry to the server's log.
  * This should be used to reload persistent state, ie. the commit log.

@@ -262,11 +262,42 @@ int raft_entry_is_voting_cfg_change(raft_entry_t* ety);
  * @return 1 if this is a configuration change. */
 int raft_entry_is_cfg_change(raft_entry_t* ety);
 
-
 /** Apply all entries up to the commit index
  * @return
  *  0 on success;
  *  RAFT_ERR_SHUTDOWN when server MUST shutdown */
 int raft_apply_all(raft_server_t* me);
+
+/** Set the commit idx.
+ * This should be used to reload persistent state, ie. the commit_idx field.
+ * @param[in] commit_idx The new commit index. */
+void raft_set_commit_idx(raft_server_t *me, raft_index_t commit_idx);
+
+/** Vote for a server.
+ * This should be used to reload persistent state, ie. the voted-for field.
+ * @param[in] node The server to vote for
+ * @return
+ *  0 on success */
+int raft_vote(raft_server_t* me, raft_node_t* node);
+
+/** Vote for a server.
+ * This should be used to reload persistent state, ie. the voted-for field.
+ * @param[in] nodeid The server to vote for by nodeid
+ * @return
+ *  0 on success */
+int raft_vote_for_nodeid(raft_server_t* me, raft_node_id_t nodeid);
+
+
+/**
+ * @return number of votes this server has received this election */
+int raft_get_nvotes_for_me(raft_server_t* me);
+
+/**
+ * @return node ID of who I voted for */
+raft_node_id_t raft_get_voted_for(raft_server_t *me);
+
+/**
+ * @return currently elapsed timeout in milliseconds */
+raft_time_t raft_get_timeout_elapsed(raft_server_t *me);
 
 #endif /* RAFT_PRIVATE_H_ */
