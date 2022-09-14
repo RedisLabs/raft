@@ -1,5 +1,8 @@
+## Table of Contents
+
+- [Introduction](#Introduction)
 - [Implementing callbacks](#Implementing-callbacks)
-    * [Libraft callbacks](#Libraft-callbacks)
+    * [Raft library callbacks](#Raft-library-callbacks)
     * [Log file callbacks](#Log-file-callbacks)
 - [Library Initialization](#Library-Initialization)
 - [Cluster Initialization](#Cluster-Initialization)
@@ -21,16 +24,22 @@
     * [Removing a node](#Removing-a-node)
 
 
-Using the library
+Introduction
 ===============
+
+This document contains examples about how to integrate Raft library.
+
+
+> :bulb: In the code snippets, error handling is skipped. You should check the return code of the library functions all the time.
+
 
 Implementing callbacks
 ----------------
 
-Libraft only provides core raft logic. Application should implement some set of callbacks to provide networking and storage.
+Raft library only provides core raft logic. Application should implement some set of callbacks to provide networking and storage.
 
 
-### Libraft callbacks
+### Raft library callbacks
 You provide your callbacks to the Raft server using `raft_set_callbacks()`.
 Application must implement all the mandatory callbacks. You can find more detailed info in the `raft.h`.
 
@@ -130,8 +139,8 @@ raft_add_non_voting_node(r, NULL, 9999999, 1); // Add own node as non-voting
 
 // Bootstrap a cluster. 
 // Become the leader and append the configuration entry for the own node.
-raft_set_current_term(rr->raft, 1);
-raft_become_leader(rr->raft);
+raft_set_current_term(r, 1);
+raft_become_leader(r);
 
 struct config cfg = {
     .id = 9999999,
@@ -142,7 +151,7 @@ raft_entry_t *ety = raft_entry_new(sizeof(cfg));
 ety->type = RAFT_LOGTYPE_ADD_NODE;
 memcpy(ety->data, &cfg, sizeof(cfg));
 
-raft_recv_entry(rr->raft, ety, NULL);
+raft_recv_entry(r, ety, NULL);
 raft_entry_release(ety);
 
 ```
@@ -163,10 +172,11 @@ void app_submit(raft_server_t *r, void *client_request, size_t client_request_le
     ety->type = RAFT_LOGTYPE_NORMAL;
     
     raft_recv_entry(r, ety, NULL);
+    raft_entry_release(ety);
 }
 ```
 
-When libraft commits the entry, it will call `applylog` callback for the entry:
+When Raft library commits the entry, it will call `applylog` callback for the entry:
 
 ```c
 int app_appylog_callback_impl(raft_server_t *r,
@@ -183,7 +193,7 @@ int app_appylog_callback_impl(raft_server_t *r,
 
 #### Submit readonly requests
 
-If your operation is readonly, you can execute it without writing to the log or replicating it to other nodes. Still, libraft needs to communicate with other nodes to verify it is still the leader. So, for readonly requests, there is another API to submit it. When it is safe to execute the request, libraft will call the callback you provided:
+If your operation is readonly, you can execute it without writing to the log or replicating it to other nodes. Still, Raft library needs to communicate with other nodes to verify it is still the leader. So, for readonly requests, there is another API to submit it. When it is safe to execute the request, Raft library will call the callback you provided:
 
 ```c
 void app_submit_readonly(raft_server_t *r, void *client_request) 
@@ -207,14 +217,10 @@ void app_readonly_op_callback(void *arg, int can_read)
 ```
 
 
-> :bulb: In the code snippets, error handling is skipped. You should check the return code of the library functions all the time. For example, you can only submit new requests on the leader node. The above function calls will fail if the node is not the leader.
-
-
-
 Log compaction
 ------------------
 
-Over time, log file will grow. Libraft does not initiate log compaction itself. Application should decide when to take a snapshot. (e.g if log file grows over a limit)
+Over time, log file will grow. Library does not initiate log compaction itself. Application should decide when to take a snapshot. (e.g if log file grows over a limit)
 
 These are the steps when you want to save a snapshot:
 
@@ -242,7 +248,7 @@ void app_take_snapshot(raft_server_t *r)
         int voting = raft_is_voting_committed(n);
         
         // You may also want to store address info for the node but skipping that
-        // part in this example as it is not part of the libraft
+        // part in this example as it is not part of the library
         serialize_node_into_snapshot(id, voting);
     }
     
@@ -269,7 +275,7 @@ After a restart, we need to restore the state. Correct order would be:
 ### Restoring from snapshot
 
 Application saves `last_applied_term` and `last_applied_index` along with node configuration into the snapshots.
-On a restart, after loading the state into your application, you need to configure libraft from the configuration info in the snapshot and finally call `raft_restore_snapshot()`.
+On a restart, after loading the state into your application, you need to configure Raft library from the configuration info in the snapshot and finally call `raft_restore_snapshot()`.
 
 e.g: 
 
@@ -319,7 +325,7 @@ raft_restore_log(r);
 
 
 ### Restoring metadata
-As the final step, read term and voted_for info from the metadata file and then call one libraft function:
+As the final step, read term and voted_for info from the metadata file and then call one library function:
 ```
 raft_restore_metadata(r, term, vote);
 ```
@@ -329,7 +335,7 @@ raft_restore_metadata(r, term, vote);
 If we put all steps together:
 
 ```c
-void app_restore_libraft()
+void app_restore_raft_library()
 {
     // Raft Library initialization
     raft_server_t *r = raft_new_with_log(..., ...);
@@ -358,14 +364,14 @@ Sending a snapshot and loading a snapshot as a follower
 
 #### Sending a snapshot
 
-Leader node can send snapshot to the follower node if the follower is lagging behind. When that happends, libraft will call `raft_get_snapshot_chunk_f` callback and require a chunk from snapshot from the application. An example implementation would be:
+Leader node can send snapshot to the follower node if the follower is lagging behind. When that happens, Raft library will call `raft_get_snapshot_chunk_f` callback and require a chunk from snapshot from the application. An example implementation would be:
 
 ```c
 
 // Assuming you have a pointer to snapshot 
 // (e.g you can use mmap'ed file or if snapshot is small, you can have a copy of snapshot in memory)
 size_t snapshot_file_len;
-void *snapshot_file_in_memory;
+void *ptr_to_snapshot_file;
 
 int app_get_snapshot_chunk_impl(raft_server_t* raft,
                                 void *user_data, 
@@ -379,8 +385,8 @@ int app_get_snapshot_chunk_impl(raft_server_t* raft,
         return RAFT_ERR_DONE;
     }
 
-    chunk->data = (char *) snapshot_file_in_memory + offset;
-    chunk->last_chunk = (offset + chunk->len == rr->outgoing_snapshot_file.len);
+    chunk->data = (char *) ptr_to_snapshot_file + offset;
+    chunk->last_chunk = (offset + chunk->len == snapshot_file_len);
 
     return 0;
 }
@@ -388,11 +394,11 @@ int app_get_snapshot_chunk_impl(raft_server_t* raft,
 
 #### Receiving a snapshot
 
-Leader node can send snapshot to the follower node. Libraft will call required callbacks when that happens:
+Leader node can send snapshot to the follower node. Raft library will call required callbacks when that happens:
 
 ```c
 // To clear the temporary snapshot file on the disk. Remember leader can move onto
-// a newer snapshot and start sending it. In that case, libraft will instruct
+// a newer snapshot and start sending it. In that case, Raft library will instruct
 // application delete partial file of the previous snapshot.
 int raft_clear_snapshot_f(raft_server_t *raft, void *user_data); 
 
@@ -440,13 +446,13 @@ int app_raft_store_snapshot_impl(raft_server_t *r,
 
 #### Loading the received snapshot file
 
-When snapshot is received fully, libraft will call `raft_load_snapshot_f` callback.
+When snapshot is received fully, Raft library will call `raft_load_snapshot_f` callback.
 
 These are the steps when you want to load the received snapshot. Inside the callback:
 
 - Call `raft_begin_load_snapshot()`
 - Read snapshot into your application
-- Configure libraft from the application.
+- Configure Raft library from the application.
 - Call `raft_end_load_snapshot()`
 
 An example implementation would be:
@@ -471,7 +477,7 @@ int app_raft_load_snapshot(raft_server_t *r,
         return ret;
     }
     
-    // Configure libraft from the configuration in the snapshot
+    // Configure the Raft library from the configuration in the snapshot
     // See the example implementation above for more details about this function
     app_configure_from_snapshot();
     raft_end_load_snapshot(rr->raft);
@@ -499,7 +505,7 @@ Single node cluster adds a new node directly. Majority in the cluster becomes tw
 Add a node in two steps:
 
 - Submit an entry with the type `RAFT_LOGTYPE_ADD_NONVOTING_NODE`.
-- Libraft will call `raft_node_has_sufficient_logs_f` callback once the new node obtained enough log entries and caught up with the leader.
+- The Raft Library will call `raft_node_has_sufficient_logs_f` callback once the new node obtained enough log entries and caught up with the leader.
 - Inside that callback, you can submit an entry with the type `RAFT_LOGTYPE_ADD_NODE`.
 - Once that entry is applied, configuration change is completed.
 
