@@ -166,6 +166,12 @@ void raft_node_free(raft_node_t *node);
 
 void raft_node_set_match_idx(raft_node_t *node, raft_index_t idx);
 
+raft_index_t raft_node_get_match_idx(raft_node_t *node);
+
+void raft_node_set_next_idx(raft_node_t *node, raft_index_t idx);
+
+raft_index_t raft_node_get_next_idx(raft_node_t *node);
+
 void raft_node_clear_flags(raft_node_t *node);
 
 void raft_node_vote_for_me(raft_node_t *node, int vote);

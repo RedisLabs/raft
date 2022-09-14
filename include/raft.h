@@ -1137,27 +1137,12 @@ raft_index_t raft_get_last_applied_idx(raft_server_t *me);
 raft_term_t raft_get_last_applied_term(raft_server_t *me);
 
 /**
- * @return the node's next index */
-raft_index_t raft_node_get_next_idx(raft_node_t *node);
-
-/**
- * @return this node's user data */
-raft_index_t raft_node_get_match_idx(raft_node_t *node);
-
-/**
  * @return this node's user data */
 void* raft_node_get_udata(raft_node_t *node);
 
 /**
  * Set this node's user data */
 void raft_node_set_udata(raft_node_t *node, void *user_data);
-
-/**
- * After sending the snapshot, user can set the next index for the node
- *
- * @param[in] node node
- * @param[in] idx next entry index */
-void raft_node_set_next_idx(raft_node_t *node, raft_index_t idx);
 
 /**
  * @param[in] idx The entry's index
