@@ -246,8 +246,6 @@ int raft_periodic_internal(raft_server_t *me, raft_time_t milliseconds);
 
 int raft_exec_operations(raft_server_t *me);
 
-raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me);
-
 /** Become follower. This may be used to give up leadership. It does not change
  * currentTerm. */
 void raft_become_follower(raft_server_t *me);
