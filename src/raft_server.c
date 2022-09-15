@@ -1437,7 +1437,7 @@ int raft_recv_snapshot(raft_server_t *me,
     raft_accept_leader(me, req->leader_id);
     raft_reset_transfer_leader(me, 0);
 
-    /** If we already have the snapshot or entries in this snapshot,
+    /** If we already have the snapshot or the log entries in this snapshot,
      * inform the leader. */
     if (req->snapshot_index <= raft_get_current_idx(me)) {
         /** Set response as if it is the last chunk to tell leader that we have
