@@ -11,6 +11,7 @@
 #define RAFT_H_
 
 #include <stddef.h>
+#include <stdbool.h>
 
 #include "raft_types.h"
 
@@ -957,7 +958,7 @@ void raft_set_callbacks(raft_server_t* me, raft_cbs_t* funcs, void* user_data);
  * @param[in] is_self Set to 1 if this "node" is this server
  * @return
  *  node if it was successfully added;
- *  NULL if the node already exists */
+ *  NULL if a voting node already exists */
 raft_node_t* raft_add_node(raft_server_t* me, void* user_data, raft_node_id_t id, int is_self);
 
 /** Add a node which does not participate in voting.
@@ -1333,7 +1334,7 @@ raft_term_t raft_get_snapshot_last_term(raft_server_t *me);
 /** Turn a node into a voting node.
  * Voting nodes can take part in elections and in-regards to committing entries,
  * are counted in majorities. */
-void raft_node_set_voting(raft_node_t *node, int voting);
+void raft_node_set_voting(raft_node_t *node, bool voting);
 
 /** Tell if a node is a voting node or not.
  * @return 1 if this is a voting node. Otherwise 0. */
