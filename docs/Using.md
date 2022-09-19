@@ -383,8 +383,15 @@ int app_get_snapshot_chunk_impl(raft_server_t* raft,
                                 raft_size_t offset, 
                                 raft_snapshot_chunk_t *chunk)
 {
+    // If you want to limit snapshot_req messages count in flight, you can 
+    // return RAFT_ERR_DONE here immediately. (backpressure). 
+    // e.g if (nodeimpl->msg_in_flight > 32) { return RAFT_ERR_DONE; }
+    
+    const int max_chunk_size = 32000;
+    
     const raft_size_t remaining_bytes = snapshot_file_len - offset;
-    if (remaining_bytes == 0) {
+    chunk->len = MIN(max_chunk_size, remaining_bytes);
+    if (chunk->len == 0) {
         /* All chunks are sent */
         return RAFT_ERR_DONE;
     }
