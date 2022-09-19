@@ -1166,6 +1166,10 @@ raft_node_t *raft_get_node(raft_server_t *me, raft_node_id_t id);
  * @return node pointed to by node idx */
 raft_node_t *raft_get_node_from_idx(raft_server_t *me, raft_index_t idx);
 
+/**
+ * @return node ID of who I voted for */
+raft_node_id_t raft_get_voted_for(raft_server_t *me);
+
 /** Get what this node thinks the node ID of the leader is.
  * @return node of what this node thinks is the valid leader;
  *   RAFT_NODE_ID_NONE if there is no leader */
@@ -1325,6 +1329,36 @@ raft_index_t raft_get_snapshot_last_idx(raft_server_t *me);
 
 /** Return last applied entry term that snapshot includes. */
 raft_term_t raft_get_snapshot_last_term(raft_server_t *me);
+
+/** Turn a node into a voting node.
+ * Voting nodes can take part in elections and in-regards to committing entries,
+ * are counted in majorities. */
+void raft_node_set_voting(raft_node_t *node, int voting);
+
+/** Tell if a node is a voting node or not.
+ * @return 1 if this is a voting node. Otherwise 0. */
+int raft_node_is_voting(raft_node_t *node);
+
+/** Check if a node is active.
+ * Active nodes could become voting nodes.
+ * This should be used for creating the membership snapshot.
+ **/
+int raft_node_is_active(raft_node_t *node);
+
+/** Make the node active.
+ * @param[in] active Set a node as active if this is 1
+ **/
+void raft_node_set_active(raft_node_t *node, int active);
+
+/** Confirm that a node's voting status is final
+ * @param[in] node The node
+ * @param[in] voting Whether this node's voting status is committed or not */
+void raft_node_set_voting_committed(raft_node_t *node, int voting);
+
+/** Confirm that a node's voting status is final
+ * @param[in] node The node
+ * @param[in] committed Whether this node's membership is committed or not */
+void raft_node_set_addition_committed(raft_node_t *node, int committed);
 
 /** Check if a node's voting status has been committed.
  * This should be used for creating the membership snapshot.
