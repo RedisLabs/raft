@@ -497,7 +497,6 @@ typedef int (
 
 /** Callback for determining which node this configuration log entry
  * affects. This call only applies to configuration change log entries.
- * @return the node ID of the node
  *
  * @param[in] raft The Raft server making this callback
  * @param[in] user_data User data that is passed from Raft server
@@ -817,7 +816,8 @@ typedef struct raft_log_impl
     /** Remove entries from the start of the log, as necessary when compacting
      * the log and deleting the oldest entries.
      *
-     * The log implementation must call raft_entry_release() on any removed in-memory entries
+     * The log implementation must call raft_entry_release() on any removed
+     * in-memory entries.
      *
      * @param[in] first_idx Index of first entry to be left in log.
      * @return
@@ -829,7 +829,8 @@ typedef struct raft_log_impl
     /** Remove entries from the end of the log, as necessary when rolling back
      * append operations that have not been committed.
      *
-     * The log implementation must call raft_entry_release() on any removed in-memory entries
+     * The log implementation must call raft_entry_release() on any removed
+     * in-memory entries
      *
      * @param[in] from_idx Index of first entry to be removed.  All entries
      *  starting from and including this index shall be removed.
@@ -926,7 +927,12 @@ void raft_clear(raft_server_t* me);
  *
  * On a restart, the application should set term and vote after reading metadata
  * file from the disk. See `raft_persist_metadata_f`.
- **/
+ *
+ * @param[in] raft The Raft server
+ * @param[in] term term in the metadata file
+ * @param[in] vote vote in the metadata file
+ * @return 0 on success
+ */
 int raft_restore_metadata(raft_server_t *me,
                           raft_term_t term,
                           raft_node_id_t vote);
@@ -940,10 +946,6 @@ void raft_set_callbacks(raft_server_t* me, raft_cbs_t* funcs, void* user_data);
 /** Add node.
  *
  * If a voting node already exists the call will fail.
- *
- * @note The order this call is made is important.
- *  This call MUST be made in the same order as the other raft nodes.
- *  This is because the node ID is assigned depending on when this call is made
  *
  * @param[in] user_data The user data for the node.
  *  This is obtained using raft_node_get_udata.
@@ -1318,8 +1320,10 @@ int raft_begin_load_snapshot(raft_server_t *me,
  **/
 int raft_end_load_snapshot(raft_server_t *me);
 
+/** Return last applied entry index that snapshot includes. */
 raft_index_t raft_get_snapshot_last_idx(raft_server_t *me);
 
+/** Return last applied entry term that snapshot includes. */
 raft_term_t raft_get_snapshot_last_term(raft_server_t *me);
 
 /** Check if a node's voting status has been committed.
@@ -1374,6 +1378,7 @@ void raft_entry_release(raft_entry_t *ety);
  *
  * @note The array itself is not freed.
  */
+
 void raft_entry_release_list(raft_entry_t **ety_list, size_t len);
 
 /** Log Implementation callbacks structure for the default in-memory
@@ -1381,6 +1386,14 @@ void raft_entry_release_list(raft_entry_t **ety_list, size_t len);
  */
 extern const raft_log_impl_t raft_log_internal_impl;
 
+/** Enqueue a readonly request
+ *
+ * @param[in] me The Raft server
+ * @param[in] cb Function to be called when it is safe to execute the request
+ * @param[in] cb_arg User argument to the callback
+ * @return 0 on success
+ *         RAFT_ERR_NOT_LEADER server is not the leader
+ */
 int raft_recv_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg);
 
 /** Invoke a leadership transfer to targeted node
@@ -1389,17 +1402,39 @@ int raft_recv_read_request(raft_server_t* me, raft_read_request_callback_f cb, v
  *                    selection. Node with the most entries will be selected.
  * @param[in] timeout timeout in ms before this transfer is aborted.
  *                    if 0, use default election timeout
- * @return  an error if leadership transfer is already in progress or
- *          the targeted node_id is unknown
+ * @return 0 on success
+ *         RAFT_ERR_NOT_LEADER server is not the leader.
+ *         RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS if leadership transfer is
+ *                                              already in progress.
+ *         RAFT_ERR_INVALID_NODEID target node ID is unknown.
  */
 int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout);
 
-/* get the targeted node_id if a leadership transfer is in progress, or RAFT_NODE_ID_NONE if not */
+/** Return leader transfer target node id
+ *
+ * @param[in] me The Raft server
+ * @return target node id if leadership transfer is in progress, or
+ *         RAFT_NODE_ID_NONE otherwise
+ */
 raft_node_id_t raft_get_transfer_leader(raft_server_t *me);
 
-/* cause this server to force an election. */
+/** Force this server to start an election
+ *
+ * As the last step of leader transfer, current leader calls
+ * `raft_send_timeoutnow_f` to send a message to the target node. Target node
+ * should start an election by calling this function when it receives timeoutnow
+ * message.
+ *
+ * @param[in] me The Raft server
+ * @return 0 on success, non-zero otherwise
+ */
 int raft_timeout_now(raft_server_t* me);
 
+/** Return number of entries that can be compacted
+ *
+ * @param[in] me The Raft server
+ * @return number of entries that can be compacted
+ */
 raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me);
 
 /**
@@ -1470,7 +1505,7 @@ int raft_flush(raft_server_t* me, raft_index_t sync_index);
  * synchronous. sync() callback is called when an appendentries message
  * received. So, this function does not makes sense if the node is a follower.
  *
- * @param[in] raft The Raft server
+ * @param[in] me The Raft server
  * @return entry index need to be written to the disk.
  *         '0' if there is no new entry to write to the disk
  */
@@ -1506,10 +1541,10 @@ raft_index_t raft_get_index_to_sync(raft_server_t *me);
  *      int election_timeout;
  *      raft_config(raft, 0, RAFT_CONFIG_ELECTION_TIMEOUT, &election_timeout);
  *
- * @param set     1 to set the value, 0 to get the current value.
- * @param config  Config enum.
- * @param ...     Value to set or destination variable to get the config.
- * @return        0 on success, RAFT_ERR_NOTFOUND if config is missing.
+ * @param[in] set 1 to set the value, 0 to get the current value.
+ * @param[in] config Config enum.
+ * @param[in] ... Value to set or destination variable to get the config.
+ * @return 0 on success, RAFT_ERR_NOTFOUND if config is missing.
  */
 int raft_config(raft_server_t *me, int set, raft_config_e config, ...);
 
@@ -1522,8 +1557,8 @@ int raft_config(raft_server_t *me, int set, raft_config_e config, ...);
  *  messages and execute long running batch of operations without affecting
  *  cluster availability.
  *
- *  @param[in] raft The Raft server
- *  @return         0 if there is no pending operations, non-zero otherwise.
+ *  @param[in] me The Raft server
+ *  @return 0 if there is no pending operations, non-zero otherwise.
  */
 int raft_pending_operations(raft_server_t *me);
 
@@ -1532,6 +1567,10 @@ int raft_pending_operations(raft_server_t *me);
  * This function should only be called after a restart. After application loads
  * the snapshot and log entries, this function should be called to rebuild
  * cluster configuration from the logs.
+ *
+ *  @param[in] raft The Raft server
+ *  @return 0 on success
+ *          RAFT_ERR_MISUSE if a misuse detected.
  */
 int raft_restore_log(raft_server_t *me);
 
