@@ -128,7 +128,7 @@ raft_periodic(r);
 Cluster Initialization
 ------------------
 
-You need to follow these steps when you want to initialize a cluster. (Preparing to use it for the first time)
+You need to follow these steps when you want to initialize a cluster. (Preparing the cluster for the first time use)
 - You need to start a single node first. This node will be the first node in the cluster. Other nodes can join this node later.
 - Initialize the node, set term 1, and make the node leader.
 - Submit the configuration entry of the node.
@@ -146,7 +146,7 @@ raft_add_non_voting_node(r, NULL, 9999999, 1); // Add own node as non-voting
 raft_set_current_term(r, 1);
 raft_become_leader(r);
 
-struct config cfg = {
+struct app_config cfg = {
     .id = 9999999,
     .addr = ....,  // You should also put node address into the config entry
 };
@@ -197,7 +197,7 @@ int app_appylog_callback_impl(raft_server_t *r,
 
 #### Submit read-only requests
 
-If your operation is read-only, you can execute it without writing to the log or replicating it to other nodes. Still, the Raft library must communicate with other nodes to verify that it is still the leader. So, for read-only requests, there is another API to submit it. When it is safe to execute the request, Raft library will call the callback you provided:
+If your operation is read-only, you can execute it without writing to the log or without replicating it to the other nodes. Still, the Raft library must communicate with the other nodes to verify that local node is still the leader. For that reason, there is another API function to submit read-only requests. When it is safe to execute a request, Raft library will call the callback you provided:
 
 ```c
 void app_submit_readonly(raft_server_t *r, void *client_request) 
@@ -508,7 +508,7 @@ Adding and removing nodes
 You can add or remove a node by submitting configuration change entries. Once the entry is applied, you can submit another configuration change entry. Only one configuration change is allowed at a time.
 
 #### Adding a node
-Adding a node is a two-step operation. In the first step, you wait until the new node catches up with the leader. A node with a slow connection can never catch up with the leader. In this case, adding the node without waiting to obtain enough logs can cause unavailability.
+Adding a node is a two-step operation. In the first step, you wait until the new node catches up with the leader. A node with a slow connection may not catch up with the leader. In this case, adding the node without waiting to obtain enough logs would cause unavailability. To prevent that, adding a node is a two-step operation.
 
 e.g. 
 A single node cluster adds a new node directly. The majority in the cluster becomes two. To commit an entry, we need to replicate it to both nodes, but we cannot replicate a new entry until the new node gets all the existing entries. So, the cluster cannot commit an entry until the new node catches up.
