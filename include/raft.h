@@ -1360,6 +1360,11 @@ void raft_node_set_voting_committed(raft_node_t *node, int voting);
  * @param[in] committed Whether this node's membership is committed or not */
 void raft_node_set_addition_committed(raft_node_t *node, int committed);
 
+/** Set next entry index to deliver
+ * @param[in] node The node
+ * @param[in] idx Next entry index to deliver */
+void raft_node_set_next_idx(raft_node_t *node, raft_index_t idx);
+
 /** Check if a node's voting status has been committed.
  * This should be used for creating the membership snapshot.
  **/
