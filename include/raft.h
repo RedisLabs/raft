@@ -1566,8 +1566,8 @@ int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout
 /** Return leader transfer target node id
  *
  * @param[in] me The Raft server
- * @return target node id if leadership transfer is in progress
- *         RAFT_NODE_ID_NONE if leadership transfer is not in progress
+ * @return target node id if leadership transfer is in progress, or
+ *         RAFT_NODE_ID_NONE otherwise
  */
 raft_node_id_t raft_get_transfer_leader(raft_server_t *me);
 
