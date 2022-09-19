@@ -166,6 +166,12 @@ void raft_node_free(raft_node_t *node);
 
 void raft_node_set_match_idx(raft_node_t *node, raft_index_t idx);
 
+raft_index_t raft_node_get_match_idx(raft_node_t *node);
+
+void raft_node_set_next_idx(raft_node_t *node, raft_index_t idx);
+
+raft_index_t raft_node_get_next_idx(raft_node_t *node);
+
 void raft_node_clear_flags(raft_node_t *node);
 
 void raft_node_vote_for_me(raft_node_t *node, int vote);
@@ -173,6 +179,38 @@ void raft_node_vote_for_me(raft_node_t *node, int vote);
 int raft_node_has_vote_for_me(raft_node_t *node);
 
 void raft_node_set_has_sufficient_logs(raft_node_t *node, int sufficient_logs);
+
+void raft_node_set_voting_committed(raft_node_t *node, int voting);
+
+/** Check if a node is active.
+ * Active nodes could become voting nodes.
+ * This should be used for creating the membership snapshot.
+ **/
+int raft_node_is_active(raft_node_t *node);
+
+/** Make the node active.
+ *
+ * The user sets this to 1 between raft_begin_load_snapshot and
+ * raft_end_load_snapshot.
+ *
+ * @param[in] active Set a node as active if this is 1
+ **/
+void raft_node_set_active(raft_node_t *node, int active);
+
+/** Turn a node into a voting node.
+ * Voting nodes can take part in elections and in-regards to committing entries,
+ * are counted in majorities. */
+void raft_node_set_voting(raft_node_t *node, int voting);
+
+/** Tell if a node is a voting node or not.
+ * @return 1 if this is a voting node. Otherwise 0. */
+int raft_node_is_voting(raft_node_t *node);
+
+/** Check if a node has sufficient logs to be able to join the cluster.
+ **/
+int raft_node_has_sufficient_logs(raft_node_t *node);
+
+void raft_node_set_addition_committed(raft_node_t *node, int committed);
 
 int raft_is_single_node_voting_cluster(raft_server_t *me);
 
@@ -207,5 +245,71 @@ void raft_node_set_snapshot_offset(raft_node_t *node, raft_size_t offset);
 int raft_periodic_internal(raft_server_t *me, raft_time_t milliseconds);
 
 int raft_exec_operations(raft_server_t *me);
+
+/** Become follower. This may be used to give up leadership. It does not change
+ * currentTerm. */
+void raft_become_follower(raft_server_t *me);
+
+/** Determine if entry is voting configuration change.
+ * @param[in] ety The entry to query.
+ * @return 1 if this is a voting configuration change. */
+int raft_entry_is_voting_cfg_change(raft_entry_t* ety);
+
+/** Determine if entry is configuration change.
+ * @param[in] ety The entry to query.
+ * @return 1 if this is a configuration change. */
+int raft_entry_is_cfg_change(raft_entry_t* ety);
+
+/** Apply all entries up to the commit index
+ * @return
+ *  0 on success;
+ *  RAFT_ERR_SHUTDOWN when server MUST shutdown */
+int raft_apply_all(raft_server_t* me);
+
+/** Set the commit idx.
+ * This should be used to reload persistent state, ie. the commit_idx field.
+ * @param[in] commit_idx The new commit index. */
+void raft_set_commit_idx(raft_server_t *me, raft_index_t commit_idx);
+
+/** Vote for a server.
+ * This should be used to reload persistent state, ie. the voted-for field.
+ * @param[in] node The server to vote for
+ * @return
+ *  0 on success */
+int raft_vote(raft_server_t* me, raft_node_t* node);
+
+/** Vote for a server.
+ * This should be used to reload persistent state, ie. the voted-for field.
+ * @param[in] nodeid The server to vote for by nodeid
+ * @return
+ *  0 on success */
+int raft_vote_for_nodeid(raft_server_t* me, raft_node_id_t nodeid);
+
+
+/**
+ * @return number of votes this server has received this election */
+int raft_get_nvotes_for_me(raft_server_t* me);
+
+/**
+ * @return node ID of who I voted for */
+raft_node_id_t raft_get_voted_for(raft_server_t *me);
+
+/**
+ * @return currently elapsed timeout in milliseconds */
+raft_time_t raft_get_timeout_elapsed(raft_server_t *me);
+
+/** Add an entry to the server's log.
+ * This should be used to reload persistent state, ie. the commit log.
+ * @param[in] ety The entry to be appended
+ * @return
+ *  0 on success;
+ *  RAFT_ERR_SHUTDOWN server should shutdown
+ *  RAFT_ERR_NOMEM memory allocation failure */
+int raft_append_entry(raft_server_t* me, raft_entry_t* ety);
+
+/** Check if a voting change is in progress
+ * @param[in] raft The Raft server
+ * @return 1 if a voting change is in progress */
+int raft_voting_change_is_in_progress(raft_server_t *me);
 
 #endif /* RAFT_PRIVATE_H_ */
