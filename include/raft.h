@@ -1548,6 +1548,7 @@ void raft_handle_append_cfg_change(raft_server_t* me, raft_entry_t* ety, raft_in
  * @param[in] cb Function to be called when it is safe to execute the request
  * @param[in] cb_arg User argument to the callback
  * @return 0 on success
+ *         RAFT_ERR_NOT_LEADER server is not the leader
  */
 int raft_recv_read_request(raft_server_t* me, raft_read_request_callback_f cb, void *cb_arg);
 
@@ -1558,8 +1559,10 @@ int raft_recv_read_request(raft_server_t* me, raft_read_request_callback_f cb, v
  * @param[in] timeout timeout in ms before this transfer is aborted.
  *                    if 0, use default election timeout
  * @return 0 on success
- *         Error if leadership transfer is already in progress or the targeted
- *         node_id is unknown
+ *         RAFT_ERR_NOT_LEADER server is not the leader.
+ *         RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS if leadership transfer is
+ *                                              already in progress.
+ *         RAFT_ERR_INVALID_NODEID target node ID is unknown.
  */
 int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout);
 
@@ -1723,6 +1726,7 @@ int raft_pending_operations(raft_server_t *me);
  *
  *  @param[in] raft The Raft server
  *  @return 0 on success
+ *          RAFT_ERR_MISUSE if a misuse detected.
  */
 int raft_restore_log(raft_server_t *me);
 
