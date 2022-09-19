@@ -1710,7 +1710,7 @@ int raft_config(raft_server_t *me, int set, raft_config_e config, ...);
  *  messages and execute long running batch of operations without affecting
  *  cluster availability.
  *
- *  @param[in] raft The Raft server
+ *  @param[in] me The Raft server
  *  @return 0 if there is no pending operations, non-zero otherwise.
  */
 int raft_pending_operations(raft_server_t *me);
