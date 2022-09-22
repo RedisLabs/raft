@@ -317,7 +317,7 @@ void app_restore_snapshot(raft_server_t *r,
                           raft_term_t last_applied_term
                           raft_index_t last_applied_index)
 {
-    app_configure_from_snapshot();
+    app_configure_from_snapshot(r, head);
     raft_restore_snapshot(r, last_applied_term, last_applied_index);
 }
 
