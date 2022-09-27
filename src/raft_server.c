@@ -1061,7 +1061,7 @@ done:
     resp->term = me->current_term;
 
     raft_log(me, "%d --> %d, sent requestvote_resp "
-             "pv:%d, t:%ld, rt:%ld, vg:%d",
+             "pv:%d, rt:%ld, t:%ld, vg:%d",
              raft_get_nodeid(me), raft_node_get_id(node), resp->prevote,
              resp->request_term, resp->term, resp->vote_granted);
 
@@ -1081,7 +1081,7 @@ int raft_recv_requestvote_response(raft_server_t *me,
                                    raft_requestvote_resp_t *resp)
 {
     raft_log(me, "%d <-- %d, recv requestvote_resp "
-             "pv:%d, t:%ld, rt:%ld, vg:%d",
+             "pv:%d, rt:%ld, t:%ld, vg:%d",
              raft_get_nodeid(me), raft_node_get_id(node),
              resp->prevote, resp->request_term, resp->term, resp->vote_granted);
 
