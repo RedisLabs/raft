@@ -11,7 +11,6 @@
 #define RAFT_H_
 
 #include <stddef.h>
-#include <stdbool.h>
 
 #include "raft_types.h"
 
@@ -1334,7 +1333,7 @@ raft_term_t raft_get_snapshot_last_term(raft_server_t *me);
 /** Turn a node into a voting node.
  * Voting nodes can take part in elections and in-regards to committing entries,
  * are counted in majorities. */
-void raft_node_set_voting(raft_node_t *node, bool voting);
+void raft_node_set_voting(raft_node_t *node, int voting);
 
 /** Tell if a node is a voting node or not.
  * @return 1 if this is a voting node. Otherwise 0. */

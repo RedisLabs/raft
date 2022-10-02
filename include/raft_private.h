@@ -10,7 +10,6 @@
 #ifndef RAFT_PRIVATE_H_
 #define RAFT_PRIVATE_H_
 
-#include <stdbool.h>
 #include "raft_types.h"
 
 struct raft_log_impl;
@@ -161,7 +160,7 @@ void raft_set_last_applied_idx(raft_server_t *me, raft_index_t idx);
 
 void raft_set_state(raft_server_t *me, int state);
 
-raft_node_t *raft_node_new(void *udata, raft_node_id_t id, bool voting);
+raft_node_t *raft_node_new(void *udata, raft_node_id_t id, int voting);
 
 void raft_node_free(raft_node_t *node);
 
@@ -173,7 +172,7 @@ raft_index_t raft_node_get_next_idx(raft_node_t *node);
 
 void raft_node_clear_flags(raft_node_t *node);
 
-void raft_node_set_vote_for_me(raft_node_t *node, int vote);
+void raft_node_set_voted_for_me(raft_node_t *node, int vote);
 
 int raft_node_has_vote_for_me(raft_node_t *node);
 

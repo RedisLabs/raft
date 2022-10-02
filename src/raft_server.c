@@ -15,7 +15,6 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <limits.h>
-#include <stdbool.h>
 
 #include "raft.h"
 #include "raft_private.h"
@@ -176,7 +175,7 @@ void raft_clear(raft_server_t* me)
     me->log_impl->reset(me->log, 1, 1);
 }
 
-raft_node_t* raft_add_node_internal(raft_server_t *me, raft_entry_t *ety, void *udata, raft_node_id_t id, int is_self, bool voting)
+raft_node_t* raft_add_node_internal(raft_server_t *me, raft_entry_t *ety, void *udata, raft_node_id_t id, int is_self, int voting)
 {
     if (id == RAFT_NODE_ID_NONE)
         return NULL;
@@ -185,7 +184,7 @@ raft_node_t* raft_add_node_internal(raft_server_t *me, raft_entry_t *ety, void *
     raft_node_t* node = raft_get_node(me, id);
     if (node)
     {
-        // node can be promoted only from a non voting state into a voting one
+        /* node can be promoted only from a non voting state into a voting one */
         if (!raft_node_is_voting(node) && voting)
         {
             raft_node_set_voting(node, 1);
@@ -219,19 +218,14 @@ raft_node_t* raft_add_node_internal(raft_server_t *me, raft_entry_t *ety, void *
     return node;
 }
 
-static raft_node_t* raft_add_non_voting_node_internal(raft_server_t *server, raft_entry_t *ety, void* udata, raft_node_id_t id, int is_self)
-{
-    return raft_add_node_internal(server, ety, udata, id, is_self, false);
-}
-
 raft_node_t* raft_add_node(raft_server_t* me, void* udata, raft_node_id_t id, int is_self)
 {
-    return raft_add_node_internal(me, NULL, udata, id, is_self, true);
+    return raft_add_node_internal(me, NULL, udata, id, is_self, 1);
 }
 
 raft_node_t* raft_add_non_voting_node(raft_server_t* me, void* udata, raft_node_id_t id, int is_self)
 {
-    return raft_add_non_voting_node_internal(me, NULL, udata, id, is_self);
+    return raft_add_node_internal(me, NULL, udata, id, is_self, 0);
 }
 
 void raft_remove_node(raft_server_t* me, raft_node_t* node)
@@ -281,7 +275,7 @@ void raft_handle_append_cfg_change(raft_server_t* me, raft_entry_t* ety, raft_in
     switch (ety->type)
     {
         case RAFT_LOGTYPE_ADD_NODE:
-            node = raft_add_node_internal(me, ety, NULL, node_id, is_self, true);
+            node = raft_add_node_internal(me, ety, NULL, node_id, is_self, 1);
             assert(node);
             assert(raft_node_is_voting(node));
             break;
@@ -296,7 +290,7 @@ void raft_handle_append_cfg_change(raft_server_t* me, raft_entry_t* ety, raft_in
                 }
                 else if (!node)
                 {
-                    node = raft_add_non_voting_node_internal(me, ety, NULL, node_id, is_self);
+                    node = raft_add_node_internal(me, ety, NULL, node_id, is_self, 0);
                     assert(node);
                     assert(!raft_node_is_voting(node));
                 }
@@ -502,7 +496,7 @@ int raft_become_leader(raft_server_t *me)
 int raft_become_precandidate(raft_server_t *me)
 {
     for (int i = 0; i < me->num_nodes; i++) {
-        raft_node_set_vote_for_me(me->nodes[i], 0);
+        raft_node_set_voted_for_me(me->nodes[i], 0);
     }
 
     raft_set_state(me, RAFT_STATE_PRECANDIDATE);
@@ -532,7 +526,7 @@ int raft_become_candidate(raft_server_t *me)
     }
 
     for (int i = 0; i < me->num_nodes; i++) {
-        raft_node_set_vote_for_me(me->nodes[i], 0);
+        raft_node_set_voted_for_me(me->nodes[i], 0);
     }
 
     if (raft_node_is_voting(me->node)) {
@@ -1137,7 +1131,7 @@ int raft_recv_requestvote_response(raft_server_t *me,
 
     if (resp->vote_granted) {
         if (node) {
-            raft_node_set_vote_for_me(node, 1);
+            raft_node_set_voted_for_me(node, 1);
         }
 
         int votes = raft_get_nvotes_for_me(me);
