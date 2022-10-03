@@ -3488,6 +3488,7 @@ void TestRaft_leader_recv_appendentries_response_increment_idx_of_node(
 
     /* receive mock success responses */
     raft_appendentries_resp_t aer;
+    memset(&aer, 0, sizeof(raft_appendentries_resp_t));
     aer.term = 1;
     aer.success = 1;
     aer.current_idx = 0;
