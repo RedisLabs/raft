@@ -24,9 +24,8 @@ typedef enum {
     RAFT_ERR_INVALID_NODEID              = -8,
     RAFT_ERR_LEADER_TRANSFER_IN_PROGRESS = -9,
     RAFT_ERR_DONE                        = -10,
-    RAFT_ERR_STALE_TERM                  = -11,
-    RAFT_ERR_NOTFOUND                    = -12,
-    RAFT_ERR_MISUSE                      = -13,
+    RAFT_ERR_NOTFOUND                    = -11,
+    RAFT_ERR_MISUSE                      = -12,
 } raft_error_e;
 
 typedef enum {
