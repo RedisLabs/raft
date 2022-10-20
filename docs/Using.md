@@ -443,7 +443,7 @@ int app_raft_store_snapshot_impl(raft_server_t *r,
         return -1;
     }
 
-    off_t ret_offset = lseek(fd, offset, SEEK_CUR);
+    off_t ret_offset = lseek(fd, offset, SEEK_SET);
     if (ret_offset != (off_t) offset) {
         close(fd);
         return -1;
