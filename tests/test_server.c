@@ -1249,7 +1249,7 @@ void TestRaft_follower_recv_appendentries_increases_log(CuTest * tc)
     /* receive an appendentry with commit */
     memset(&ae, 0, sizeof(raft_appendentries_req_t));
     ae.term = 3;
-    ae.prev_log_term = 1;
+    ae.prev_log_term = 0;
     /* first appendentries msg */
     ae.prev_log_idx = 0;
     ae.leader_commit = 5;
@@ -1481,7 +1481,7 @@ void TestRaft_follower_recv_appendentries_add_new_entries_not_already_in_log(
     memset(&ae, 0, sizeof(raft_appendentries_req_t));
     ae.term = 1;
     ae.prev_log_idx = 0;
-    ae.prev_log_term = 1;
+    ae.prev_log_term = 0;
     /* include entries */
     ae.entries = __MAKE_ENTRY_ARRAY_SEQ_ID(2, 1, 1, "aaa");
     ae.n_entries = 2;
@@ -1511,7 +1511,7 @@ void TestRaft_follower_recv_appendentries_does_not_add_dupe_entries_already_in_l
     memset(&ae, 0, sizeof(raft_appendentries_req_t));
     ae.term = 1;
     ae.prev_log_idx = 0;
-    ae.prev_log_term = 1;
+    ae.prev_log_term = 0;
     /* include 1 entry */
     ae.entries = __MAKE_ENTRY_ARRAY(1, 0, "aaa");
     ae.n_entries = 1;
@@ -1662,7 +1662,7 @@ void TestRaft_follower_recv_appendentries_set_commitidx_to_prevLogIdx(
     memset(&ae, 0, sizeof(raft_appendentries_req_t));
     ae.term = 1;
     ae.prev_log_idx = 0;
-    ae.prev_log_term = 1;
+    ae.prev_log_term = 0;
     /* include entries */
     raft_entry_req_t e[4] = {
         { .id = 1, .term = 1 },
@@ -1710,7 +1710,7 @@ void TestRaft_follower_recv_appendentries_set_commitidx_to_LeaderCommit(
     memset(&ae, 0, sizeof(raft_appendentries_req_t));
     ae.term = 1;
     ae.prev_log_idx = 0;
-    ae.prev_log_term = 1;
+    ae.prev_log_term = 0;
     /* include entries */
     raft_entry_req_t e[4] = {
         { .id = 1, .term = 1 },
@@ -1867,7 +1867,7 @@ void TestRaft_follower_recv_appendentries_heartbeat_does_not_overwrite_logs(
     memset(&ae, 0, sizeof(raft_appendentries_req_t));
     ae.term = 1;
     ae.prev_log_idx = 0;
-    ae.prev_log_term = 1;
+    ae.prev_log_term = 0;
     /* include entries */
     ae.entries = __MAKE_ENTRY_ARRAY(1, 1, "aaa");
     ae.n_entries = 1;
@@ -1918,7 +1918,7 @@ void TestRaft_follower_recv_appendentries_does_not_deleted_commited_entries(
     memset(&ae, 0, sizeof(raft_appendentries_req_t));
     ae.term = 1;
     ae.prev_log_idx = 0;
-    ae.prev_log_term = 1;
+    ae.prev_log_term = 0;
     /* include entries */
     ae.entries = __MAKE_ENTRY_ARRAY(1, 1, "aaa");
     ae.n_entries = 1;

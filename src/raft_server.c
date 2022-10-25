@@ -841,7 +841,7 @@ int raft_recv_appendentries(raft_server_t *me,
                             raft_appendentries_req_t *req,
                             raft_appendentries_resp_t *resp)
 {
-    int e = 0;
+    int e;
 
     raft_log(me, "%d <-- %d, recv appendentries_req "
              "lead:%d, id:%ld, t:%ld, pli:%ld, plt:%ld, lc:%ld ent:%ld",
@@ -868,31 +868,25 @@ int raft_recv_appendentries(raft_server_t *me,
     raft_accept_leader(me, req->leader_id);
     raft_reset_transfer_leader(me, 0);
 
-    /* Not the first appendentries we've received */
-    /* NOTE: the log starts at 1 */
-    if (req->prev_log_idx > 0) {
-        raft_entry_t *ety = raft_get_entry_from_idx(me, req->prev_log_idx);
+    if (req->prev_log_idx == me->snapshot_last_idx) {
+        if (req->prev_log_term != me->snapshot_last_term) {
+            /* Should never happen; something is seriously wrong! */
+            raft_log(me, "AE prev_log_term:%ld and snapshot term:%ld conflict",
+                     req->prev_log_term, me->snapshot_last_term);
 
-        /* Is a snapshot */
-        if (req->prev_log_idx == me->snapshot_last_idx) {
-            if (me->snapshot_last_term != req->prev_log_term) {
-                /* Should never happen; something is seriously wrong! */
-                raft_log(me, "AE prev_log_term:%ld conflicts with snapshot term:%ld",
-                         req->prev_log_term, me->snapshot_last_term);
-
-                e = RAFT_ERR_SHUTDOWN;
-                if (ety) {
-                    raft_entry_release(ety);
-                }
-                goto out;
-            }
+            e = RAFT_ERR_SHUTDOWN;
+            goto out;
         }
+    } else {
         /* 2. Reply false if log doesn't contain an entry at prevLogIndex
            whose term matches prevLogTerm (§5.3) */
-        else if (!ety) {
+        raft_entry_t *ety = raft_get_entry_from_idx(me, req->prev_log_idx);
+        if (!ety) {
             raft_log(me, "AE no log at prev_log_idx:%ld", req->prev_log_idx);
             goto out;
-        } else if (ety->term != req->prev_log_term) {
+        }
+
+        if (ety->term != req->prev_log_term) {
             raft_log(me, "AE prev_log_term:%ld doesn't match entry term:%ld",
                      req->prev_log_term, ety->term);
 
@@ -905,15 +899,14 @@ int raft_recv_appendentries(raft_server_t *me,
                 raft_entry_release(ety);
                 goto out;
             }
+
             /* Delete all the following log entries because they don't match */
             e = raft_delete_entry_from_idx(me, req->prev_log_idx);
             raft_entry_release(ety);
             goto out;
         }
 
-        if (ety) {
-            raft_entry_release(ety);
-        }
+        raft_entry_release(ety);
     }
 
     resp->success = 1;
@@ -937,12 +930,14 @@ int raft_recv_appendentries(raft_server_t *me,
         raft_index_t ety_index = req->prev_log_idx + 1 + i;
 
         raft_entry_t *existing_ety = raft_get_entry_from_idx(me, ety_index);
-        raft_term_t existing_term = existing_ety ? existing_ety->term : 0;
-        if (existing_ety) {
-            raft_entry_release(existing_ety);
+        if (!existing_ety) {
+            break;
         }
 
-        if (existing_ety && existing_term != ety->term) {
+        raft_term_t existing_term = existing_ety->term;
+        raft_entry_release(existing_ety);
+
+        if (ety->term != existing_term) {
             if (ety_index <= me->commit_idx) {
                 /* Should never happen; something is seriously wrong! */
                 raft_log(me, "AE entry index:%ld is less than commit idx:%ld",
@@ -955,8 +950,6 @@ int raft_recv_appendentries(raft_server_t *me,
             if (e != 0) {
                 goto out;
             }
-            break;
-        } else if (!existing_ety) {
             break;
         }
         resp->current_idx = ety_index;
