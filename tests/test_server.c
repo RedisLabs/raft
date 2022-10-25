@@ -1136,6 +1136,38 @@ void TestRaft_follower_recv_appendentries_reply_false_if_term_less_than_currentt
     CuAssertTrue(tc, -1 == raft_get_leader_id(r));
 }
 
+void TestRaft_follower_recv_snapshot_reply_false_if_term_less_than_currentterm(
+        CuTest * tc)
+{
+    raft_cbs_t funcs = {
+            .persist_metadata = __raft_persist_metadata,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    /* No leader known at this point */
+    CuAssertTrue(tc, -1 == raft_get_leader_id(r));
+
+    raft_snapshot_req_t req = {
+            .term = 1
+    };
+
+    /*  higher current term */
+    raft_set_current_term(r, 5);
+
+    raft_snapshot_resp_t resp;
+    raft_recv_snapshot(r, raft_get_node(r, 2), &req, &resp);
+
+    CuAssertTrue(tc, resp.success == 0);
+
+    /* rejected snapshot req doesn't change the current leader. */
+    CuAssertTrue(tc, raft_get_leader_id(r) == RAFT_NODE_ID_NONE);
+}
+
 void TestRaft_follower_recv_appendentries_does_not_need_node(CuTest * tc)
 {
     raft_cbs_t funcs = {
@@ -2349,6 +2381,67 @@ void TestRaft_candidate_recv_appendentries_from_same_term_results_in_step_down(
      *  Node self votes for Other2
     */
     CuAssertIntEquals(tc, 1, raft_get_voted_for(r));
+}
+
+void TestRaft_candidate_recv_appendentries_from_higher_term_results_in_step_down(
+        CuTest *tc)
+{
+    raft_appendentries_resp_t append_resp;
+    void *r = raft_new();
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    raft_set_current_term(r, 2);
+
+    raft_appendentries_req_t append_req1 = {
+            .term = 3,
+            .leader_id = 2
+    };
+    raft_set_state(r, RAFT_STATE_CANDIDATE);
+    raft_recv_appendentries(r, raft_get_node(r, 2), &append_req1, &append_resp);
+    CuAssertIntEquals(tc, 1, raft_is_follower(r));
+    CuAssertIntEquals(tc, 3, raft_get_current_term(r));
+
+    raft_appendentries_req_t append_req2 = {
+            .term = 4,
+            .leader_id = 2
+    };
+    raft_set_state(r, RAFT_STATE_PRECANDIDATE);
+    raft_recv_appendentries(r, raft_get_node(r, 2), &append_req2, &append_resp);
+    CuAssertIntEquals(tc, 1, raft_is_follower(r));
+    CuAssertIntEquals(tc, 4, raft_get_current_term(r));
+}
+
+void TestRaft_candidate_recv_snapshot_from_higher_term_results_in_step_down(
+        CuTest *tc)
+{
+    raft_snapshot_resp_t snapshot_resp;
+    void *r = raft_new();
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    raft_set_current_term(r, 2);
+
+    /* Snapshot req with higher term results in step down */
+    raft_snapshot_req_t snapshot_req1 = {
+            .term = 5,
+            .leader_id = 2
+    };
+    raft_set_state(r, RAFT_STATE_CANDIDATE);
+    raft_recv_snapshot(r, raft_get_node(r, 2), &snapshot_req1, &snapshot_resp);
+    CuAssertIntEquals(tc, 1, raft_is_follower(r));
+    CuAssertIntEquals(tc, 5, raft_get_current_term(r));
+
+    raft_snapshot_req_t snapshot_req2 = {
+            .term = 6,
+            .leader_id = 2
+    };
+    raft_set_state(r, RAFT_STATE_PRECANDIDATE);
+    raft_recv_snapshot(r, raft_get_node(r, 2), &snapshot_req2, &snapshot_resp);
+    CuAssertIntEquals(tc, 1, raft_is_follower(r));
+    CuAssertIntEquals(tc, 6, raft_get_current_term(r));
 }
 
 void TestRaft_leader_becomes_leader_is_leader(CuTest * tc)
@@ -5119,6 +5212,7 @@ int main(void)
     SUITE_ADD_TEST(suite, TestRaft_follower_becomes_follower_is_follower);
     SUITE_ADD_TEST(suite, TestRaft_follower_becomes_follower_does_not_clear_voted_for);
     SUITE_ADD_TEST(suite, TestRaft_follower_recv_appendentries_reply_false_if_term_less_than_currentterm);
+    SUITE_ADD_TEST(suite, TestRaft_follower_recv_snapshot_reply_false_if_term_less_than_currentterm);
     SUITE_ADD_TEST(suite, TestRaft_follower_recv_appendentries_does_not_need_node);
     SUITE_ADD_TEST(suite, TestRaft_follower_recv_appendentries_updates_currentterm_if_term_gt_currentterm);
     SUITE_ADD_TEST(suite, TestRaft_follower_recv_appendentries_does_not_log_if_no_entries_are_specified);
@@ -5150,6 +5244,8 @@ int main(void)
     SUITE_ADD_TEST(suite, TestRaft_candidate_recv_requestvote_response_becomes_follower_if_current_term_is_less_than_term);
     SUITE_ADD_TEST(suite, TestRaft_candidate_recv_appendentries_frm_leader_results_in_follower);
     SUITE_ADD_TEST(suite, TestRaft_candidate_recv_appendentries_from_same_term_results_in_step_down);
+    SUITE_ADD_TEST(suite, TestRaft_candidate_recv_appendentries_from_higher_term_results_in_step_down);
+    SUITE_ADD_TEST(suite, TestRaft_candidate_recv_snapshot_from_higher_term_results_in_step_down);
     SUITE_ADD_TEST(suite, TestRaft_leader_becomes_leader_is_leader);
     SUITE_ADD_TEST(suite, TestRaft_leader_becomes_leader_does_not_clear_voted_for);
     SUITE_ADD_TEST(suite, TestRaft_leader_when_becomes_leader_all_nodes_have_nextidx_equal_to_lastlog_idx_plus_1);

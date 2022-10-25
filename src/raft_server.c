@@ -436,6 +436,8 @@ void raft_accept_leader(raft_server_t* me, raft_node_id_t leader)
 
     me->timeout_elapsed = 0;
     me->leader_id = leader;
+
+    raft_reset_transfer_leader(me, 0);
 }
 
 int raft_become_leader(raft_server_t *me)
@@ -812,30 +814,6 @@ int raft_recv_appendentries_response(raft_server_t *me,
     return 0;
 }
 
-static int raft_receive_term(raft_server_t* me, raft_term_t term)
-{
-    int e;
-
-    if (raft_is_candidate(me) && me->current_term == term)
-    {
-        raft_become_follower(me);
-    }
-    else if (me->current_term < term)
-    {
-        e = raft_set_current_term(me, term);
-        if (0 != e)
-            return e;
-
-        raft_become_follower(me);
-    }
-    else if (term < me->current_term)
-    {
-        return RAFT_ERR_STALE_TERM;
-    }
-
-    return 0;
-}
-
 int raft_recv_appendentries(raft_server_t *me,
                             raft_node_t *node,
                             raft_appendentries_req_t *req,
@@ -852,21 +830,22 @@ int raft_recv_appendentries(raft_server_t *me,
     resp->msg_id = req->msg_id;
     resp->success = 0;
 
-    e = raft_receive_term(me, req->term);
-    if (e != 0) {
-        if (e == RAFT_ERR_STALE_TERM) {
-            /* 1. Reply false if term < currentTerm (§5.1) */
-            raft_log(me, "AE term:%ld is less than current term:%ld",
-                     req->term, me->current_term);
-            e = 0;
-        }
-
+    if (req->term < me->current_term) {
+        /* 1. Reply false if term < currentTerm (§5.1) */
+        raft_log(me, "AE term:%ld is less than current term:%ld",
+                 req->term, me->current_term);
         goto out;
+    }
+
+    if (req->term > me->current_term) {
+        e = raft_set_current_term(me, req->term);
+        if (e != 0) {
+            goto out;
+        }
     }
 
     /* update current leader because ae->term is up to date */
     raft_accept_leader(me, req->leader_id);
-    raft_reset_transfer_leader(me, 0);
 
     if (req->prev_log_idx == me->snapshot_last_idx) {
         if (req->prev_log_term != me->snapshot_last_term) {
@@ -1400,7 +1379,7 @@ int raft_recv_snapshot(raft_server_t *me,
                        raft_snapshot_req_t *req,
                        raft_snapshot_resp_t *resp)
 {
-    int e;
+    int e = 0;
 
     raft_log(me, "%d <-- %d, recv snapshot_req "
              "t:%ld, lead:%d, id:%ld, si:%ld, st:%ld, o:%llu len:%llu lc:%d",
@@ -1414,19 +1393,20 @@ int raft_recv_snapshot(raft_server_t *me,
     resp->offset = 0;
     resp->success = 0;
 
-    e = raft_receive_term(me, req->term);
-    if (e != 0) {
-        if (e == RAFT_ERR_STALE_TERM) {
-            raft_log(me, "Snapshot req term:%ld is less than current term:%ld",
-                     req->term, me->current_term);
-            e = 0;
-        }
-
+    if (req->term < me->current_term) {
+        raft_log(me, "Snapshot req term:%ld is less than current term:%ld",
+                 req->term, me->current_term);
         goto out;
     }
 
+    if (req->term > me->current_term) {
+        e = raft_set_current_term(me, req->term);
+        if (e != 0) {
+            goto out;
+        }
+    }
+
     raft_accept_leader(me, req->leader_id);
-    raft_reset_transfer_leader(me, 0);
 
     /** If we already have the snapshot or the log entries in this snapshot,
      * inform the leader. */
