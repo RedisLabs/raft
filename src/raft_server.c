@@ -819,7 +819,7 @@ int raft_recv_appendentries(raft_server_t *me,
                             raft_appendentries_req_t *req,
                             raft_appendentries_resp_t *resp)
 {
-    int e;
+    int e = 0;
 
     raft_log(me, "%d <-- %d, recv appendentries_req "
              "lead:%d, id:%ld, t:%ld, pli:%ld, plt:%ld, lc:%ld ent:%ld",
