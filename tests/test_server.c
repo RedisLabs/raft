@@ -3429,51 +3429,6 @@ void TestRaft_leader_recv_entry_is_committed_returns_neg_1_if_invalidated(CuTest
     CuAssertTrue(tc, -1 == raft_msg_entry_response_committed(r, &cr));
 }
 
-void TestRaft_leader_recv_entry_fails_if_prevlogidx_less_than_commit(CuTest * tc)
-{
-    raft_cbs_t funcs = {
-        .persist_metadata = __raft_persist_metadata,
-        .send_appendentries = __raft_send_appendentries,
-    };
-
-    void *r = raft_new();
-    raft_set_callbacks(r, &funcs, NULL);
-
-    raft_add_node(r, NULL, 1, 1);
-    raft_add_node(r, NULL, 2, 0);
-
-    raft_set_state(r, RAFT_STATE_LEADER);
-    raft_set_current_term(r, 2);
-    raft_set_commit_idx(r, 0);
-
-    /* entry message */
-    raft_entry_req_t *mety = __MAKE_ENTRY(1, 1, "entry");
-
-    /* receive entry */
-    raft_entry_resp_t cr;
-    raft_recv_entry(r, mety, &cr);
-    CuAssertTrue(tc, 0 == raft_msg_entry_response_committed(r, &cr));
-    CuAssertTrue(tc, cr.term == 2);
-    CuAssertTrue(tc, cr.idx == 1);
-    CuAssertTrue(tc, 1 == raft_get_current_idx(r));
-    CuAssertTrue(tc, 0 == raft_get_commit_idx(r));
-
-    raft_set_commit_idx(r, 1);
-
-    /* append entry that invalidates entry message */
-    raft_appendentries_req_t ae;
-    memset(&ae, 0, sizeof(raft_appendentries_req_t));
-    ae.leader_commit = 1;
-    ae.term = 2;
-    ae.prev_log_idx = 1;
-    ae.prev_log_term = 1;
-    raft_appendentries_resp_t aer;
-    ae.entries = __MAKE_ENTRY_ARRAY(999, 2, "aaa");
-    ae.n_entries = 1;
-    raft_recv_appendentries(r, raft_get_node(r, 2), &ae, &aer);
-    CuAssertIntEquals(tc, 0, aer.success);
-}
-
 int backpressure(raft_server_t* raft, void* udata, raft_node_t* node)
 {
     return 1;
@@ -5271,7 +5226,6 @@ int main(void)
     SUITE_ADD_TEST(suite, TestRaft_leader_recv_entry_resets_election_timeout);
     SUITE_ADD_TEST(suite, TestRaft_leader_recv_entry_is_committed_returns_0_if_not_committed);
     SUITE_ADD_TEST(suite, TestRaft_leader_recv_entry_is_committed_returns_neg_1_if_invalidated);
-    SUITE_ADD_TEST(suite, TestRaft_leader_recv_entry_fails_if_prevlogidx_less_than_commit);
     SUITE_ADD_TEST(suite, TestRaft_leader_recv_entry_does_not_send_new_appendentries_to_slow_nodes);
     SUITE_ADD_TEST(suite, TestRaft_leader_recv_appendentries_response_failure_does_not_set_node_nextid_to_0);
     SUITE_ADD_TEST(suite, TestRaft_leader_recv_appendentries_response_increment_idx_of_node);

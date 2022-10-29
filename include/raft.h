@@ -681,8 +681,7 @@ typedef struct
     raft_clear_snapshot_f clear_snapshot;
 
     /** Callback for finite state machine application
-     * Return 0 on success.
-     * Return RAFT_ERR_SHUTDOWN if you want the server to shutdown. */
+     * Return 0 on success. */
     raft_logentry_event_f applylog;
 
     /** Callback for persisting term and vote data
@@ -794,7 +793,6 @@ typedef struct raft_log_impl
      * @param[in] entry Entry to append.
      * @return
      *  0 on success;
-     *  RAFT_ERR_SHUTDOWN server should shutdown;
      *  RAFT_ERR_NOMEM memory allocation failure.
      *
      * @note
@@ -973,9 +971,8 @@ void raft_remove_node(raft_server_t* me, raft_node_t* node);
 
 /** Process events that are dependent on time passing.
  * @return
- *  0 on success;
- *  -1 on failure;
- *  RAFT_ERR_SHUTDOWN when server MUST shutdown */
+ *  0 on success
+ *  -1 on failure */
 int raft_periodic(raft_server_t *me);
 
 /** Receive an appendentries message.
@@ -1043,8 +1040,7 @@ int raft_recv_requestvote(raft_server_t *me,
  * @param[in] node The node this response was sent by
  * @param[in] resp The requestvote response message
  * @return
- *  0 on success;
- *  RAFT_ERR_SHUTDOWN server MUST shutdown; */
+ *  0 on success */
 int raft_recv_requestvote_response(raft_server_t *me,
                                    raft_node_t *node,
                                    raft_requestvote_resp_t *resp);
@@ -1069,7 +1065,6 @@ int raft_recv_requestvote_response(raft_server_t *me,
  * @return
  *  0 on success;
  *  RAFT_ERR_NOT_LEADER server is not the leader;
- *  RAFT_ERR_SHUTDOWN server MUST shutdown;
  *  RAFT_ERR_ONE_VOTING_CHANGE_ONLY there is a non-voting change inflight;
  *  RAFT_ERR_NOMEM memory allocation failure
  */
@@ -1530,7 +1525,6 @@ raft_index_t raft_get_num_snapshottable_logs(raft_server_t* me);
  *                       updating persisted index.
  * @return
  *   0 on success
- *   RAFT_ERR_SHUTDOWN when server MUST shutdown
  */
 int raft_flush(raft_server_t* me, raft_index_t sync_index);
 

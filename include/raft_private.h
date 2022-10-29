@@ -234,8 +234,7 @@ int raft_entry_is_cfg_change(raft_entry_t* ety);
 
 /** Apply all entries up to the commit index
  * @return
- *  0 on success;
- *  RAFT_ERR_SHUTDOWN when server MUST shutdown */
+ *  0 on success */
 int raft_apply_all(raft_server_t* me);
 
 /** Set the commit idx.
@@ -271,7 +270,6 @@ raft_time_t raft_get_timeout_elapsed(raft_server_t *me);
  * @param[in] ety The entry to be appended
  * @return
  *  0 on success;
- *  RAFT_ERR_SHUTDOWN server should shutdown
  *  RAFT_ERR_NOMEM memory allocation failure */
 int raft_append_entry(raft_server_t* me, raft_entry_t* ety);
 

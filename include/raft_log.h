@@ -8,8 +8,7 @@
 typedef struct {
     /** Callback for adding an entry to the log
      * For safety reasons this callback MUST flush the change to disk.
-     * Return 0 on success.
-     * Return RAFT_ERR_SHUTDOWN if you want the server to shutdown. */
+     * Return 0 on success. */
 
     raft_logentry_event_f log_offer;
 
