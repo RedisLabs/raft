@@ -95,7 +95,7 @@ typedef struct raft_entry
     raft_entry_id_t id;
 
     /** type of entry */
-    short type;
+    int type;
 
     /** number of references */
     unsigned short refs;
