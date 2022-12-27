@@ -155,6 +155,9 @@ void raft_set_callbacks(raft_server_t* me, raft_cbs_t* funcs, void* udata)
 void raft_destroy(raft_server_t* me)
 {
     me->log_impl->free(me->log);
+    if (me->nodes) {
+        raft_free(me->nodes);
+    }
     raft_free(me);
 }
 
