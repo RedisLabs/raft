@@ -155,6 +155,9 @@ void raft_set_callbacks(raft_server_t* me, raft_cbs_t* funcs, void* udata)
 void raft_destroy(raft_server_t* me)
 {
     me->log_impl->free(me->log);
+    if (me->nodes) {
+        raft_free(me->nodes);
+    }
     raft_free(me);
 }
 
@@ -294,7 +297,7 @@ void raft_handle_append_cfg_change(raft_server_t* me, raft_entry_t* ety, raft_in
                     assert(node);
                     assert(!raft_node_is_voting(node));
                 }
-             }
+            }
             break;
 
         case RAFT_LOGTYPE_REMOVE_NODE:
@@ -2108,8 +2111,8 @@ void raft_reset_transfer_leader(raft_server_t* me, int timed_out)
         result = RAFT_LEADER_TRANSFER_TIMEOUT;
     } else {
         result = (me->node_transferring_leader_to == me->leader_id) ?
-                    RAFT_LEADER_TRANSFER_EXPECTED_LEADER :
-                    RAFT_LEADER_TRANSFER_UNEXPECTED_LEADER;
+                 RAFT_LEADER_TRANSFER_EXPECTED_LEADER :
+                 RAFT_LEADER_TRANSFER_UNEXPECTED_LEADER;
     }
 
     if (me->cb.notify_transfer_event) {
