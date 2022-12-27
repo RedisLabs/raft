@@ -23,7 +23,7 @@ typedef long int raft_index_t;
 /**
  * Id used to group entries into sessions
  */
-typedef unsigned long raft_session_t;
+typedef unsigned long long raft_session_t;
 
 /**
  * Size type. This should be at least 64 bits.
