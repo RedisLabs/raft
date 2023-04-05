@@ -907,7 +907,7 @@ typedef struct raft_log_impl
  * Election timeout defaults to 1000 milliseconds
  *
  * @return newly initialised Raft server */
-raft_server_t* raft_new();
+raft_server_t* raft_new(void);
 
 /** Initializes a new Raft server with a custom Raft Log implementation.
  *
