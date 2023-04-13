@@ -1905,6 +1905,7 @@ raft_entry_t *raft_entry_new(unsigned int data_len)
     raft_entry_t *ety = raft_calloc(1, sizeof(raft_entry_t) + data_len);
     ety->data_len = data_len;
     ety->refs = 1;
+    ety->id = rand();
 
     return ety;
 }
