@@ -827,6 +827,11 @@ int raft_recv_appendentries(raft_server_t *me,
              req->leader_id, req->msg_id, req->term, req->prev_log_idx,
              req->prev_log_term, req->leader_commit, req->n_entries);
 
+    me->stats.appendreq_received++;
+    if (req->n_entries) {
+        me->stats.appendreq_with_entry_received++;
+    }
+
     resp->msg_id = req->msg_id;
     resp->success = 0;
 
@@ -967,6 +972,7 @@ out:
     resp->term = me->current_term;
     if (resp->success == 0) {
         resp->current_idx = raft_get_current_idx(me);
+        me->stats.appendreq_failed++;
     }
 
     raft_log(me, "%d --> %d, sent appendentries_resp "
@@ -991,6 +997,7 @@ int raft_recv_requestvote(raft_server_t *me,
              req->last_log_term);
 
     resp->prevote = req->prevote;
+    req->prevote ? me->stats.reqvote_prevote_received++ : me->stats.reqvote_received++;
     resp->request_term = req->term;
     resp->vote_granted = 0;
 
@@ -1051,6 +1058,10 @@ int raft_recv_requestvote(raft_server_t *me,
     }
 
 done:
+    if (resp->vote_granted) {
+        resp->prevote ? me->stats.reqvote_prevote_granted++ : me->stats.reqvote_granted++;
+    }
+
     resp->term = me->current_term;
 
     raft_log(me, "%d --> %d, sent requestvote_resp "
@@ -1387,6 +1398,8 @@ int raft_recv_snapshot(raft_server_t *me,
              req->term, req->leader_id, req->msg_id, req->snapshot_index,
              req->snapshot_term, req->chunk.offset, req->chunk.len,
              req->chunk.last_chunk);
+
+    me->stats.snapshotreq_received++;
 
     resp->msg_id = req->msg_id;
     resp->last_chunk = req->chunk.last_chunk;
@@ -1801,6 +1814,8 @@ int raft_end_snapshot(raft_server_t *me)
     if (!raft_is_leader(me))
         return 0;
 
+    me->stats.snapshots_created++;
+
     for (int i = 0; i < me->num_nodes; i++)
     {
         raft_node_t* node = me->nodes[i];
@@ -1888,6 +1903,8 @@ int raft_end_load_snapshot(raft_server_t *me)
         raft_node_set_voting_committed(me->nodes[i], voting);
         raft_node_set_addition_committed(me->nodes[i], 1);
     }
+
+    me->stats.snapshots_received++;
 
     raft_log(me, "loaded snapshot sli:%ld slt:%ld",
              me->snapshot_last_idx, me->snapshot_last_term);

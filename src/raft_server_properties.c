@@ -288,3 +288,19 @@ raft_node_id_t raft_get_transfer_leader(raft_server_t *me)
     return me->node_transferring_leader_to;
 }
 
+void raft_get_server_stats(raft_server_t *me, raft_server_stats_t *stats)
+{
+    if (stats == NULL) {
+        return;
+    }
+
+    stats->appendreq_received = me->stats.appendreq_received;
+    stats->appendreq_with_entry_received = me->stats.appendreq_with_entry_received;
+    stats->appendreq_failed = me->stats.appendreq_failed;
+    stats->snapshots_created = me->stats.snapshots_created;
+    stats->snapshots_received = me->stats.snapshots_received;
+    stats->reqvote_prevote_received = me->stats.reqvote_prevote_received;
+    stats->reqvote_prevote_granted = me->stats.reqvote_prevote_granted;
+    stats->reqvote_received = me->stats.reqvote_received;
+    stats->reqvote_granted = me->stats.reqvote_granted;
+}

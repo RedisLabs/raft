@@ -85,6 +85,19 @@ typedef enum {
     RAFT_LOGTYPE_NUM = 100,
 } raft_logtype_e;
 
+typedef struct raft_server_stats {
+    unsigned long long appendreq_received;
+    unsigned long long appendreq_with_entry_received;
+    unsigned long long appendreq_failed;
+    unsigned long long snapshots_created;
+    unsigned long long snapshots_received;
+    unsigned long long snapshotreq_received;
+    unsigned long long reqvote_prevote_received;
+    unsigned long long reqvote_prevote_granted;
+    unsigned long long reqvote_received;
+    unsigned long long reqvote_granted;
+} raft_server_stats_t;
+
 /** Entry that is stored in the server's entry log. */
 typedef struct raft_entry
 {
@@ -1458,6 +1471,13 @@ int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout
  *         RAFT_NODE_ID_NONE otherwise
  */
 raft_node_id_t raft_get_transfer_leader(raft_server_t *me);
+
+/** Retrieves collected raft stats
+ *
+ * @param[in] me The Raft raft_server_t
+ * @param[out] stats a pointer to a client allocated buffer to fill collected stats
+ */
+void raft_get_server_stats(raft_server_t *me, raft_server_stats_t *stats);
 
 /** Force this server to start an election
  *
