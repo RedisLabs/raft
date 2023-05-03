@@ -110,7 +110,7 @@ typedef struct raft_entry
     void (*free_func) (struct raft_entry *entry);
 
     /** data length */
-    unsigned int data_len;
+    raft_size_t data_len;
 
     /** data */
     char data[];
@@ -1401,7 +1401,7 @@ void *raft_get_log(raft_server_t* me);
  *  initial refcount value of 1.  Calling raft_entry_release() immediately would
  *  therefore result with deallocation.
  */
-raft_entry_t *raft_entry_new(unsigned int data_len);
+raft_entry_t *raft_entry_new(raft_size_t data_len);
 
 /** Hold the raft_entry_t, i.e. increment refcount by one.
  */

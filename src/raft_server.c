@@ -1159,7 +1159,7 @@ int raft_recv_entry(raft_server_t *me,
         r->term = me->current_term;
     }
 
-    raft_log(me, "recv entry t:%ld, id:%d, type:%d, len:%d. assigned idx:%ld",
+    raft_log(me, "recv entry t:%ld, id:%d, type:%d, len:%llu. assigned idx:%ld",
              ety->term, ety->id, ety->type, ety->data_len,
              raft_get_current_idx(me));
 
@@ -1243,7 +1243,7 @@ int raft_apply_entry(raft_server_t* me)
     if (!ety)
         return -1;
 
-    raft_log(me, "applying log: %ld, id: %d size: %d",
+    raft_log(me, "applying log: %ld, id: %d size: %llu",
              idx, ety->id, ety->data_len);
 
     if (me->cb.applylog)
@@ -1900,7 +1900,7 @@ void *raft_get_log(raft_server_t *me)
     return me->log;
 }
 
-raft_entry_t *raft_entry_new(unsigned int data_len)
+raft_entry_t *raft_entry_new(raft_size_t data_len)
 {
     raft_entry_t *ety = raft_calloc(1, sizeof(raft_entry_t) + data_len);
     ety->data_len = data_len;
