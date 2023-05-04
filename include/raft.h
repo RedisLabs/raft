@@ -86,16 +86,38 @@ typedef enum {
 } raft_logtype_e;
 
 typedef struct raft_server_stats {
-    unsigned long long appendreq_received;
-    unsigned long long appendreq_with_entry_received;
-    unsigned long long appendreq_failed;
+    /** Miscellaneous */
+    unsigned long long appendentries_req_with_entry;
     unsigned long long snapshots_created;
     unsigned long long snapshots_received;
-    unsigned long long snapshotreq_received;
-    unsigned long long reqvote_prevote_received;
-    unsigned long long reqvote_prevote_granted;
-    unsigned long long reqvote_received;
-    unsigned long long reqvote_granted;
+    unsigned long long exec_throttled;
+
+    /** Message types */
+    unsigned long long appendentries_req_sent;           /* Sender side metric */
+    unsigned long long appendentries_req_received;       /* Receiver side metric */
+    unsigned long long appendentries_req_failed;         /* Sender side metric */
+
+    unsigned long long appendentries_resp_received;      /* Sender side metric */
+
+    /* --------------------------- */
+
+    unsigned long long snapshot_req_sent;
+    unsigned long long snapshot_req_received;
+    unsigned long long snapshot_req_failed;
+
+    unsigned long long snapshot_resp_received;
+
+    /* --------------------------- */
+    unsigned long long requestvote_prevote_req_sent;
+    unsigned long long requestvote_req_sent;
+    unsigned long long requestvote_prevote_req_received;
+    unsigned long long requestvote_req_received;
+    unsigned long long requestvote_prevote_req_granted;  /* receive side metric */
+    unsigned long long requestvote_req_granted;          /* receive side metric */
+
+    unsigned long long requestvote_prevote_resp_received;
+    unsigned long long requestvote_resp_received;
+    /** Message types end */
 } raft_server_stats_t;
 
 /** Entry that is stored in the server's entry log. */

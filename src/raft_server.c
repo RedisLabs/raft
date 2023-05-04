@@ -735,6 +735,8 @@ int raft_recv_appendentries_response(raft_server_t *me,
         return 0;
     }
 
+    me->stats.appendentries_resp_received++;
+
     if (resp->msg_id < raft_node_get_match_msgid(node) ||
         resp->term < me->current_term) {
         return 0;
@@ -827,9 +829,9 @@ int raft_recv_appendentries(raft_server_t *me,
              req->leader_id, req->msg_id, req->term, req->prev_log_idx,
              req->prev_log_term, req->leader_commit, req->n_entries);
 
-    me->stats.appendreq_received++;
+    me->stats.appendentries_req_received++;
     if (req->n_entries) {
-        me->stats.appendreq_with_entry_received++;
+        me->stats.appendentries_req_with_entry++;
     }
 
     resp->msg_id = req->msg_id;
@@ -972,7 +974,7 @@ out:
     resp->term = me->current_term;
     if (resp->success == 0) {
         resp->current_idx = raft_get_current_idx(me);
-        me->stats.appendreq_failed++;
+        me->stats.appendentries_req_failed++;
     }
 
     raft_log(me, "%d --> %d, sent appendentries_resp "
@@ -997,7 +999,7 @@ int raft_recv_requestvote(raft_server_t *me,
              req->last_log_term);
 
     resp->prevote = req->prevote;
-    req->prevote ? me->stats.reqvote_prevote_received++ : me->stats.reqvote_received++;
+    req->prevote ? me->stats.requestvote_prevote_req_received++ : me->stats.requestvote_req_received++;
     resp->request_term = req->term;
     resp->vote_granted = 0;
 
@@ -1059,7 +1061,7 @@ int raft_recv_requestvote(raft_server_t *me,
 
 done:
     if (resp->vote_granted) {
-        resp->prevote ? me->stats.reqvote_prevote_granted++ : me->stats.reqvote_granted++;
+        resp->prevote ? me->stats.requestvote_prevote_req_granted++ : me->stats.requestvote_req_granted++;
     }
 
     resp->term = me->current_term;
@@ -1100,12 +1102,14 @@ int raft_recv_requestvote_response(raft_server_t *me,
     }
 
     if (resp->prevote) {
+        me->stats.requestvote_prevote_resp_received++;
         /* Validate prevote is not stale */
         if (!raft_is_precandidate(me) ||
             resp->request_term != me->current_term + 1) {
             return 0;
         }
     } else {
+        me->stats.requestvote_resp_received++;
         /* Validate reqvote is not stale */
         if (!raft_is_candidate(me) || resp->request_term != me->current_term) {
             return 0;
@@ -1212,6 +1216,7 @@ int raft_send_requestvote(raft_server_t *me, raft_node_t *node)
              req.last_log_term);
 
     if (me->cb.send_requestvote) {
+        req.prevote ? me->stats.requestvote_prevote_req_sent++ : me->stats.requestvote_req_sent++;
         e = me->cb.send_requestvote(me, me->udata, node, &req);
     }
 
@@ -1370,8 +1375,10 @@ int raft_send_snapshot(raft_server_t *me, raft_node_t *node)
                  req.snapshot_term, req.chunk.offset, req.chunk.len,
                  req.chunk.last_chunk);
 
+        me->stats.snapshot_req_sent++;
         e = me->cb.send_snapshot(me, me->udata, node, &req);
         if (e != 0) {
+            me->stats.snapshot_req_failed++;
             return e;
         }
 
@@ -1399,7 +1406,7 @@ int raft_recv_snapshot(raft_server_t *me,
              req->snapshot_term, req->chunk.offset, req->chunk.len,
              req->chunk.last_chunk);
 
-    me->stats.snapshotreq_received++;
+    me->stats.snapshot_req_received++;
 
     resp->msg_id = req->msg_id;
     resp->last_chunk = req->chunk.last_chunk;
@@ -1477,6 +1484,9 @@ out:
              "id:%lu, t:%ld, s:%d, o:%llu, lc:%d",
              raft_get_nodeid(me), raft_node_get_id(node), resp->msg_id,
              resp->term, resp->success, resp->offset, resp->last_chunk);
+    if (e) {
+        me->stats.snapshot_req_failed++;
+    }
     return e;
 }
 
@@ -1492,6 +1502,8 @@ int raft_recv_snapshot_response(raft_server_t *me,
     if (!node || !raft_is_leader(me)) {
         return 0;
     }
+
+    me->stats.snapshot_resp_received++;
 
     if (resp->term < me->current_term ||
         resp->msg_id < raft_node_get_match_msgid(node) ) {
@@ -1586,6 +1598,7 @@ int raft_send_appendentries(raft_server_t *me, raft_node_t *node)
                  req.leader_id, req.msg_id, req.term, req.prev_log_idx,
                  req.prev_log_term, req.leader_commit, req.n_entries);
 
+        me->stats.appendentries_req_sent++;
         e = me->cb.send_appendentries(me, me->udata, node, &req);
 
         raft_node_set_next_idx(node, next_idx + req.n_entries);
@@ -1593,6 +1606,7 @@ int raft_send_appendentries(raft_server_t *me, raft_node_t *node)
         raft_entry_release_list(req.entries, req.n_entries);
 
         if (e != 0) {
+            me->stats.appendentries_req_failed++;
             return e;
         }
 
