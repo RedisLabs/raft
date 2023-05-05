@@ -1689,6 +1689,22 @@ int raft_msg_entry_response_committed(raft_server_t* me,
     return r->idx <= me->commit_idx;
 }
 
+int raft_pending_operations(raft_server_t *me)
+{
+    return me->pending_operations;
+}
+
+static void raft_set_pending(raft_server_t *me)
+{
+    me->stats.exec_throttled++;
+    me->pending_operations = 1;
+}
+
+static void raft_unset_pending(raft_server_t *me)
+{
+    me->pending_operations = 0;
+}
+
 int raft_apply_all(raft_server_t *me)
 {
     if (!raft_is_apply_allowed(me)) {
@@ -1697,7 +1713,7 @@ int raft_apply_all(raft_server_t *me)
 
     while (me->commit_idx > me->last_applied_idx) {
         if (raft_time_millis(me) > me->exec_deadline) {
-            me->pending_operations = 1;
+            raft_set_pending(me);
             return 0;
         }
 
@@ -2049,7 +2065,7 @@ void raft_process_read_queue(raft_server_t *me)
            me->read_queue_head->read_idx <= me->last_applied_idx) {
 
         if (raft_time_millis(me) > me->exec_deadline) {
-            me->pending_operations = 1;
+            raft_set_pending(me);
             return;
         }
 
@@ -2290,18 +2306,13 @@ int raft_config(raft_server_t *me, int set, raft_config_e config, ...)
     return ret;
 }
 
-int raft_pending_operations(raft_server_t *me)
-{
-    return me->pending_operations;
-}
-
 int raft_exec_operations(raft_server_t *me)
 {
     /* Operations should take less than `request-timeout`. If we block here more
      * than request-timeout, it means this server won't generate responses on
      * time for the existing requests. */
     me->exec_deadline = raft_time_millis(me) + (me->request_timeout / 2);
-    me->pending_operations = 0;
+    raft_unset_pending(me);
 
     int e = raft_apply_all(me);
     if (e != 0) {
