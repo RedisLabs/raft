@@ -1841,10 +1841,10 @@ int raft_end_snapshot(raft_server_t *me)
              me->log_impl->first_idx(me->log) - 1, me->commit_idx,
              raft_get_current_idx(me));
 
+    me->stats.snapshots_created++;
+
     if (!raft_is_leader(me))
         return 0;
-
-    me->stats.snapshots_created++;
 
     for (int i = 0; i < me->num_nodes; i++)
     {
