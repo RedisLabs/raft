@@ -731,11 +731,15 @@ int raft_recv_appendentries_response(raft_server_t *me,
                  raft_get_nodeid(me), raft_node_get_id(node),
                  resp->msg_id, resp->term, resp->success, resp->current_idx);
 
+    me->stats.appendentries_resp_received++;
+
     if (!node || !raft_is_leader(me)) {
         return 0;
     }
 
-    me->stats.appendentries_resp_received++;
+    if (resp->success == 0) {
+        me->stats.appendentries_req_failed++;
+    }
 
     if (resp->msg_id < raft_node_get_match_msgid(node) ||
         resp->term < me->current_term) {
@@ -974,7 +978,6 @@ out:
     resp->term = me->current_term;
     if (resp->success == 0) {
         resp->current_idx = raft_get_current_idx(me);
-        me->stats.appendentries_req_failed++;
     }
 
     raft_log(me, "%d --> %d, sent appendentries_resp "
@@ -998,8 +1001,9 @@ int raft_recv_requestvote(raft_server_t *me,
              req->prevote, req->term, req->candidate_id, req->last_log_idx,
              req->last_log_term);
 
-    resp->prevote = req->prevote;
     req->prevote ? me->stats.requestvote_prevote_req_received++ : me->stats.requestvote_req_received++;
+
+    resp->prevote = req->prevote;
     resp->request_term = req->term;
     resp->vote_granted = 0;
 
@@ -1090,6 +1094,10 @@ int raft_recv_requestvote_response(raft_server_t *me,
              "pv:%d, rt:%ld, t:%ld, vg:%d",
              raft_get_nodeid(me), raft_node_get_id(node),
              resp->prevote, resp->request_term, resp->term, resp->vote_granted);
+
+    if (resp->vote_granted == 0) {
+        resp->prevote ? me->stats.requestvote_prevote_req_failed++ : me->stats.requestvote_req_failed++;
+    }
 
     if (resp->term > me->current_term) {
         int e = raft_set_current_term(me, resp->term);
@@ -1378,7 +1386,6 @@ int raft_send_snapshot(raft_server_t *me, raft_node_t *node)
         me->stats.snapshot_req_sent++;
         e = me->cb.send_snapshot(me, me->udata, node, &req);
         if (e != 0) {
-            me->stats.snapshot_req_failed++;
             return e;
         }
 
@@ -1499,11 +1506,15 @@ int raft_recv_snapshot_response(raft_server_t *me,
              raft_get_nodeid(me), raft_node_get_id(node), resp->msg_id,
              resp->term, resp->success, resp->offset, resp->last_chunk);
 
+    me->stats.snapshot_resp_received++;
+
+    if (resp->success == 0) {
+        me->stats.snapshot_req_failed++;
+    }
+
     if (!node || !raft_is_leader(me)) {
         return 0;
     }
-
-    me->stats.snapshot_resp_received++;
 
     if (resp->term < me->current_term ||
         resp->msg_id < raft_node_get_match_msgid(node) ) {
@@ -1606,7 +1617,6 @@ int raft_send_appendentries(raft_server_t *me, raft_node_t *node)
         raft_entry_release_list(req.entries, req.n_entries);
 
         if (e != 0) {
-            me->stats.appendentries_req_failed++;
             return e;
         }
 

@@ -112,6 +112,8 @@ typedef struct raft_server_stats {
     unsigned long long requestvote_req_sent;
     unsigned long long requestvote_prevote_req_received;
     unsigned long long requestvote_req_received;
+    unsigned long long requestvote_req_failed;
+    unsigned long long requestvote_prevote_req_failed;
     unsigned long long requestvote_prevote_req_granted;  /* receive side metric */
     unsigned long long requestvote_req_granted;          /* receive side metric */
 
