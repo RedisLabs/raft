@@ -733,12 +733,12 @@ int raft_recv_appendentries_response(raft_server_t *me,
 
     me->stats.appendentries_resp_received++;
 
-    if (!node || !raft_is_leader(me)) {
-        return 0;
-    }
-
     if (resp->success == 0) {
         me->stats.appendentries_req_failed++;
+    }
+
+    if (!node || !raft_is_leader(me)) {
+        return 0;
     }
 
     if (resp->msg_id < raft_node_get_match_msgid(node) ||
@@ -1001,7 +1001,8 @@ int raft_recv_requestvote(raft_server_t *me,
              req->prevote, req->term, req->candidate_id, req->last_log_idx,
              req->last_log_term);
 
-    req->prevote ? me->stats.requestvote_prevote_req_received++ : me->stats.requestvote_req_received++;
+    req->prevote ? me->stats.requestvote_prevote_req_received++ :
+                   me->stats.requestvote_req_received++;
 
     resp->prevote = req->prevote;
     resp->request_term = req->term;
@@ -1065,7 +1066,8 @@ int raft_recv_requestvote(raft_server_t *me,
 
 done:
     if (resp->vote_granted) {
-        resp->prevote ? me->stats.requestvote_prevote_req_granted++ : me->stats.requestvote_req_granted++;
+        resp->prevote ? me->stats.requestvote_prevote_req_granted++ :
+                        me->stats.requestvote_req_granted++;
     }
 
     resp->term = me->current_term;
@@ -1095,8 +1097,12 @@ int raft_recv_requestvote_response(raft_server_t *me,
              raft_get_nodeid(me), raft_node_get_id(node),
              resp->prevote, resp->request_term, resp->term, resp->vote_granted);
 
+    resp->prevote ? me->stats.requestvote_prevote_resp_received++ :
+                    me->stats.requestvote_resp_received++;
+
     if (resp->vote_granted == 0) {
-        resp->prevote ? me->stats.requestvote_prevote_req_failed++ : me->stats.requestvote_req_failed++;
+        resp->prevote ? me->stats.requestvote_prevote_req_failed++ :
+                        me->stats.requestvote_req_failed++;
     }
 
     if (resp->term > me->current_term) {
@@ -1110,14 +1116,12 @@ int raft_recv_requestvote_response(raft_server_t *me,
     }
 
     if (resp->prevote) {
-        me->stats.requestvote_prevote_resp_received++;
         /* Validate prevote is not stale */
         if (!raft_is_precandidate(me) ||
             resp->request_term != me->current_term + 1) {
             return 0;
         }
     } else {
-        me->stats.requestvote_resp_received++;
         /* Validate reqvote is not stale */
         if (!raft_is_candidate(me) || resp->request_term != me->current_term) {
             return 0;
@@ -1224,7 +1228,9 @@ int raft_send_requestvote(raft_server_t *me, raft_node_t *node)
              req.last_log_term);
 
     if (me->cb.send_requestvote) {
-        req.prevote ? me->stats.requestvote_prevote_req_sent++ : me->stats.requestvote_req_sent++;
+        req.prevote ? me->stats.requestvote_prevote_req_sent++ :
+                      me->stats.requestvote_req_sent++;
+
         e = me->cb.send_requestvote(me, me->udata, node, &req);
     }
 
@@ -1491,9 +1497,6 @@ out:
              "id:%lu, t:%ld, s:%d, o:%llu, lc:%d",
              raft_get_nodeid(me), raft_node_get_id(node), resp->msg_id,
              resp->term, resp->success, resp->offset, resp->last_chunk);
-    if (e) {
-        me->stats.snapshot_req_failed++;
-    }
     return e;
 }
 
