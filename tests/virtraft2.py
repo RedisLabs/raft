@@ -916,7 +916,7 @@ class RaftServer(object):
         #     ))
 
     def periodic(self, msec):
-        if self.network.random.randint(1, 100000) < self.network.compaction_rate:
+        if self.network.random.randint(1, 100) < self.network.compaction_rate:
             self.do_compaction()
 
         e = lib.raft_periodic_internal(self.raft, msec)
@@ -1086,6 +1086,13 @@ class RaftServer(object):
         leader = find_leader()
         if not leader:
             return 0
+
+        # In case leader has a more recent snapshot, skip loading. Later in this
+        # function, we use leader's configuration to reconfigure nodes from the
+        # snapshot. If leader has taken another snapshot, we cannot use that
+        # configuration for the current snapshot load operation.
+        if leader.snapshot.last_idx != index:
+            return -1
 
         leader_snapshot = leader.snapshot_buf
 
