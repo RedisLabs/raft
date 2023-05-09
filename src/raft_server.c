@@ -1426,9 +1426,14 @@ int raft_recv_snapshot(raft_server_t *me,
         }
     }
 
+    /* Set current offset in the response. From now on, in case of an error,
+     * this offset will be reported to the leader. If store_snapshot_chunk() or
+     * load_snapshot() fails later in this function, we'll request current chunk
+     * from the leader again so, we can retry the operation. */
+    resp->offset = me->snapshot_recv_offset;
+
     /** Reject message if this is not our current offset. */
     if (me->snapshot_recv_offset != req->chunk.offset) {
-        resp->offset = me->snapshot_recv_offset;
         goto out;
     }
 
@@ -1438,8 +1443,6 @@ int raft_recv_snapshot(raft_server_t *me,
         goto out;
     }
 
-    me->snapshot_recv_offset = req->chunk.offset + req->chunk.len;
-
     if (req->chunk.last_chunk) {
         e = me->cb.load_snapshot(me, me->udata, req->snapshot_term,
                                  req->snapshot_index);
@@ -1447,6 +1450,8 @@ int raft_recv_snapshot(raft_server_t *me,
             goto out;
         }
     }
+
+    me->snapshot_recv_offset = req->chunk.offset + req->chunk.len;
 
 success:
     resp->offset = req->chunk.len + req->chunk.offset;
