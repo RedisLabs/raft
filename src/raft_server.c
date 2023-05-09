@@ -1389,6 +1389,7 @@ int raft_recv_snapshot(raft_server_t *me,
              req->chunk.last_chunk);
 
     resp->msg_id = req->msg_id;
+    resp->snapshot_index = req->snapshot_index;
     resp->last_chunk = req->chunk.last_chunk;
     resp->offset = 0;
     resp->success = 0;
@@ -1461,9 +1462,10 @@ out:
     }
 
     raft_log(me, "%d --> %d, sent snapshot_resp "
-             "id:%lu, t:%ld, s:%d, o:%llu, lc:%d",
+             "id:%lu, si:%ld, t:%ld, s:%d, o:%llu, lc:%d",
              raft_get_nodeid(me), raft_node_get_id(node), resp->msg_id,
-             resp->term, resp->success, resp->offset, resp->last_chunk);
+             resp->snapshot_index, resp->term, resp->success, resp->offset,
+             resp->last_chunk);
     return e;
 }
 
@@ -1472,9 +1474,10 @@ int raft_recv_snapshot_response(raft_server_t *me,
                                 raft_snapshot_resp_t *resp)
 {
     raft_log(me, "%d <-- %d, recv snapshot_resp "
-             "id:%lu, t:%ld, s:%d, o:%llu, lc:%d",
+             "id:%lu, si:%ld, t:%ld, s:%d, o:%llu, lc:%d",
              raft_get_nodeid(me), raft_node_get_id(node), resp->msg_id,
-             resp->term, resp->success, resp->offset, resp->last_chunk);
+             resp->snapshot_index, resp->term, resp->success, resp->offset,
+             resp->last_chunk);
 
     if (!node || !raft_is_leader(me)) {
         return 0;
@@ -1497,6 +1500,11 @@ int raft_recv_snapshot_response(raft_server_t *me,
 
     raft_node_set_match_msgid(node, resp->msg_id);
 
+    /* Do not update the offset if we have a more recent snapshot now. */
+    if (resp->snapshot_index != me->snapshot_last_idx) {
+        goto out;
+    }
+
     if (!resp->success) {
         raft_node_set_snapshot_offset(node, resp->offset);
     }
@@ -1507,6 +1515,7 @@ int raft_recv_snapshot_response(raft_server_t *me,
                                          raft_node_get_next_idx(node)));
     }
 
+out:
     if (me->auto_flush) {
         return raft_flush(me, 0);
     }
