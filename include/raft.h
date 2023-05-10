@@ -1653,4 +1653,11 @@ int raft_pending_operations(raft_server_t *me);
  */
 int raft_restore_log(raft_server_t *me);
 
+/** Get metrics recorded by libraft
+ *
+ * @param[in] raft The Raft server
+ * @param[out] stats a pointer to a buffer to fill in stats
+ */
+void raft_get_server_stats(raft_server_t *me, raft_server_stats_t *stats);
+
 #endif /* RAFT_H_ */
