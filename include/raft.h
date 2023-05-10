@@ -85,6 +85,37 @@ typedef enum {
     RAFT_LOGTYPE_NUM = 100,
 } raft_logtype_e;
 
+typedef struct raft_server_stats {
+    /** Miscellaneous */
+    unsigned long long appendentries_req_with_entry;
+    unsigned long long snapshots_created;
+    unsigned long long snapshots_received;
+    unsigned long long exec_throttled;
+
+    /** Message types */
+    unsigned long long appendentries_req_sent;
+    unsigned long long appendentries_req_received;
+    unsigned long long appendentries_req_failed;
+    unsigned long long appendentries_resp_received;
+
+    unsigned long long snapshot_req_sent;
+    unsigned long long snapshot_req_received;
+    unsigned long long snapshot_req_failed;
+    unsigned long long snapshot_resp_received;
+
+    unsigned long long requestvote_prevote_req_sent;
+    unsigned long long requestvote_prevote_req_received;
+    unsigned long long requestvote_prevote_req_failed;
+    unsigned long long requestvote_prevote_req_granted;
+    unsigned long long requestvote_prevote_resp_received;
+
+    unsigned long long requestvote_req_sent;
+    unsigned long long requestvote_req_received;
+    unsigned long long requestvote_req_failed;
+    unsigned long long requestvote_req_granted;
+    unsigned long long requestvote_resp_received;
+} raft_server_stats_t;
+
 /** Entry that is stored in the server's entry log. */
 typedef struct raft_entry
 {
@@ -1458,6 +1489,13 @@ int raft_transfer_leader(raft_server_t* me, raft_node_id_t node_id, long timeout
  *         RAFT_NODE_ID_NONE otherwise
  */
 raft_node_id_t raft_get_transfer_leader(raft_server_t *me);
+
+/** Retrieves collected raft stats
+ *
+ * @param[in] me The Raft raft_server_t
+ * @param[out] stats a pointer to a client allocated buffer to fill collected stats
+ */
+void raft_get_server_stats(raft_server_t *me, raft_server_stats_t *stats);
 
 /** Force this server to start an election
  *
