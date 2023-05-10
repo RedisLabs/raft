@@ -247,6 +247,9 @@ typedef struct
     /** the msg_id this response refers to */
     raft_msg_id_t msg_id;
 
+    /** last included index of the snapshot this response refers to */
+    raft_index_t snapshot_index;
+
     /** currentTerm, to force other leader to step down */
     raft_term_t term;
 
