@@ -237,7 +237,7 @@ static int log_delete(raft_log_t *me, raft_index_t idx)
         }
 
         raft_entry_release(me->entries[back]);
-
+        me->entries[back] = NULL;
         me->back = back;
         me->count--;
     }
@@ -300,6 +300,16 @@ void raft_log_empty(raft_log_t *me)
 
 void raft_log_free(raft_log_t *me)
 {
+    if (!me) {
+        return;
+    }
+
+    for (raft_index_t i = 0; i < me->size; i++) {
+        raft_entry_t *ety = me->entries[i];
+        if (ety) {
+            raft_entry_release(ety);
+        }
+    }
     raft_free(me->entries);
     raft_free(me);
 }
