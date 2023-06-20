@@ -31,6 +31,8 @@
     #define __attribute__(a)
 #endif
 
+static void pop_read_queue(raft_server_t *me, int can_read);
+
 void *(*raft_malloc)(size_t) = malloc;
 void *(*raft_calloc)(size_t, size_t) = calloc;
 void *(*raft_realloc)(void *, size_t) = realloc;
@@ -96,37 +98,39 @@ int raft_clear_incoming_snapshot(raft_server_t* me, raft_index_t new_idx)
     return e;
 }
 
-raft_server_t* raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
+static void raft_init(raft_server_t *me)
 {
-    raft_server_t *me = raft_calloc(1, sizeof(*me));
-    if (!me)
-        return NULL;
-
-    me->current_term = 0;
-    me->voted_for = RAFT_NODE_ID_NONE;
-    me->timeout_elapsed = 0;
-    me->request_timeout = 200;
-    me->election_timeout = 1000;
-    me->node_transferring_leader_to = RAFT_NODE_ID_NONE;
-    me->auto_flush = 1;
-    me->exec_deadline = LLONG_MAX;
-    me->msg_id = 0;
+    *me = (raft_server_t){
+            .state = RAFT_STATE_FOLLOWER,
+            .request_timeout = 200,
+            .election_timeout = 1000,
+            .voted_for = RAFT_NODE_ID_NONE,
+            .leader_id = RAFT_NODE_ID_NONE,
+            .node_transferring_leader_to = RAFT_NODE_ID_NONE,
+            .voting_cfg_change_log_idx = -1,
+            .auto_flush = 1,
+            .exec_deadline = LLONG_MAX,
+    };
 
     raft_update_quorum_meta(me, me->msg_id);
-
     raft_randomize_election_timeout(me);
+}
+
+raft_server_t *raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
+{
+    raft_server_t *me = raft_calloc(1, sizeof(*me));
+    if (!me) {
+        return NULL;
+    }
+
+    raft_init(me);
+
     me->log_impl = log_impl;
     me->log = me->log_impl->init(me, log_arg);
     if (!me->log) {
         raft_free(me);
         return NULL;
     }
-
-    me->voting_cfg_change_log_idx = -1;
-    raft_set_state(me, RAFT_STATE_FOLLOWER);
-    me->leader_id = RAFT_NODE_ID_NONE;
-
-    me->snapshot_in_progress = 0;
 
     return me;
 }
@@ -152,27 +156,47 @@ void raft_set_callbacks(raft_server_t* me, raft_cbs_t* funcs, void* udata)
     me->udata = udata;
 }
 
-void raft_destroy(raft_server_t* me)
+void raft_destroy(raft_server_t *me)
 {
+    if (!me) {
+        return;
+    }
+
+    while (me->read_queue_head) {
+        pop_read_queue(me, 0);
+    }
+
     me->log_impl->free(me->log);
+
+    for (int i = 0; i < me->num_nodes; i++) {
+        raft_free(me->nodes[i]);
+    }
+    raft_free(me->nodes);
     raft_free(me);
 }
 
-void raft_clear(raft_server_t* me)
+void raft_clear(raft_server_t *me)
 {
-    me->current_term = 0;
-    me->voted_for = RAFT_NODE_ID_NONE;
-    me->timeout_elapsed = 0;
-    raft_randomize_election_timeout(me);
-    me->voting_cfg_change_log_idx = -1;
-    raft_set_state(me, RAFT_STATE_FOLLOWER);
-    me->leader_id = RAFT_NODE_ID_NONE;
-    me->commit_idx = 0;
-    me->last_applied_idx = 0;
-    me->last_applied_term = 0;
-    me->num_nodes = 0;
-    me->node = NULL;
+    while (me->read_queue_head) {
+        pop_read_queue(me, 0);
+    }
+
     me->log_impl->reset(me->log, 1, 1);
+
+    for (int i = 0; i < me->num_nodes; i++) {
+        raft_free(me->nodes[i]);
+    }
+    raft_free(me->nodes);
+
+    /* Re-initialize variables excluding log implementation as currently there
+     * is no way to set log impl without creating a new raft_server_t. */
+    const struct raft_log_impl *log_impl = me->log_impl;
+    void *log = me->log;
+
+    raft_init(me);
+
+    me->log_impl = log_impl;
+    me->log = log;
 }
 
 raft_node_t* raft_add_node_internal(raft_server_t *me, raft_entry_t *ety, void *udata, raft_node_id_t id, int is_self, int voting)

@@ -148,17 +148,16 @@ int raft_log_append_entry(raft_log_t *me, raft_entry_t *ety)
         return e;
     }
 
-    me->entries[me->back] = ety;
-
     if (me->cb.log_offer) {
         void *udata = raft_get_udata(me->raft);
 
-        e = me->cb.log_offer(me->raft, udata, me->entries[me->back], idx);
+        e = me->cb.log_offer(me->raft, udata, ety, idx);
         if (e != 0) {
             return e;
         }
     }
 
+    me->entries[me->back] = ety;
     me->count++;
     me->back++;
     me->back = me->back % me->size;
@@ -237,7 +236,7 @@ static int log_delete(raft_log_t *me, raft_index_t idx)
         }
 
         raft_entry_release(me->entries[back]);
-
+        me->entries[back] = NULL;
         me->back = back;
         me->count--;
     }
@@ -300,6 +299,16 @@ void raft_log_empty(raft_log_t *me)
 
 void raft_log_free(raft_log_t *me)
 {
+    if (!me) {
+        return;
+    }
+
+    for (raft_index_t i = 0; i < me->size; i++) {
+        raft_entry_t *ety = me->entries[i];
+        if (ety) {
+            raft_entry_release(ety);
+        }
+    }
     raft_free(me->entries);
     raft_free(me);
 }
@@ -353,8 +362,12 @@ static void log_reset(void *log, raft_index_t first_idx, raft_term_t term)
 
 static int log_append(void *log, raft_entry_t *entry)
 {
-    raft_entry_hold(entry);
-    return raft_log_append_entry(log, entry);
+    int e = raft_log_append_entry(log, entry);
+    if (e == 0) {
+        raft_entry_hold(entry);
+    }
+
+    return e;
 }
 
 static raft_entry_t *log_get(void *log, raft_index_t idx)
