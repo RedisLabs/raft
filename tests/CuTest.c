@@ -47,6 +47,12 @@ CuString* CuStringNew(void)
 	return str;
 }
 
+void CuStringFree(CuString *cu)
+{
+    free(cu->buffer);
+    free(cu);
+}
+
 void CuStringResize(CuString* str, int newSize)
 {
 	str->buffer = (char*) realloc(str->buffer, sizeof(char) * newSize);
@@ -117,6 +123,12 @@ CuTest* CuTestNew(const char* name, TestFunction function)
 	CuTest* tc = CU_ALLOC(CuTest);
 	CuTestInit(tc, name, function);
 	return tc;
+}
+
+void CuTestFree(CuTest *test)
+{
+    free(test->name);
+    free(test);
 }
 
 void CuTestRun(CuTest* tc)
@@ -234,6 +246,14 @@ CuSuite* CuSuiteNew(void)
 	CuSuite* testSuite = CU_ALLOC(CuSuite);
 	CuSuiteInit(testSuite);
 	return testSuite;
+}
+
+void CuSuiteFree(CuSuite *testSuite)
+{
+    for (int i = 0; i < testSuite->count; i++) {
+        CuTestFree(testSuite->list[i]);
+    }
+    free(testSuite);
 }
 
 void CuSuiteAdd(CuSuite* testSuite, CuTest *testCase)

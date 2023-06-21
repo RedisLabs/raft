@@ -8,6 +8,28 @@ INC = -I include
 GCOV_CFLAGS = -fprofile-arcs -ftest-coverage
 SHELL  = /bin/bash
 CFLAGS += -Iinclude -fno-omit-frame-pointer -fno-common -fsigned-char -g -O2 -fPIC
+
+ifdef SANITIZER
+ifeq ($(SANITIZER),address)
+	MALLOC = libc
+	CFLAGS += -fsanitize=address -fno-sanitize-recover=all -fno-omit-frame-pointer
+	LDFLAGS += -fsanitize=address
+else
+ifeq ($(SANITIZER),undefined)
+	MALLOC = libc
+	CFLAGS += -fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
+	LDFLAGS += -fsanitize=undefined
+else
+ifeq ($(SANITIZER),thread)
+	CFLAGS += -fsanitize=thread -fno-sanitize-recover=all -fno-omit-frame-pointer
+	LDFLAGS += -fsanitize=thread
+else
+    $(error "unknown sanitizer=${SANITIZER}")
+endif
+endif
+endif
+endif
+
 ifeq ($(COVERAGE), 1)
 CFLAGS += $(GCOV_CFLAGS)
 TEST_CFLAGS = $(CFLAGS)

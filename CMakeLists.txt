@@ -7,6 +7,9 @@
 # Tests :
 #         mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug
 #         make && make tests_full
+# SANITIZER :
+#         mkdir build && cd build && cmake .. -DSANITIZER=address
+#         make && make check
 
 project(raft C)
 cmake_minimum_required(VERSION 3.7.2)
@@ -107,6 +110,25 @@ set(RAFT_SOURCE_FILES
         src/raft_server_properties.c)
 
 add_library(raft STATIC ${RAFT_SOURCE_FILES})
+
+if (SANITIZER)
+    if ("${SANITIZER}" STREQUAL "address")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
+        add_link_options(-fsanitize=address)
+    elseif ("${SANITIZER}" STREQUAL "undefined")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=undefined")
+        add_link_options(-fsanitize=undefined)
+    elseif ("${SANITIZER}" STREQUAL "thread")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=thread")
+        add_link_options(-fsanitize=thread)
+    else ()
+        message(FATAL_ERROR "Unknown sanitizer: ${SANITIZER}")
+    endif ()
+
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-sanitize-recover=all -fno-omit-frame-pointer")
+    message(STATUS "Using sanitizer: ${SANITIZER}")
+endif ()
+
 target_compile_options(raft PRIVATE -g -Wall -Wextra -pedantic)
 target_include_directories(raft PRIVATE include)
 
