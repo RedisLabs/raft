@@ -61,8 +61,8 @@ static const raft_log_impl_t *impl = &raft_log_internal_impl;
 static void __LOGIMPL_APPEND_ENTRY(void *l, int id, raft_term_t term, const char *data)
 {
     raft_entry_t *e = __MAKE_ENTRY(id, term, data);
-
     impl->append(l, e);
+    raft_entry_release(e);
 }
 
 static void __LOGIMPL_APPEND_ENTRIES_SEQ_ID(void *l, int count, int id, raft_term_t term, const char *data)
@@ -71,6 +71,7 @@ static void __LOGIMPL_APPEND_ENTRIES_SEQ_ID(void *l, int count, int id, raft_ter
     for (i = 0; i < count; i++) {
         raft_entry_t *e = __MAKE_ENTRY(id++, term, data);
         impl->append(l, e);
+        raft_entry_release(e);
     }
 }
 
@@ -81,29 +82,45 @@ void TestLogImpl_new_is_empty(CuTest * tc)
     l = impl->init(NULL, NULL);
     CuAssertTrue(tc, 0 == impl->count(l));
     CuAssertTrue(tc, 1 == impl->first_idx(l));
+
+    impl->free(l);
 }
 
 void TestLogImpl_append_is_not_empty(CuTest * tc)
 {
     void *l;
-
     void *r = raft_new();
 
     l = impl->init(r, NULL);
     __LOGIMPL_APPEND_ENTRY(l, 1, 0, NULL);
     CuAssertIntEquals(tc, 1, impl->count(l));
+
+    impl->free(l);
+    raft_destroy(r);
 }
 
 void TestLogImpl_get_at_idx(CuTest * tc)
 {
     void *l;
+    raft_entry_t *e;
 
     l = impl->init(NULL, NULL);
     __LOGIMPL_APPEND_ENTRIES_SEQ_ID(l, 3, 1, 0, NULL);
     CuAssertIntEquals(tc, 3, impl->count(l));
-    CuAssertIntEquals(tc, 1, impl->get(l, 1)->id);
-    CuAssertIntEquals(tc, 2, impl->get(l, 2)->id);
-    CuAssertIntEquals(tc, 3, impl->get(l, 3)->id);
+
+    e = impl->get(l, 1);
+    CuAssertIntEquals(tc, 1, e->id);
+    raft_entry_release(e);
+
+    e = impl->get(l, 2);
+    CuAssertIntEquals(tc, 2, e->id);
+    raft_entry_release(e);
+
+    e = impl->get(l, 3);
+    CuAssertIntEquals(tc, 3, e->id);
+    raft_entry_release(e);
+
+    impl->free(l);
 }
 
 void TestLogImpl_get_at_idx_returns_null_where_out_of_bounds(CuTest * tc)
@@ -116,19 +133,21 @@ void TestLogImpl_get_at_idx_returns_null_where_out_of_bounds(CuTest * tc)
 
     __LOGIMPL_APPEND_ENTRY(l, 1, 0, NULL);
     CuAssertTrue(tc, NULL == impl->get(l, 2));
+
+    impl->free(l);
 }
 
 static void event_entry_enqueue(void *arg, raft_entry_t *e, raft_index_t idx)
 {
-    raft_entry_t* copy = malloc(sizeof(*e));
-    memcpy(copy, e, sizeof(*e));
-    llqueue_offer(arg, copy);
+    raft_entry_hold(e);
+    llqueue_offer(arg, e);
 }
 
 void TestLogImpl_pop(CuTest * tc)
 {
     void* queue = llqueue_new();
     void *l;
+    raft_entry_t *ety;
 
     void *r = raft_new();
     raft_cbs_t funcs = {
@@ -141,11 +160,16 @@ void TestLogImpl_pop(CuTest * tc)
     CuAssertIntEquals(tc, 3, impl->count(l));
     CuAssertIntEquals(tc, 3, impl->current_idx(l));
 
-    event_entry_enqueue(queue, impl->get(l, 3), 3);
+    ety = impl->get(l, 3);
+    event_entry_enqueue(queue, ety, 3);
     impl->pop(l, 3);
     CuAssertIntEquals(tc, 2, impl->count(l));
-    CuAssertIntEquals(tc, 3, ((raft_entry_t*)llqueue_poll(queue))->id);
+    raft_entry_release(ety);
+
+    ety = llqueue_poll(queue);
+    CuAssertIntEquals(tc, 3, ety->id);
     CuAssertTrue(tc, NULL == impl->get(l, 3));
+    raft_entry_release(ety);
 
     impl->pop(l, 2);
     CuAssertIntEquals(tc, 1, impl->count(l));
@@ -154,6 +178,10 @@ void TestLogImpl_pop(CuTest * tc)
     impl->pop(l, 1);
     CuAssertIntEquals(tc, 0, impl->count(l));
     CuAssertTrue(tc, NULL == impl->get(l, 1));
+
+    llqueue_free(queue);
+    impl->free(l);
+    raft_destroy(r);
 }
 
 void TestLogImpl_pop_onwards(CuTest * tc)
@@ -161,6 +189,7 @@ void TestLogImpl_pop_onwards(CuTest * tc)
     void *r = raft_new();
 
     void *l;
+    raft_entry_t *e;
 
     l = impl->init(r, NULL);
     __LOGIMPL_APPEND_ENTRIES_SEQ_ID(l, 3, 1, 0, NULL);
@@ -169,9 +198,15 @@ void TestLogImpl_pop_onwards(CuTest * tc)
     /* even 3 gets deleted */
     impl->pop(l, 2);
     CuAssertIntEquals(tc, 1, impl->count(l));
-    CuAssertIntEquals(tc, 1, impl->get(l, 1)->id);
+
+    e = impl->get(l, 1);
+    CuAssertIntEquals(tc, 1, e->id);
     CuAssertTrue(tc, NULL == impl->get(l, 2));
     CuAssertTrue(tc, NULL == impl->get(l, 3));
+    raft_entry_release(e);
+
+    impl->free(l);
+    raft_destroy(r);
 }
 
 
@@ -184,13 +219,17 @@ void TestLogImpl_pop_fails_for_idx_zero(CuTest * tc)
     l = impl->init(r, NULL);
     __LOGIMPL_APPEND_ENTRIES_SEQ_ID(l, 4, 1, 0, NULL);
     CuAssertIntEquals(tc, impl->pop(l, 0), -1);
+
+    impl->free(l);
+    raft_destroy(r);
 }
 
 void TestLogImpl_poll(CuTest * tc)
 {
-    void *r = raft_new();
-
     void *l;
+    void *r = raft_new();
+    raft_entry_t *e;
+
 
     l = impl->init(r, NULL);
     __LOGIMPL_APPEND_ENTRY(l, 1, 0, NULL);
@@ -203,38 +242,45 @@ void TestLogImpl_poll(CuTest * tc)
     CuAssertIntEquals(tc, 3, impl->count(l));
     CuAssertIntEquals(tc, 3, impl->current_idx(l));
 
-    raft_entry_t *ety;
-
     /* remove 1st */
-    ety = NULL;
     CuAssertIntEquals(tc, impl->poll(l, 2), 0);
     CuAssertIntEquals(tc, 2, impl->count(l));
     CuAssertIntEquals(tc, 2, impl->first_idx(l));
     CuAssertTrue(tc, NULL == impl->get(l, 1));
-    CuAssertTrue(tc, NULL != impl->get(l, 2));
-    CuAssertIntEquals(tc, impl->get(l, 2)->id, 2);
-    CuAssertTrue(tc, NULL != impl->get(l, 3));
-    CuAssertIntEquals(tc, impl->get(l, 3)->id, 3);
+
+    e = impl->get(l, 2);
+    CuAssertTrue(tc, NULL != e);
+    CuAssertIntEquals(tc, e->id, 2);
+    raft_entry_release(e);
+
+    e = impl->get(l, 3);
+    CuAssertTrue(tc, NULL != e);
+    CuAssertIntEquals(tc, e->id, 3);
     CuAssertIntEquals(tc, 3, impl->current_idx(l));
+    raft_entry_release(e);
 
     /* remove 2nd */
-    ety = NULL;
     CuAssertIntEquals(tc, impl->poll(l, 3), 0);
     CuAssertIntEquals(tc, 1, impl->count(l));
     CuAssertTrue(tc, NULL == impl->get(l, 1));
     CuAssertTrue(tc, NULL == impl->get(l, 2));
-    CuAssertTrue(tc, NULL != impl->get(l, 3));
-    CuAssertIntEquals(tc, impl->get(l, 3)->id, 3);
+
+    e = impl->get(l, 3);
+    CuAssertTrue(tc, NULL != e);
+    CuAssertIntEquals(tc, e->id, 3);
     CuAssertIntEquals(tc, 3, impl->current_idx(l));
+    raft_entry_release(e);
 
     /* remove 3rd */
-    ety = NULL;
     CuAssertIntEquals(tc, impl->poll(l, 4), 0);
     CuAssertIntEquals(tc, 0, impl->count(l));
     CuAssertTrue(tc, NULL == impl->get(l, 1));
     CuAssertTrue(tc, NULL == impl->get(l, 2));
     CuAssertTrue(tc, NULL == impl->get(l, 3));
     CuAssertIntEquals(tc, 3, impl->current_idx(l));
+
+    impl->free(l);
+    raft_destroy(r);
 }
 
 void TestLogImpl_reset_after_compaction(CuTest * tc)
@@ -250,6 +296,8 @@ void TestLogImpl_reset_after_compaction(CuTest * tc)
     /* Current index is 9 (first_idx - 1), but log is empty */
     CuAssertIntEquals(tc, 9, impl->current_idx(l));
     CuAssertIntEquals(tc, 0, impl->count(l));
+
+    impl->free(l);
 }
 
 void TestLogImpl_load_from_snapshot_clears_log(CuTest * tc)
@@ -265,6 +313,8 @@ void TestLogImpl_load_from_snapshot_clears_log(CuTest * tc)
     impl->reset(l, 10, 1);
     CuAssertIntEquals(tc, 0, impl->count(l));
     CuAssertIntEquals(tc, 9, impl->current_idx(l));
+
+    impl->free(l);
 }
 
 void TestLogImpl_pop_after_polling(CuTest * tc)
@@ -294,12 +344,16 @@ void TestLogImpl_pop_after_polling(CuTest * tc)
     CuAssertIntEquals(tc, impl->pop(l, 1), 0);
     CuAssertIntEquals(tc, 0, impl->count(l));
     CuAssertIntEquals(tc, 1, impl->current_idx(l));
+
+    impl->free(l);
 }
 
 void TestLogImpl_pop_after_polling_from_double_append(CuTest * tc)
 {
-    void *r = raft_new();
     void *l;
+    void *r = raft_new();
+    raft_entry_t *e;
+
 
     l = impl->init(r, NULL);
 
@@ -309,8 +363,10 @@ void TestLogImpl_pop_after_polling_from_double_append(CuTest * tc)
 
     /* poll */
     CuAssertIntEquals(tc, impl->poll(l, 2), 0);
-    CuAssertIntEquals(tc, impl->get(l, 2)->id, 2);
+    e = impl->get(l, 2);
+    CuAssertIntEquals(tc, e->id, 2);
     CuAssertIntEquals(tc, 1, impl->count(l));
+    raft_entry_release(e);
 
     /* append */
     __LOGIMPL_APPEND_ENTRY(l, 3, 0, NULL);
@@ -319,6 +375,9 @@ void TestLogImpl_pop_after_polling_from_double_append(CuTest * tc)
     /* pop */
     CuAssertIntEquals(tc, impl->pop(l, 1), 0);
     CuAssertIntEquals(tc, 0, impl->count(l));
+
+    impl->free(l);
+    raft_destroy(r);
 }
 
 void TestLogImpl_get_from_idx_with_base_off_by_one(CuTest * tc)
@@ -338,12 +397,16 @@ void TestLogImpl_get_from_idx_with_base_off_by_one(CuTest * tc)
     CuAssertIntEquals(tc, 1, impl->count(l));
 
     /* get off-by-one index */
-    raft_entry_t *e[1];
+    raft_entry_t *e[1] = {NULL};
     CuAssertIntEquals(tc, impl->get_batch(l, 1, 1, e), 0);
 
     /* now get the correct index */
     CuAssertIntEquals(tc, impl->get_batch(l, 2, 1, e), 1);
     CuAssertIntEquals(tc, e[0]->id, 2);
+    raft_entry_release(e[0]);
+
+    impl->free(l);
+    raft_destroy(r);
 }
 
 int main(void)
@@ -369,5 +432,10 @@ int main(void)
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);
 
-    return suite->failCount == 0 ? 0 : 1;
+    int rc = suite->failCount == 0 ? 0 : 1;
+
+    CuStringFree(output);
+    CuSuiteFree(suite);
+
+    return rc;
 }

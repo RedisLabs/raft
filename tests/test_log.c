@@ -59,9 +59,8 @@ static int __log_pop(
     raft_index_t entry_idx
     )
 {
-    raft_entry_t* copy = malloc(sizeof(*entry));
-    memcpy(copy, entry, sizeof(*entry));
-    llqueue_offer(user_data, copy);
+    raft_entry_hold(entry);
+    llqueue_offer(user_data, entry);
     return 0;
 }
 
@@ -82,28 +81,20 @@ raft_log_cbs_t log_funcs = {
     .log_pop = __log_pop
 };
 
-void* __set_up()
-{
-    void* queue = llqueue_new();
-    void *r = raft_new();
-    raft_set_callbacks(r, &funcs, queue);
-    raft_log_set_callbacks(raft_get_log(r), &log_funcs, r);
-    return r;
-}
-
 void TestLog_new_is_empty(CuTest * tc)
 {
     void *l;
 
     l = raft_log_new();
     CuAssertTrue(tc, 0 == raft_log_count(l));
+    raft_log_free(l);
 }
 
 void TestLog_append_is_not_empty(CuTest * tc)
 {
     void *l;
-
     void *r = raft_new();
+    raft_entry_t *e;
 
     l = raft_log_new();
     raft_log_cbs_t funcs = {
@@ -112,19 +103,35 @@ void TestLog_append_is_not_empty(CuTest * tc)
     raft_log_set_callbacks(l, &funcs, r);
     __LOG_APPEND_ENTRY(l, 1, 0, NULL);
     CuAssertIntEquals(tc, 1, raft_log_count(l));
+    raft_log_poll(l, &e);
+    raft_entry_release(e);
+
+    raft_log_free(l);
+    raft_destroy(r);
 }
 
 void TestLog_get_at_idx(CuTest * tc)
 {
     void *l;
+    raft_entry_t *e1, *e2, *e3;
 
     l = raft_log_new();
     __LOG_APPEND_ENTRIES_SEQ_ID(l, 3, 1, 0, NULL);
     CuAssertIntEquals(tc, 3, raft_log_count(l));
 
-    CuAssertIntEquals(tc, 1, raft_log_get_at_idx(l, 1)->id);
-    CuAssertIntEquals(tc, 2, raft_log_get_at_idx(l, 2)->id);
-    CuAssertIntEquals(tc, 3, raft_log_get_at_idx(l, 3)->id);
+    e1 = raft_log_get_at_idx(l, 1);
+    CuAssertIntEquals(tc, 1, e1->id);
+    raft_entry_release(e1);
+
+    e2 = raft_log_get_at_idx(l, 2);
+    CuAssertIntEquals(tc, 2, e2->id);
+    raft_entry_release(e2);
+
+    e3 = raft_log_get_at_idx(l, 3);
+    CuAssertIntEquals(tc, 3, e3->id);
+    raft_entry_release(e3);
+
+    raft_log_free(l);
 }
 
 void TestLog_get_at_idx_returns_null_where_out_of_bounds(CuTest * tc)
@@ -137,11 +144,18 @@ void TestLog_get_at_idx_returns_null_where_out_of_bounds(CuTest * tc)
 
     __LOG_APPEND_ENTRY(l, 1, 0, NULL);
     CuAssertTrue(tc, NULL == raft_log_get_at_idx(l, 2));
+
+    raft_entry_t *e;
+    raft_log_poll(l, &e);
+    raft_entry_release(e);
+
+    raft_log_free(l);
 }
 
 void TestLog_delete(CuTest * tc)
 {
     void *l;
+    raft_entry_t *e;
 
     void* queue = llqueue_new();
     void *r = raft_new();
@@ -161,19 +175,39 @@ void TestLog_delete(CuTest * tc)
     CuAssertIntEquals(tc, 3, raft_log_count(l));
     CuAssertIntEquals(tc, 3, raft_log_get_current_idx(l));
 
+    e = raft_log_get_at_idx(l, 3);
     raft_log_delete(l, 3);
     CuAssertIntEquals(tc, 2, raft_log_count(l));
-    CuAssertIntEquals(tc, 3, ((raft_entry_t*)llqueue_poll(queue))->id);
+    raft_entry_release(e);
+    e = llqueue_poll(queue);
+    CuAssertIntEquals(tc, 3, e->id);
     CuAssertIntEquals(tc, 2, raft_log_count(l));
     CuAssertTrue(tc, NULL == raft_log_get_at_idx(l, 3));
+    raft_entry_release(e);
 
+    e = raft_log_get_at_idx(l, 2);
     raft_log_delete(l, 2);
     CuAssertIntEquals(tc, 1, raft_log_count(l));
+    raft_entry_release(e);
+    e = llqueue_poll(queue);
+    CuAssertIntEquals(tc, 2, e->id);
+    CuAssertIntEquals(tc, 1, raft_log_count(l));
     CuAssertTrue(tc, NULL == raft_log_get_at_idx(l, 2));
+    raft_entry_release(e);
 
+    e = raft_log_get_at_idx(l, 1);
     raft_log_delete(l, 1);
     CuAssertIntEquals(tc, 0, raft_log_count(l));
+    raft_entry_release(e);
+    e = llqueue_poll(queue);
+    CuAssertIntEquals(tc, 1, e->id);
+    CuAssertIntEquals(tc, 0, raft_log_count(l));
     CuAssertTrue(tc, NULL == raft_log_get_at_idx(l, 1));
+    raft_entry_release(e);
+
+    raft_log_free(l);
+    llqueue_free(queue);
+    raft_destroy(r);
 }
 
 void TestLog_delete_onwards(CuTest * tc)
@@ -196,11 +230,32 @@ void TestLog_delete_onwards(CuTest * tc)
     CuAssertIntEquals(tc, 3, raft_log_count(l));
 
     /* even 3 gets deleted */
+    raft_entry_t *e2 = raft_log_get_at_idx(l, 2);
+    raft_entry_t *e3 = raft_log_get_at_idx(l, 3);
+
     raft_log_delete(l, 2);
     CuAssertIntEquals(tc, 1, raft_log_count(l));
+
     CuAssertIntEquals(tc, 1, raft_log_get_at_idx(l, 1)->id);
     CuAssertTrue(tc, NULL == raft_log_get_at_idx(l, 2));
     CuAssertTrue(tc, NULL == raft_log_get_at_idx(l, 3));
+
+    raft_entry_release(e2);
+    raft_entry_release(e3);
+
+    raft_entry_t *e;
+
+    while (raft_log_poll(l, &e) == 0) {
+        raft_entry_release(e);
+    }
+
+    while ((e = llqueue_poll(queue)) != NULL) {
+        raft_entry_release(e);
+    }
+
+    llqueue_free(queue);
+    raft_log_free(l);
+    raft_destroy(r);
 }
 
 void TestLog_delete_handles_log_pop_failure(CuTest * tc)
@@ -227,6 +282,20 @@ void TestLog_delete_handles_log_pop_failure(CuTest * tc)
     CuAssertIntEquals(tc, 3, raft_log_count(l));
     CuAssertIntEquals(tc, 3, raft_log_count(l));
     CuAssertIntEquals(tc, 3, ((raft_entry_t*) raft_log_peektail(l))->id);
+
+    raft_entry_t *e;
+
+    while (raft_log_poll(l, &e) == 0) {
+        raft_entry_release(e);
+    }
+
+    while ((e = llqueue_poll(queue)) != NULL) {
+        raft_entry_release(e);
+    }
+
+    llqueue_free(queue);
+    raft_log_free(l);
+    raft_destroy(r);
  }
 
 void TestLog_delete_fails_for_idx_zero(CuTest * tc)
@@ -247,6 +316,20 @@ void TestLog_delete_fails_for_idx_zero(CuTest * tc)
     raft_log_set_callbacks(l, &log_funcs, r);
     __LOG_APPEND_ENTRIES_SEQ_ID(l, 4, 1, 0, NULL);
     CuAssertIntEquals(tc, raft_log_delete(l, 0), -1);
+
+    raft_entry_t *e;
+
+    while (raft_log_poll(l, &e) == 0) {
+        raft_entry_release(e);
+    }
+
+    while ((e = llqueue_poll(queue)) != NULL) {
+        raft_entry_release(e);
+    }
+
+    raft_log_free(l);
+    llqueue_free(queue);
+    raft_destroy(r);
 }
 
 void TestLog_poll(CuTest * tc)
@@ -288,6 +371,7 @@ void TestLog_poll(CuTest * tc)
     CuAssertTrue(tc, NULL != raft_log_get_at_idx(l, 2));
     CuAssertTrue(tc, NULL != raft_log_get_at_idx(l, 3));
     CuAssertIntEquals(tc, 3, raft_log_get_current_idx(l));
+    raft_entry_release(ety);
 
     /* remove 2nd */
     ety = NULL;
@@ -299,6 +383,7 @@ void TestLog_poll(CuTest * tc)
     CuAssertTrue(tc, NULL == raft_log_get_at_idx(l, 2));
     CuAssertTrue(tc, NULL != raft_log_get_at_idx(l, 3));
     CuAssertIntEquals(tc, 3, raft_log_get_current_idx(l));
+    raft_entry_release(ety);
 
     /* remove 3rd */
     ety = NULL;
@@ -310,6 +395,11 @@ void TestLog_poll(CuTest * tc)
     CuAssertTrue(tc, NULL == raft_log_get_at_idx(l, 2));
     CuAssertTrue(tc, NULL == raft_log_get_at_idx(l, 3));
     CuAssertIntEquals(tc, 3, raft_log_get_current_idx(l));
+    raft_entry_release(ety);
+
+    llqueue_free(queue);
+    raft_log_free(l);
+    raft_destroy(r);
 }
 
 void TestLog_peektail(CuTest * tc)
@@ -321,6 +411,14 @@ void TestLog_peektail(CuTest * tc)
     __LOG_APPEND_ENTRIES_SEQ_ID(l, 3, 1, 0, NULL);
     CuAssertIntEquals(tc, 3, raft_log_count(l));
     CuAssertIntEquals(tc, 3, raft_log_peektail(l)->id);
+
+    raft_entry_t *e;
+
+    while (raft_log_poll(l, &e) == 0) {
+        raft_entry_release(e);
+    }
+
+    raft_log_free(l);
 }
 
 #if 0
@@ -347,6 +445,8 @@ void TestLog_load_from_snapshot(CuTest * tc)
     CuAssertIntEquals(tc, 0, raft_log_load_from_snapshot(l, 10, 5));
     CuAssertIntEquals(tc, 10, raft_log_get_current_idx(l));
     CuAssertIntEquals(tc, 0, raft_log_count(l));
+
+    raft_log_free(l);
 }
 
 void TestLog_load_from_snapshot_clears_log(CuTest * tc)
@@ -359,14 +459,31 @@ void TestLog_load_from_snapshot_clears_log(CuTest * tc)
     CuAssertIntEquals(tc, 2, raft_log_count(l));
     CuAssertIntEquals(tc, 2, raft_log_get_current_idx(l));
 
+    raft_entry_t *e1 = raft_log_get_at_idx(l, 1);
+    raft_entry_t *e2 = raft_log_get_at_idx(l, 2);
+
     CuAssertIntEquals(tc, 0, raft_log_load_from_snapshot(l, 10, 5));
     CuAssertIntEquals(tc, 0, raft_log_count(l));
     CuAssertIntEquals(tc, 10, raft_log_get_current_idx(l));
+
+    raft_entry_release(e1);
+    raft_entry_release(e2);
+
+    raft_entry_t *e;
+
+    while (raft_log_poll(l, &e) == 0) {
+        raft_entry_release(e);
+    }
+
+    raft_log_free(l);
 }
 
 void TestLog_front_pushes_across_boundary(CuTest * tc)
 {
-    void* r = __set_up();
+    void* queue = llqueue_new();
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, queue);
+    raft_log_set_callbacks(raft_get_log(r), &log_funcs, r);
 
     void *l;
 
@@ -378,9 +495,16 @@ void TestLog_front_pushes_across_boundary(CuTest * tc)
     __LOG_APPEND_ENTRY(l, 1, 0, NULL);
     CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
     CuAssertIntEquals(tc, ety->id, 1);
+    raft_entry_release(ety);
+
     __LOG_APPEND_ENTRY(l, 2, 0, NULL);
     CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
     CuAssertIntEquals(tc, ety->id, 2);
+    raft_entry_release(ety);
+
+    llqueue_free(queue);
+    raft_log_free(l);
+    raft_destroy(r);
 }
 
 void TestLog_front_and_back_pushed_across_boundary_with_enlargement_required(CuTest * tc)
@@ -397,6 +521,7 @@ void TestLog_front_and_back_pushed_across_boundary_with_enlargement_required(CuT
     /* poll */
     CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
     CuAssertIntEquals(tc, ety->id, 1);
+    raft_entry_release(ety);
 
     /* append */
     __LOG_APPEND_ENTRY(l, 2, 0, NULL);
@@ -404,6 +529,7 @@ void TestLog_front_and_back_pushed_across_boundary_with_enlargement_required(CuT
     /* poll */
     CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
     CuAssertIntEquals(tc, ety->id, 2);
+    raft_entry_release(ety);
 
     /* append append */
     __LOG_APPEND_ENTRY(l, 3, 0, NULL);
@@ -412,6 +538,13 @@ void TestLog_front_and_back_pushed_across_boundary_with_enlargement_required(CuT
     /* poll */
     CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
     CuAssertIntEquals(tc, ety->id, 3);
+    raft_entry_release(ety);
+
+    CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
+    CuAssertIntEquals(tc, ety->id, 4);
+    raft_entry_release(ety);
+
+    raft_log_free(l);
 }
 
 void TestLog_delete_after_polling(CuTest * tc)
@@ -430,14 +563,19 @@ void TestLog_delete_after_polling(CuTest * tc)
     CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
     CuAssertIntEquals(tc, ety->id, 1);
     CuAssertIntEquals(tc, 0, raft_log_count(l));
+    raft_entry_release(ety);
 
     /* append */
     __LOG_APPEND_ENTRY(l, 2, 0, NULL);
     CuAssertIntEquals(tc, 1, raft_log_count(l));
 
     /* poll */
+    raft_entry_t *e = raft_log_get_at_idx(l, 2);
     CuAssertIntEquals(tc, raft_log_delete(l, 1), 0);
     CuAssertIntEquals(tc, 0, raft_log_count(l));
+    raft_entry_release(e);
+
+    raft_log_free(l);
 }
 
 void TestLog_delete_after_polling_from_double_append(CuTest * tc)
@@ -466,14 +604,26 @@ void TestLog_delete_after_polling_from_double_append(CuTest * tc)
     CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
     CuAssertIntEquals(tc, ety->id, 1);
     CuAssertIntEquals(tc, 1, raft_log_count(l));
+    raft_entry_release(ety);
 
     /* append */
     __LOG_APPEND_ENTRY(l, 3, 0, NULL);
     CuAssertIntEquals(tc, 2, raft_log_count(l));
 
     /* poll */
-    CuAssertIntEquals(tc, raft_log_delete(l, 1), 0);
+    CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
+    CuAssertIntEquals(tc, ety->id, 2);
+    CuAssertIntEquals(tc, 1, raft_log_count(l));
+    raft_entry_release(ety);
+
+    CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
+    CuAssertIntEquals(tc, ety->id, 3);
     CuAssertIntEquals(tc, 0, raft_log_count(l));
+    raft_entry_release(ety);
+
+    llqueue_free(queue);
+    raft_log_free(l);
+    raft_destroy(r);
 }
 
 void TestLog_get_from_idx_with_base_off_by_one(CuTest * tc)
@@ -502,6 +652,7 @@ void TestLog_get_from_idx_with_base_off_by_one(CuTest * tc)
     CuAssertIntEquals(tc, raft_log_poll(l, (void *) &ety), 0);
     CuAssertIntEquals(tc, ety->id, 1);
     CuAssertIntEquals(tc, 1, raft_log_count(l));
+    raft_entry_release(ety);
 
     /* get off-by-one index */
     long n_etys;
@@ -514,6 +665,15 @@ void TestLog_get_from_idx_with_base_off_by_one(CuTest * tc)
     CuAssertPtrNotNull(tc, e);
     CuAssertIntEquals(tc, n_etys, 1);
     CuAssertIntEquals(tc, e[0]->id, 2);
+
+    raft_entry_t *entry;
+    while (raft_log_poll(l, &entry) == 0) {
+        raft_entry_release(entry);
+    }
+
+    llqueue_free(queue);
+    raft_log_free(l);
+    raft_destroy(r);
 }
 
 int main(void)
@@ -543,5 +703,10 @@ int main(void)
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);
 
-    return suite->failCount == 0 ? 0 : 1;
+    int rc = suite->failCount == 0 ? 0 : 1;
+
+    CuStringFree(output);
+    CuSuiteFree(suite);
+
+    return rc;
 }

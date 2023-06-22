@@ -88,5 +88,10 @@ int main(void)
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);
 
-    return suite->failCount == 0 ? 0 : 1;
+    int rc = suite->failCount == 0 ? 0 : 1;
+
+    CuStringFree(output);
+    CuSuiteFree(suite);
+
+    return rc;
 }

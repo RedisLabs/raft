@@ -269,6 +269,7 @@ int raft_log_poll(raft_log_t *me, raft_entry_t **etyp)
 
     raft_entry_release(me->entries[me->front]);
 
+    me->entries[me->front] = NULL;
     me->front++;
     me->front = me->front % me->size;
     me->count--;

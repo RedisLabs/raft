@@ -137,7 +137,9 @@ void* sender_poll_msg_data(void* s)
 {
     sender_t* me = s;
     msg_t* msg = llqueue_poll(me->outbox);
-    return NULL != msg ? msg->data : NULL;
+    void *data = msg ? msg->data : NULL;
+    free(msg);
+    return data;
 }
 
 void sender_set_raft(void* s, void* r)
@@ -164,10 +166,15 @@ void sender_poll_msgs(void* s)
         {
         case RAFT_APPENDENTRIES_REQ:
         {
+            raft_appendentries_req_t *ae = m->data;
             raft_appendentries_resp_t response;
             raft_recv_appendentries(me->raft, m->sender, m->data, &response);
             __append_msg(me, &response, RAFT_APPENDENTRIES_RESP,
                          sizeof(response), m->sender, me->raft);
+            for (raft_index_t i = 0; i < ae->n_entries; i++) {
+                raft_entry_release(ae->entries[i]);
+            }
+            free(ae->entries);
         }
         break;
         case RAFT_APPENDENTRIES_RESP:
@@ -199,5 +206,8 @@ void sender_poll_msgs(void* s)
 #endif
             break;
         }
+
+        free(m->data);
+        free(m);
     }
 }

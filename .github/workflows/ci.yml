@@ -25,3 +25,19 @@ jobs:
         make gcov
     - name: Upload to codecov
       uses: codecov/codecov-action@v2
+
+  address-sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run tests
+        run: |
+          make tests SANITIZER=address
+
+  undefined-sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run tests
+        run: |
+          make tests SANITIZER=undefined
