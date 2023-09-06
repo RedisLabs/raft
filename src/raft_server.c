@@ -132,6 +132,13 @@ raft_server_t *raft_new_with_log(const raft_log_impl_t *log_impl, void *log_arg)
         return NULL;
     }
 
+    me->under_commit_idxes = raft_ring_buffer_new(32);
+    if (!me->under_commit_idxes) {
+        me->log_impl->free(me->log);
+        raft_free(me);
+        return NULL;
+    }
+
     return me;
 }
 
@@ -161,6 +168,8 @@ void raft_destroy(raft_server_t *me)
     if (!me) {
         return;
     }
+
+    raft_ring_buffer_free(me->under_commit_idxes);
 
     while (me->read_queue_head) {
         pop_read_queue(me, 0);
@@ -193,10 +202,14 @@ void raft_clear(raft_server_t *me)
     const struct raft_log_impl *log_impl = me->log_impl;
     void *log = me->log;
 
+    raft_ring_buffer_clear(me->under_commit_idxes);
+    raft_ring_buffer_t* under_commit_idxes = me->under_commit_idxes;
     raft_init(me);
 
     me->log_impl = log_impl;
     me->log = log;
+
+    me->under_commit_idxes = under_commit_idxes;
 }
 
 raft_node_t* raft_add_node_internal(raft_server_t *me, raft_entry_t *ety, void *udata, raft_node_id_t id, int is_self, int voting)
@@ -485,6 +498,7 @@ int raft_become_leader(raft_server_t *me)
 
     raft_node_set_match_idx(me->node, current_idx);
     me->next_sync_index = current_idx + 1;
+    raft_ring_buffer_clear(me->under_commit_idxes);
 
     /* Commit noop immediately if this is a single node cluster. */
     if (raft_is_single_node_voting_cluster(me)) {
@@ -1222,6 +1236,10 @@ int raft_recv_entry(raft_server_t *me,
              ety->term, ety->id, ety->type, ety->data_len,
              raft_get_current_idx(me));
 
+    if (raft_ring_buffer_push_back(me->under_commit_idxes, raft_get_current_idx(me)) != 0) {
+        return RAFT_ERR_NOMEM;
+    }
+
     if (me->auto_flush) {
         e = me->log_impl->sync(me->log);
         if (e != 0) {
@@ -1733,6 +1751,13 @@ int raft_vote_for_nodeid(raft_server_t* me, const raft_node_id_t nodeid)
     return 0;
 }
 
+void raft_confirm_entry_committed(raft_server_t* me, raft_index_t idx)
+{
+    /* The probability that an element closer to the front will be committed
+       first is high, so it is faster to search from the front. */
+    raft_ring_buffer_remove_from_front(me->under_commit_idxes, idx);
+}
+
 int raft_msg_entry_response_committed(raft_server_t* me,
                                       const raft_entry_resp_t* r)
 {
@@ -1741,6 +1766,8 @@ int raft_msg_entry_response_committed(raft_server_t* me,
         return 0;
     raft_term_t ety_term = ety->term;
     raft_entry_release(ety);
+
+    raft_confirm_entry_committed(me, r->idx);
 
     /* entry from another leader has invalidated this entry message */
     if (r->term != ety_term)
@@ -1810,7 +1837,7 @@ raft_index_t raft_get_num_snapshottable_logs(raft_server_t *me)
 {
     if (raft_get_log_count(me) <= 1)
         return 0;
-    return me->commit_idx - me->log_impl->first_idx(me->log) + 1;
+    return me->commit_idx - me->snapshot_last_idx;
 }
 
 int raft_restore_snapshot(raft_server_t *me,
@@ -1879,14 +1906,23 @@ int raft_cancel_snapshot(raft_server_t *me)
 
 int raft_end_snapshot(raft_server_t *me)
 {
+    int poll_idx = 0;
+
     if (!me->snapshot_in_progress)
         return -1;
 
     me->snapshot_last_idx = me->next_snapshot_last_idx;
     me->snapshot_last_term = me->next_snapshot_last_term;
 
+    poll_idx = me->snapshot_last_idx + 1;
+    if (raft_ring_buffer_size(me->under_commit_idxes) > 0) {
+        if (poll_idx > raft_ring_buffer_front(me->under_commit_idxes)) {
+            poll_idx = raft_ring_buffer_front(me->under_commit_idxes);
+        }
+    }
+    
     /* If needed, remove compacted logs */
-    int e = me->log_impl->poll(me->log, me->snapshot_last_idx + 1);
+    int e = me->log_impl->poll(me->log, poll_idx);
     if (e != 0)
         return e;
 

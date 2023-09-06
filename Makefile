@@ -62,7 +62,8 @@ OBJECTS = \
 	$(BUILD_DIR)/raft_server.o \
 	$(BUILD_DIR)/raft_server_properties.o \
 	$(BUILD_DIR)/raft_node.o \
-	$(BUILD_DIR)/raft_log.o
+	$(BUILD_DIR)/raft_log.o \
+	$(BUILD_DIR)/raft_ring_buffer.o
 
 TEST_OBJECTS = $(patsubst $(BUILD_DIR)/%.o,$(BUILD_DIR)/test-%.o,$(OBJECTS))
 

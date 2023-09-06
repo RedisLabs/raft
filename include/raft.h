@@ -1229,7 +1229,15 @@ void *raft_get_udata(raft_server_t *me);
  *  0 on success */
 int raft_set_current_term(raft_server_t *me, raft_term_t term);
 
+/** Confirm the entry at idx has been committed.
+ * This function can be used if you do not call raft_msg_entry_response_committed in the future
+ * because the entry is deleted after taking a snapshot.
+ * @param[in] idx The entry's index */
+void raft_confirm_entry_committed(raft_server_t* me, raft_index_t idx);
+
 /** Confirm if a msg_entry_response has been committed.
+ * Once this function returns non-zero for an entry, it should not be called again for that entry
+ * because the entry is deleted after taking a snapshot.
  * @param[in] r The response we want to check */
 int raft_msg_entry_response_committed(raft_server_t* me,
                                       const raft_entry_resp_t* r);
@@ -1515,6 +1523,8 @@ int raft_timeout_now(raft_server_t* me);
 
 /** Return number of entries that can be compacted
  *
+ * If there is only one entry, this function returns 0 because we need at least
+ * two entries to take a snapshot internally.
  * @param[in] me The Raft server
  * @return number of entries that can be compacted
  */

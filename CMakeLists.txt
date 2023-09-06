@@ -107,7 +107,8 @@ set(RAFT_SOURCE_FILES
         src/raft_log.c
         src/raft_server.c
         src/raft_node.c
-        src/raft_server_properties.c)
+        src/raft_server_properties.c
+        src/raft_ring_buffer.c)
 
 add_library(raft STATIC ${RAFT_SOURCE_FILES})
 
@@ -140,6 +141,7 @@ target_compile_options(raft_shared PRIVATE -g -Wall -Wextra -pedantic)
 define_test(test_log)
 define_test(test_log_impl)
 define_test(test_node)
+define_test(test_ring_buffer)
 define_test(test_scenario)
 define_test(test_server)
 define_test(test_snapshotting)

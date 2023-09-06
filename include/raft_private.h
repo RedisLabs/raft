@@ -10,6 +10,7 @@
 #ifndef RAFT_PRIVATE_H_
 #define RAFT_PRIVATE_H_
 
+#include "raft_ring_buffer.h"
 #include "raft_types.h"
 
 struct raft_log_impl;
@@ -46,6 +47,8 @@ struct raft_server {
 
     /* idx of highest log entry applied to state machine */
     raft_index_t last_applied_idx;
+
+    raft_ring_buffer_t* under_commit_idxes;
 
     /* term of the highest log entry applied to the state machine */
     raft_term_t last_applied_term;
