@@ -1767,12 +1767,17 @@ int raft_msg_entry_response_committed(raft_server_t* me,
     raft_term_t ety_term = ety->term;
     raft_entry_release(ety);
 
-    raft_confirm_entry_committed(me, r->idx);
-
     /* entry from another leader has invalidated this entry message */
-    if (r->term != ety_term)
+    if (r->term != ety_term) {
+        raft_confirm_entry_committed(me, r->idx);
         return -1;
-    return r->idx <= me->commit_idx;
+    }
+
+    int result = r->idx <= me->commit_idx;
+    if (result != 0)
+        raft_confirm_entry_committed(me, r->idx);
+
+    return result;
 }
 
 int raft_pending_operations(raft_server_t *me)
